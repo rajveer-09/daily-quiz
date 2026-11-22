@@ -19,7 +19,17 @@ if (!MONGODB_URI) { console.error('MONGODB_URI is missing. Put it in the .env fi
 if (!ADMIN_EMAIL || !ADMIN_PASSWORD) console.warn('ADMIN_EMAIL / ADMIN_PASSWORD are not set in .env, so admin sign-in is disabled.');
 
 const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
-await client.connect();
+// Keep retrying instead of crashing, so a host whose IP is not yet allowed in Atlas recovers on its own.
+for (let attempt = 1; ; attempt++) {
+  try { await client.connect(); break; }
+  catch (e) {
+    const tls = /SSL|TLS|alert/i.test(String(e && e.message));
+    console.error(`MongoDB connection failed (attempt ${attempt}): ${e.message.split('\n')[0]}`);
+    if (tls) console.error('  -> Atlas is rejecting this server. In Atlas: Security -> Network Access -> Add IP Address -> Allow access from anywhere (0.0.0.0/0).');
+    await new Promise(r => setTimeout(r, 5000));
+  }
+}
+console.log('Connected to MongoDB');
 const db = client.db(DB_NAME);
 const students = db.collection('students');  // { roll, name, set }
 const quizzes = db.collection('quizzes');    // question bank: { _id, title, description, topics, duration, questions[] }
