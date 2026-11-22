@@ -1,0 +1,37 @@
+{
+  "id": "2026-11-23-cpp-basics",
+  "date": "2026-11-23",
+  "title": "C++ Basics Quiz",
+  "description": "20 questions on data types, loops, time and space complexity, primes and divisors, integer and floating-point division, rounding, and pattern printing.",
+  "topics": {
+    "Data types": "char arithmetic, choosing int or long long",
+    "Loops": "for, while and continue",
+    "Complexity": "nested, doubling and √n loops",
+    "Primes & divisors": "prime check, sieve, counting divisors",
+    "Division": "int and double division, negatives and %",
+    "Rounding": "floor, ceil, round, rounding up with ints",
+    "Patterns": "star and number triangles"
+  },
+  "questions": [
+    {"t":"Data types","q":"What does this print?","c":"char c = 'A' + 2;\ncout << c;","o":["C","67","A2","Compile error"],"a":0,"e":"'A' is stored as 65, so 'A' + 2 is 67. Storing 67 in a char gives the character 'C', and cout prints a char as a character."},
+    {"t":"Data types","q":"You need to store the number 3,000,000,000 (3 billion). Which type is the safe choice?","o":["int","long long","short","char"],"a":1,"e":"An int usually holds values up to 2,147,483,647 (about 2.1 billion), so 3 billion overflows it. long long goes up to about 9.2 × 10¹⁸."},
+    {"t":"Loops","q":"How many times is \"Hi\" printed?","c":"for (int i = 0; i < 10; i += 3)\n    cout << \"Hi\";","o":["3","4","10","It never stops"],"a":1,"e":"i takes the values 0, 3, 6 and 9. At 12 the condition i < 10 fails, so the body runs 4 times."},
+    {"t":"Loops","q":"What does this print?","c":"int i = 5;\nwhile (i--)\n    cout << i;","o":["54321","43210","543210","4321"],"a":1,"e":"i-- tests the old value, then decreases it. 5 passes and 4 is printed, and so on down to 1, which passes and prints 0. When the old value is 0 the loop stops."},
+    {"t":"Loops","q":"What does this print?","c":"int s = 0;\nfor (int i = 1; i <= 5; i++) {\n    if (i == 3) continue;\n    s += i;\n}\ncout << s;","o":["15","12","3","10"],"a":1,"e":"continue skips the rest of the body only when i is 3, so s = 1 + 2 + 4 + 5 = 12."},
+    {"t":"Complexity","q":"What is the time complexity of this code?","c":"for (int i = 0; i < n; i++)\n    for (int j = 0; j < n; j++)\n        cnt++;","o":["O(n)","O(n²)","O(2n)","O(log n)"],"a":1,"e":"The inner loop runs n times for each of the n outer iterations, giving n × n steps."},
+    {"t":"Complexity","q":"What is the time complexity of this loop?","c":"for (int i = 1; i < n; i *= 2)\n    cnt++;","o":["O(n)","O(n / 2)","O(log n)","O(√n)"],"a":2,"e":"i doubles every time: 1, 2, 4, 8 and so on. It passes n after about log₂ n steps."},
+    {"t":"Complexity","q":"What is the time complexity of this loop?","c":"for (int i = 1; i * i <= n; i++)\n    cnt++;","o":["O(n)","O(√n)","O(log n)","O(n²)"],"a":1,"e":"The loop stops once i is bigger than √n, so it runs about √n times. That is why prime checks and divisor loops use i * i <= n."},
+    {"t":"Primes & divisors","q":"What does isPrime(1) return, and is that right?","c":"bool isPrime(int n) {\n    for (int i = 2; i * i <= n; i++)\n        if (n % i == 0) return false;\n    return true;\n}","o":["false, which is correct","true, which is correct","true, which is wrong because 1 is not prime","It never stops"],"a":2,"e":"For n = 1 the loop never runs (2 * 2 <= 1 is false), so the function returns true. Adding if (n < 2) return false; at the top fixes it."},
+    {"t":"Primes & divisors","q":"In the Sieve of Eratosthenes, when you reach a prime p, from which number can you start crossing out its multiples?","o":["2 × p","p + 1","p × p","p / 2"],"a":2,"e":"Every smaller multiple k × p (with k < p) has a prime factor smaller than p, so it was already crossed out. The first new one is p × p."},
+    {"t":"Primes & divisors","q":"What is printed when n = 16?","c":"int cnt = 0;\nfor (int i = 1; i * i <= n; i++)\n    if (n % i == 0) {\n        cnt++;\n        if (i != n / i) cnt++;\n    }\ncout << cnt;","o":["4","5","6","8"],"a":1,"e":"The loop finds the pairs (1, 16), (2, 8) and (4, 4). The pair 4 × 4 is counted once, so the divisors are 1, 2, 4, 8 and 16: five of them."},
+    {"t":"Division","q":"What does this print?","c":"cout << 7 / 2 << \" \" << 7 / 2.0;","o":["3 3","3.5 3.5","3 3.5","4 3.5"],"a":2,"e":"7 / 2 divides two ints, so the decimal part is dropped and you get 3. If either side is a double, as with 2.0, the result is 3.5."},
+    {"t":"Division","q":"What does this print?","c":"double d = 7 / 2;\ncout << d;","o":["3.5","3","4","3.0"],"a":1,"e":"7 / 2 is worked out with ints first (3), and only then stored in d as 3.0. cout prints 3.0 as 3. Write 7.0 / 2 or (double)7 / 2 to get 3.5."},
+    {"t":"Division","q":"What does this print?","c":"cout << -7 / 2 << \" \" << -7 % 2;","o":["-4 1","-3 -1","-3 1","-4 -1"],"a":1,"e":"C++ integer division rounds toward zero, so -7 / 2 is -3. The remainder takes the sign of the left side: -7 = 2 × (-3) + (-1)."},
+    {"t":"Rounding","q":"What does this print? (with #include <cmath>)","c":"cout << floor(-2.5) << \" \" << ceil(-2.5);","o":["-2 -3","-3 -2","-2 -2","-3 -3"],"a":1,"e":"floor always goes down to the next whole number (-3) and ceil always goes up (-2). For negative numbers, down means further from zero."},
+    {"t":"Rounding","q":"What does this print? (with #include <cmath>)","c":"cout << round(2.5) << \" \" << round(-2.5);","o":["2 -2","3 -3","3 -2","2 -3"],"a":1,"e":"round moves values that are exactly halfway away from zero: 2.5 becomes 3 and -2.5 becomes -3."},
+    {"t":"Rounding","q":"a and b are positive ints. Which expression gives a ÷ b rounded up?","o":["ceil(a / b)","a / b + 1","(a + b - 1) / b","(a - 1) / b"],"a":2,"e":"ceil(a / b) fails because a / b is already cut down to an int before ceil sees it. a / b + 1 is wrong when b divides a exactly. Adding b - 1 first pushes any remainder up to the next whole number."},
+    {"t":"Patterns","q":"What does this print?","c":"for (int i = 1; i <= 3; i++) {\n    for (int j = 1; j <= i; j++)\n        cout << \"*\";\n    cout << \"\\n\";\n}","p":1,"o":["*\n**\n***","***\n**\n*","***\n***\n***","  *\n **\n***"],"a":0,"e":"Row i prints i stars and then a new line: 1, 2 and 3 stars."},
+    {"t":"Patterns","q":"What does this print?","c":"for (int i = 1; i <= 3; i++) {\n    for (int j = 1; j <= i; j++)\n        cout << j;\n    cout << \"\\n\";\n}","p":1,"o":["1\n22\n333","1\n12\n123","123\n12\n1","1\n23\n456"],"a":1,"e":"The inner loop prints j, which starts again from 1 on every row. Printing i instead would give 1, 22, 333."},
+    {"t":"Patterns","q":"To print this right-aligned triangle for n = 4, how many spaces come before the stars on row i (rows numbered 1 to n)?","c":"   *\n  **\n ***\n****","o":["i","n - i","i - 1","n - i + 1"],"a":1,"e":"Every row is n characters wide. Row i has i stars, so it needs n - i spaces first: 3, 2, 1, 0."}
+  ]
+}
