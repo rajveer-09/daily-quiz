@@ -44,6 +44,7 @@ npm start
 
 - Student site: http://localhost:3000
 - Admin: http://localhost:3000/admin
+- Health check: http://localhost:3000/api/health returns 200 with `{"ok":true,"db":"up"}`, or 503 if the database is unreachable. Point an uptime monitor or cron ping at it.
 
 ### Environment variables (`.env`)
 

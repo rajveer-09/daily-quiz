@@ -322,6 +322,19 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(ROOT, 'public')));
 app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
 
+/* ===== Health check (for uptime monitors / cron pings that keep the server awake) ===== */
+const STARTED = Date.now();
+app.get('/api/health', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const t0 = Date.now();
+  try {
+    await Promise.race([db.command({ ping: 1 }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))]);
+    res.json({ ok: true, db: 'up', dbMs: Date.now() - t0, uptimeSec: Math.round((Date.now() - STARTED) / 1000), time: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ ok: false, db: 'down', error: e.message, time: new Date().toISOString() });
+  }
+});
+
 /* ===== Students ===== */
 app.post('/api/login', async (req, res) => {
   const roll = cleanRoll(req.body?.roll);
