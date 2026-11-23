@@ -126,7 +126,7 @@ function shell(head, body) {
   const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests' }[V.page] || V.page;
   return `<div class="admin">
   <aside class="side card">
-    <a class="brand" href="#/"><span class="logo">Q</span><span>DailyQuiz<small>Admin</small></span></a>
+    <a class="brand" href="#/"><span class="logo">dq</span><span>Daily Quiz <small>Admin</small></span></a>
     ${NAV.map(([k, h, i, t]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}">${icon(i)}<span>${t}</span></a>`).join('')}
     <a class="nv nv-bottom${V.page === 'appearance' ? ' on' : ''}" href="#/appearance">${icon('palette')}<span>Appearance</span></a>
     <div class="foot">
@@ -176,7 +176,7 @@ function testCard(t, sets, compact) {
 /* ---------- Login ---------- */
 function viewLogin() {
   return `<div class="center"><form class="card pad slide-in" id="lf" novalidate style="width:min(100%,420px);padding:32px">
-    <a class="brand" href="#/login" style="margin-bottom:22px"><span class="logo">Q</span>DailyQuiz</a>
+    <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">dq</span>Daily Quiz</a>
     <div class="eyebrow">Admin</div>
     <h2 style="font-size:26px;font-weight:800;margin:4px 0 6px">Sign in</h2>
     <p class="muted" style="margin-bottom:22px">Schedule timed tests, decide which question set each student gets, and see the results.</p>

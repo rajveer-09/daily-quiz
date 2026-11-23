@@ -18,8 +18,7 @@ window.UI = (() => {
   };
 
   const initials = n => String(n || '?').trim().split(/[\s.]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
-  const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-  const avatar = (name, cls = '') => `<span class="avatar ${cls}" style="background:linear-gradient(140deg,hsl(${hue(name)} 55% 52%),hsl(${(hue(name) + 40) % 360} 50% 34%))" aria-hidden="true">${esc(initials(name))}</span>`;
+  const avatar = (name, cls = '') => `<span class="avatar ${cls}" aria-hidden="true">${esc(initials(name))}</span>`;
 
   const P = {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
@@ -56,6 +55,10 @@ window.UI = (() => {
     bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
     palette: '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/>',
     chev: '<path d="m9 6 6 6-6 6"/>',
+    chevd: '<path d="m6 9 6 6 6-6"/>',
+    flag: '<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>',
+    expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    bars: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   };
   const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -69,7 +72,7 @@ window.UI = (() => {
     let lines = '';
     for (let i = 0; i < N; i++) {
       const a = Math.PI - (i + .5) / N * Math.PI, on = (i + .5) / N <= pct / 100, t = i / (N - 1);
-      const col = on ? `color-mix(in srgb,var(--a2) ${Math.round(t * 100)}%,var(--a1))` : 'rgba(255,255,255,.06)';
+      const col = on ? `color-mix(in srgb,var(--acc) ${Math.round(45 + t * 55)}%,transparent)` : 'var(--panel-3)';
       lines += `<line class="${on ? 'on' : ''}" x1="${(cx + r1 * Math.cos(a)).toFixed(1)}" y1="${(cy - r1 * Math.sin(a)).toFixed(1)}" x2="${(cx + r2 * Math.cos(a)).toFixed(1)}" y2="${(cy - r2 * Math.sin(a)).toFixed(1)}" style="stroke:${col}" stroke-width="7"/>`;
     }
     return `<div class="gauge" role="img" aria-label="${pct}% ${esc(label)}"><svg viewBox="10 12 280 150">${lines}</svg><div class="g-val"><b>${pct}%</b><span>${esc(label)}</span></div></div>`;
@@ -78,8 +81,8 @@ window.UI = (() => {
   /** Small ring showing a score. */
   function miniRing(s, t) {
     const f = t ? s / t : 0, C = 2 * Math.PI * 18;
-    const col = f >= .8 ? 'var(--ok)' : f >= .5 ? 'var(--accent)' : 'var(--bad)';
-    return `<div class="mring" role="img" aria-label="${s} of ${t}"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4"/><circle cx="22" cy="22" r="18" fill="none" style="stroke:${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - f)}"/></svg><b>${Math.round(f * 100)}</b></div>`;
+    const col = f >= .5 ? 'var(--acc)' : 'var(--bad)';
+    return `<div class="mring" role="img" aria-label="${s} of ${t}"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="var(--panel-3)" stroke-width="4"/><circle cx="22" cy="22" r="18" fill="none" style="stroke:${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - f)}"/></svg><b>${Math.round(f * 100)}</b></div>`;
   }
 
   function toast(msg, bad) {
@@ -94,10 +97,10 @@ window.UI = (() => {
 
   /* ---------- Themes (remembered per device, changed under Appearance) ---------- */
   const THEMES = [
-    { id: 'mono', name: 'Mono', desc: 'Black, white and silver', bg: '#09090a', top: '#18181b', acc: '#f4f4f5', orb: '#3f3f46' },
-    { id: 'emerald', name: 'Emerald', desc: 'Deep green on near-black', bg: '#020605', top: '#06140f', acc: '#34c796', orb: '#0c6a50' },
-    { id: 'gold', name: 'Gold', desc: 'Champagne gold on warm black', bg: '#050403', top: '#16110a', acc: '#d6b268', orb: '#6a4f18' },
-    { id: 'rose', name: 'Rose', desc: 'Muted coral on dark plum', bg: '#060204', top: '#170a10', acc: '#ef8480', orb: '#6a2440' },
+    { id: 'mono', name: 'Mono', desc: 'White on near-black', bg: '#0B0B0D', acc: '#EDEDEF' },
+    { id: 'emerald', name: 'Emerald', desc: 'Green accent', bg: '#0B0B0D', acc: '#34D399' },
+    { id: 'gold', name: 'Gold', desc: 'Gold accent', bg: '#0B0B0D', acc: '#E5B94E' },
+    { id: 'rose', name: 'Rose', desc: 'Pink accent', bg: '#0B0B0D', acc: '#F28AB2' },
   ];
   const THEME_KEY = 'dq-theme';
   const currentTheme = () => document.documentElement.dataset.accent || 'mono';
@@ -113,10 +116,7 @@ window.UI = (() => {
   function themePicker() {
     const cur = currentTheme();
     return `<div class="tcards" role="radiogroup" aria-label="Theme">${THEMES.map(t => `<button type="button" class="tcard${cur === t.id ? ' on' : ''}" data-theme-pick="${t.id}" role="radio" aria-checked="${cur === t.id}">
-      <span class="tprev" style="background:linear-gradient(160deg,${t.top},${t.bg});--po:${t.orb};--pa:${t.acc}" aria-hidden="true">
-        <i class="tp-side"></i>
-        <span class="tp-body"><i class="tp-line"></i><i class="tp-line short"></i><i class="tp-card"></i><i class="tp-btn"></i></span>
-      </span>
+      <span class="tprev" style="--pa:${t.acc}" aria-hidden="true"><i class="tp-line"></i><i class="tp-line short"></i><i class="tp-btn"></i></span>
       <span class="tname"><b>${t.name}${t.id === 'mono' ? ' <small class="tdef">Default</small>' : ''}</b><small>${t.desc}</small></span>
       <span class="tcheck" aria-hidden="true">${icon('check')}</span>
     </button>`).join('')}</div>`;
