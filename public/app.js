@@ -20,6 +20,21 @@ const V = {
 let navSeq = 0, autoSubmitting = false, reloadAt = 0;
 const now = () => Date.now() + V.skew;
 
+/* ---------- Full screen (tests that require it) ---------- */
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const fsSupported = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+function enterFs() {
+  const el = document.documentElement, fn = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!fn) return Promise.reject(new Error('unsupported'));
+  try { const r = fn.call(el, { navigationUI: 'hide' }); return r && r.then ? r : Promise.resolve(); } catch (e) { return Promise.reject(e); }
+}
+function exitFs() {
+  if (!fsEl()) return;
+  const fn = document.exitFullscreen || document.webkitExitFullscreen;
+  try { const r = fn && fn.call(document); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+}
+const needsFs = () => !!(V.quiz && V.quiz.state === 'started' && V.quiz.fullscreen && fsSupported());
+
 async function api(url, body) {
   const r = await fetch(url, {
     method: body ? 'POST' : 'GET',
@@ -117,6 +132,11 @@ async function openQuiz(id, stale) {
 
 function setQuiz(z) {
   V.quiz = z;
+  V.fsGate = false;
+  if (needsFs() && !fsEl()) {
+    V.fsGate = true; // came back to a running test without full screen (reload, crash, new tab)
+    api(`/api/quizzes/${encodeURIComponent(z.id)}/flag`, { type: 'reload' }).catch(() => {});
+  }
   if (z.state === 'started') { V.byQ = { ...(z.attempt.byQ || {}) }; V.cur = Math.max(0, Math.min(V.cur || 0, z.questions.length - 1)); }
   if (z.state === 'done') loadQuizBoard(z.id);
 }
@@ -292,6 +312,7 @@ function viewIntro() {
       <div><b>${z.count}</b><span>questions</span></div>
       <div><b>1</b><span>attempt</span></div>
     </div>
+    ${z.fullscreen ? `<div class="note warn" style="margin-top:18px">${fsSupported() ? '<b>This test runs in full screen.</b> Pressing Esc, switching apps or leaving full screen in any way <b>submits your test immediately</b>.' : 'This test normally runs in full screen, but this device doesn\x27t support it, so it will run normally.'}</div>` : ''}
     <ul class="rules">
       <li>${icon('clock')}The timer starts when you press Start and can't be paused.</li>
       <li>${icon('check')}Answers save as you go. Move between questions freely.</li>
@@ -362,6 +383,14 @@ function viewTake() {
   </div>`;
 }
 
+function viewFsGate() {
+  return `<div class="card empty fs-gate"><div class="ico">${icon('clock')}</div>
+    <h3>Your test is still running</h3>
+    <p>This test must be taken in full screen. Return to full screen to continue. The timer has kept running, and your answers so far are saved.</p>
+    <button class="btn btn-primary btn-lg" data-act="fsResume">Return to full screen ${icon('right')}</button>
+    <p class="muted" style="font-size:13px;margin-top:14px">Leaving full screen again will submit your test.</p></div>`;
+}
+
 /* ---------- Result ---------- */
 function miniBoard(rows, n) {
   if (!rows) return '<div class="skel" style="height:150px"></div>';
@@ -417,7 +446,7 @@ function viewResult() {
         <span class="bad">${icon('x')}${wrong} wrong</span>
         ${skip ? `<span>${icon('minus')}${skip} skipped</span>` : ''}
         <span>${icon('clock')}${fmtT(A.secs)} of ${z.duration} min</span>
-        ${A.auto ? `<span class="warn-chip">${icon('flame')}Auto-submitted when time ran out</span>` : ''}
+        ${A.endReason === 'left-fullscreen' ? `<span class="bad">${icon('x')}Submitted because you left full screen</span>` : A.auto ? `<span class="warn-chip">${icon('flame')}Auto-submitted when time ran out</span>` : ''}
         ${mine ? `<span class="acc">${icon('trophy')}Rank #${mine.rank} of ${V.qlb.length}</span>` : ''}
       </div>
     </div>
@@ -497,6 +526,12 @@ function viewBoard() {
 /* ---------- Render ---------- */
 function render() {
   if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); return; }
+  if (!V.loading && !V.loadErr && V.quiz && V.quiz.state === 'started' && V.page === 'quiz') {
+    // Focus mode: no sidebar or menus while a test is running.
+    $app.innerHTML = `<main class="focus">${V.fsGate ? viewFsGate() : viewTake()}</main>`;
+    document.title = V.quiz.title + ' · DailyQuiz';
+    return;
+  }
   let html;
   if (V.loading) html = `<div class="skel" style="height:60px;width:50%"></div><div class="g12"><div class="skel s4" style="height:320px"></div><div class="skel s8" style="height:320px"></div></div>`;
   else if (V.loadErr) html = `<div class="card empty"><div class="ico">${icon('x')}</div><h3>Couldn't load this page</h3><p>${esc(V.loadErr)}</p><button class="btn btn-primary" data-act="retry">Try again</button></div>`;
@@ -568,13 +603,14 @@ function pick(i) {
   saveAnswer(q.id, i);
 }
 
-async function finish(auto = false) {
+async function finish(auto = false, reason = null) {
   if (V.busy) return;
   const z = V.quiz, seq = navSeq;
   V.busy = true; V.confirm = false; V.subErr = ''; render();
   try {
-    const res = await api(`/api/quizzes/${encodeURIComponent(z.id)}/submit`, { byQ: V.byQ, auto });
-    if (seq === navSeq) { V.qlb = null; setQuiz(res); window.scrollTo(0, 0); toast(auto ? "Time's up. Your answers were submitted." : 'Submitted'); }
+    const res = await api(`/api/quizzes/${encodeURIComponent(z.id)}/submit`, { byQ: V.byQ, auto, reason });
+    if (seq === navSeq) { V.qlb = null; setQuiz(res); window.scrollTo(0, 0); if (!reason) toast(auto ? "Time's up. Your answers were submitted." : 'Submitted'); }
+    exitFs();
   } catch (e) {
     V.subErr = e.message + ' Your answers are saved. Try again.';
   }
@@ -584,9 +620,13 @@ async function finish(auto = false) {
 
 async function startQuiz() {
   if (V.busy) return;
+  if (V.quiz.fullscreen && fsSupported() && !fsEl()) {
+    try { await enterFs(); }
+    catch (e) { V.subErr = 'This test must be taken in full screen. Allow full screen when your browser asks, then press Start again.'; render(); return; }
+  }
   V.busy = true; V.subErr = ''; render();
   try { const z = await api(`/api/quizzes/${encodeURIComponent(V.quiz.id)}/start`, {}); V.cur = 0; setQuiz(z); window.scrollTo(0, 0); }
-  catch (e) { V.subErr = e.message; }
+  catch (e) { V.subErr = e.message; exitFs(); }
   V.busy = false; render();
 }
 
@@ -629,6 +669,7 @@ document.addEventListener('click', e => {
   else if (a === 'retry') route();
   else if (a === 'changeRoll') { V.login.step = 'roll'; V.login.err = ''; render(); document.getElementById('rl').focus(); }
   else if (a === 'start') startQuiz();
+  else if (a === 'fsResume') enterFs().then(() => { V.fsGate = false; render(); }).catch(() => toast('Allow full screen to continue your test.', true));
   else if (a === 'pick') pick(+b.dataset.i);
   else if (a === 'go') goTo(+b.dataset.q);
   else if (a === 'jump') { V.filter = 'all'; render(); const el = document.getElementById('r' + b.dataset.q); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
@@ -656,6 +697,17 @@ document.addEventListener('keydown', e => {
 
 // Warn before leaving a running test (the clock keeps going, answers are saved).
 window.addEventListener('beforeunload', e => { if (V.quiz && V.quiz.state === 'started') { e.preventDefault(); e.returnValue = ''; } });
+// Leaving full screen during a full-screen test submits it straight away.
+function onFsChange() {
+  if (fsEl()) { if (V.fsGate) { V.fsGate = false; render(); } return; }
+  if (!needsFs() || V.fsGate || V.busy || autoSubmitting) return;
+  autoSubmitting = true;
+  toast('You left full screen, so your test was submitted.', true);
+  finish(false, 'left-fullscreen').finally(() => { autoSubmitting = false; });
+}
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
+
 window.addEventListener('hashchange', route);
 route();
 })();

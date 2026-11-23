@@ -167,8 +167,8 @@ async function regrade(quiz) {
    Submitting is two steps, and the first is atomic: findOneAndUpdate flips "started" to "grading", which both
    stops any further answer saves and returns the latest saved answers in the same operation. So an answer that
    arrives while a submit is happening is either included or rejected, never half-applied or lost silently. */
-async function finalize(a, auto = false) {
-  const claimed = await attempts.findOneAndUpdate({ _id: a._id, status: 'started' }, { $set: { status: 'grading', gradingAt: new Date() } }, { returnDocument: 'after' });
+async function finalize(a, auto = false, reason = null) {
+  const claimed = await attempts.findOneAndUpdate({ _id: a._id, status: 'started' }, { $set: { status: 'grading', gradingAt: new Date(), ...(reason ? { endReason: reason } : {}) } }, { returnDocument: 'after' });
   if (!claimed) return attempts.findOne({ _id: a._id }); // another request is submitting (or already submitted) it
   return gradeClaimed(claimed, auto);
 }
@@ -176,7 +176,7 @@ async function gradeClaimed(c, auto) {
   const z = (await getQuizzes()).get(c.quizId);
   if (!z) return c;
   const end = auto ? +c.deadline : Math.min(Date.now(), +c.deadline);
-  const upd = { status: 'submitted', ...grade(z, c.byQ || {}), secs: Math.max(0, Math.round((end - c.startedAt) / 1000)), at: new Date(end), auto: !!auto };
+  const upd = { status: 'submitted', ...grade(z, c.byQ || {}), secs: Math.max(0, Math.round((end - c.startedAt) / 1000)), at: new Date(end), auto: !!auto, endReason: c.endReason || (auto ? 'time' : 'submitted') };
   await attempts.updateOne({ _id: c._id, status: 'grading' }, { $set: upd, $unset: { gradingAt: '' } });
   invalidate('lb');
   return { ...c, ...upd };
@@ -221,13 +221,13 @@ async function studentView(s) {
   for (const test of T) {
     const p = paperFor(test, s.roll, group);
     if (!p) continue;
-    const it = { quizId: p.quizId, testId: test._id, paperId: p.id, shuffle: !!p.shuffle, testTitle: test.title || '', date: test.date, startsAt: startsAt(test), duration: test.duration };
+    const it = { quizId: p.quizId, testId: test._id, paperId: p.id, shuffle: !!p.shuffle, fullscreen: !!test.fullscreen, testTitle: test.title || '', date: test.date, startsAt: startsAt(test), duration: test.duration };
     if (it.startsAt <= now) { const prev = open.get(it.quizId); if (!prev || it.startsAt > prev.startsAt) open.set(it.quizId, it); }
     else { const prev = up.get(it.quizId); if (!prev || it.startsAt < prev.startsAt) up.set(it.quizId, it); }
   }
   // A quiz they already started or took stays visible even if the test changes later.
   for (const a of mine) {
-    if (!open.has(a.quizId)) open.set(a.quizId, { quizId: a.quizId, testId: a.testId || null, date: a.givenDate || dayOf(a.startedAt || a.at), startsAt: +new Date(a.startedAt || a.at), duration: a.duration || DEFAULT_DURATION });
+    if (!open.has(a.quizId)) open.set(a.quizId, { quizId: a.quizId, testId: a.testId || null, fullscreen: !!a.fullscreen, date: a.givenDate || dayOf(a.startedAt || a.at), startsAt: +new Date(a.startedAt || a.at), duration: a.duration || DEFAULT_DURATION });
   }
   const upcoming = [...up.values()].filter(u => !open.has(u.quizId) && !byQuiz.has(u.quizId)).sort((a, b) => a.startsAt - b.startsAt);
   return { now, t, open, upcoming, byQuiz };
@@ -259,7 +259,7 @@ function orderFor(z, it, a) {
 function attemptJson(a, perm) {
   if (!a) return null;
   if (!isDone(a)) return { status: 'started', startedAt: +new Date(a.startedAt), deadline: +new Date(a.deadline), byQ: a.byQ || {} };
-  return { status: 'submitted', ans: perm ? perm.map(i => a.ans[i]) : a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto };
+  return { status: 'submitted', ans: perm ? perm.map(i => a.ans[i]) : a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
 }
 function stateOf(it, a, now) { return a ? (isDone(a) ? 'done' : 'started') : it.startsAt > now ? 'upcoming' : 'open'; }
 
@@ -271,6 +271,8 @@ function quizPayload(z, it, a, v) {
     id: z._id, title: z.title, description: z.description || '', topics: z.topics || {}, topicList: topicList(z),
     count: z.questions.length, duration: it.duration, date: it.date, startsAt: it.startsAt, isToday: it.date === v.t,
     now: Date.now(), state, attempt: attemptJson(a, perm),
+    // An attempt keeps the rule it started under (attempts begun before full screen was required aren't held to it).
+    fullscreen: a ? !!a.fullscreen : !!it.fullscreen,
   };
   if (state === 'started') base.questions = perm.map(i => strip(z.questions[i]));
   if (state === 'done') base.questions = perm.map(i => ({ ...strip(z.questions[i]), a: z.questions[i].a, e: z.questions[i].e || '' }));
@@ -506,7 +508,7 @@ app.post('/api/quizzes/:id/start', auth, async (req, res) => {
     const now = new Date();
     a = { roll: req.student.roll, name: req.student.name, quizId: f.id, testId: f.it.testId, givenDate: f.it.date, duration: f.it.duration,
       status: 'started', startedAt: now, deadline: new Date(+now + f.it.duration * 60_000), byQ: {},
-      paperId: f.it.paperId || null, order: orderFor(f.z, f.it, null).map(i => f.z.questions[i].id) };
+      paperId: f.it.paperId || null, order: orderFor(f.z, f.it, null).map(i => f.z.questions[i].id), fullscreen: !!f.it.fullscreen, flags: {} };
     try { await attempts.insertOne(a); }
     catch (e) { if (e.code !== 11000) throw e; a = await attempts.findOne({ roll: req.student.roll, quizId: f.id }); }
   }
@@ -531,6 +533,13 @@ app.post('/api/quizzes/:id/answer', auth, async (req, res) => {
   res.status(409).json({ error: a && a.status === 'started' ? "Time's up. Your answers were submitted." : 'This quiz is no longer running.', done: true });
 });
 
+// Full-screen tests: the page reports when a student comes back to a running test without full screen (reload/crash).
+app.post('/api/quizzes/:id/flag', auth, async (req, res) => {
+  if (req.body?.type !== 'reload') return res.status(400).json({ error: 'Unknown flag.' });
+  await attempts.updateOne({ roll: req.student.roll, quizId: String(req.params.id), status: 'started' }, { $inc: { 'flags.reload': 1 } });
+  res.json({ ok: true });
+});
+
 app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
@@ -545,7 +554,8 @@ app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
       for (const q of f.z.questions) { const v = body[q.id]; if (Number.isInteger(v) && v >= 0 && v < q.o.length) $set[`byQ.${q.id}`] = v; }
       if (Object.keys($set).length) await attempts.updateOne({ _id: a._id, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } }, { $set });
     }
-    a = await finalize(a, !live || !!req.body?.auto);
+    const reason = req.body?.reason === 'left-fullscreen' ? 'left-fullscreen' : null;
+    a = await finalize(a, !live || !!req.body?.auto, reason);
     // Another request may be mid-submit for this attempt: wait briefly for it to finish.
     for (let i = 0; i < 20 && a && !isDone(a); i++) { await new Promise(r => setTimeout(r, 100)); a = await attempts.findOne({ _id: a._id }); }
   }
@@ -643,7 +653,7 @@ const testStatus = (test, now) => { const s = startsAt(test); return now < s ? '
 function testJson(st, test) {
   const list = st.who.get(test._id);
   return {
-    id: test._id, title: test.title || '', date: test.date, start: test.start, duration: test.duration, startsAt: startsAt(test), status: testStatus(test, st.now),
+    id: test._id, title: test.title || '', date: test.date, start: test.start, duration: test.duration, fullscreen: !!test.fullscreen, startsAt: startsAt(test), status: testStatus(test, st.now),
     papers: (test.papers || []).map(p => {
       const mine = list.filter(x => x.paper === p);
       const sub = mine.filter(x => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return a && a.status === 'submitted'; });
@@ -726,7 +736,7 @@ async function normalizeTest(b) {
     return out;
   });
   if (everyone > 1) throw new Bad('Only one paper can go to "everyone else".');
-  return { title: str(b.title, 80), date, start, duration, papers };
+  return { title: str(b.title, 80), date, start, duration, fullscreen: b.fullscreen === undefined ? true : !!b.fullscreen, papers };
 }
 
 app.post('/api/admin/tests', async (req, res) => {
@@ -773,7 +783,7 @@ app.get('/api/admin/quizzes/:id', async (req, res) => {
     quiz: { id, title: z.title, description: z.description || '', topics: z.topics || {}, duration: z.duration || DEFAULT_DURATION, questions: z.questions, updatedAt: z.updatedAt },
     today: st.t, sets: setList(st),
     tests: st.T.filter(x => (x.papers || []).some(p => p.quizId === id)).map(x => ({ id: x._id, title: x.title || '', date: x.date, start: x.start, status: testStatus(x, st.now) })),
-    attempts: done.map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, set: s ? st.groupOf(s) : null, ans: a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, late: a.givenDate ? dayOf(a.at) > a.givenDate : false }; }),
+    attempts: done.map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, set: s ? st.groupOf(s) : null, ans: a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0, late: a.givenDate ? dayOf(a.at) > a.givenDate : false }; }),
     inProgress: L.filter(a => !isDone(a)).map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, deadline: a.deadline }; }),
     notTaken: [...(st.audience.get(id) || [])].filter(r => !touched.has(r) && student.has(r)).map(r => { const s = student.get(r); return { roll: r, name: s.name, set: st.groupOf(s) }; }).sort((a, b) => a.name.localeCompare(b.name)),
   });
@@ -827,7 +837,7 @@ function cellFor(st, test, s, paper) {
   const a = st.att.get(`${s.roll}|${paper.quizId}`);
   const at0 = startsAt(test);
   const base = { testId: test._id, quizId: paper.quizId };
-  if (a && a.status === 'submitted') return { ...base, state: 'done', score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, late: dayOf(a.at) > test.date };
+  if (a && a.status === 'submitted') return { ...base, state: 'done', score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0, late: dayOf(a.at) > test.date };
   if (a) return { ...base, state: 'started' };
   return { ...base, state: at0 > st.now ? 'upcoming' : test.date < st.t ? 'missed' : 'pending' };
 }

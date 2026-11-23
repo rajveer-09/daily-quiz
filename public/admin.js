@@ -115,9 +115,9 @@ const blankPaper = () => ({ quizId: '', everyone: false, shuffle: false, sets: [
 function newTestDraft(d) {
   const t = new Date(now() + 3600e3); // next full hour, local time
   const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  return { title: '', date, start: `${String(t.getHours()).padStart(2, '0')}:00`, duration: 30, papers: [{ ...blankPaper(), everyone: true }] };
+  return { title: '', date, start: `${String(t.getHours()).padStart(2, '0')}:00`, duration: 30, fullscreen: true, papers: [{ ...blankPaper(), everyone: true }] };
 }
-const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
+const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, fullscreen: !!t.fullscreen, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
 const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students']];
@@ -166,7 +166,7 @@ function testCard(t, sets, compact) {
     <div class="tc-date"><span>${esc(fmtDay(t.date, { weekday: 'short' }))}</span><b>${Number(t.date.slice(8))}</b><span>${esc(fmtDay(t.date, { month: 'short' }))}</span></div>
     <div class="tc-main">
       <div class="row" style="gap:8px"><b class="tc-title">${esc(t.title || 'Test')}</b>${statusBadge(t)}</div>
-      <div class="muted" style="font-size:14px">${icon('clock')} ${esc(hm(t.start))} · ${t.duration} min · ${sub}/${total} submitted${t.unassigned ? ` · <span style="color:var(--warn)">${t.unassigned} without a quiz</span>` : ''}</div>
+      <div class="muted" style="font-size:14px">${icon('clock')} ${esc(hm(t.start))} · ${t.duration} min · ${t.fullscreen ? 'full screen · ' : ''}${sub}/${total} submitted${t.unassigned ? ` · <span style="color:var(--warn)">${t.unassigned} without a quiz</span>` : ''}</div>
       <div class="tc-papers">${t.papers.map((p, i) => `<div class="tc-paper"><span class="paper-tag">Set ${PL[i]}</span><a href="#/quiz/${esc(p.quizId)}"><b>${esc(p.quizTitle)}</b></a>${p.shuffle ? '<span class="badge">Jumbled</span>' : ''}<span class="muted">→ ${esc(audienceText(p, sets))} · ${p.count} student${p.count === 1 ? '' : 's'}</span>${p.started ? `<span class="badge accent">${p.started} in progress</span>` : ''}${p.avgPct !== null ? `<span class="badge">avg ${p.avgPct}%</span>` : ''}</div>`).join('')}</div>
     </div>
     ${compact ? '' : `<div class="tc-acts"><a class="btn btn-ghost btn-sm" href="#/test/${esc(t.id)}">${icon('edit')}Edit</a><a class="btn btn-ghost btn-sm" href="#/day/${esc(t.date)}">${icon('list')}Results</a>${armed('deltest:' + t.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(t.id)}" title="Delete test"`)}</div>`}
@@ -287,6 +287,7 @@ function viewTest() {
           <div class="field"><label for="tm">Duration (minutes)</label><input class="input" id="tm" type="number" min="1" max="600" data-tf="duration" value="${esc(D.duration)}"></div>
         </div>
         <div class="row" style="margin-top:12px;gap:6px"><span class="muted" style="font-size:13.5px;margin-right:4px">Quick:</span>${durChips}</div>
+        <label class="check" style="margin-top:14px"><input type="checkbox" id="tfs"${D.fullscreen ? ' checked' : ''}><span><b>Require full screen.</b> The test opens in full screen, and leaving full screen (Esc, switching apps) submits it immediately.</span></label>
         <p class="hint" style="margin-top:12px">The test opens at the start time. Each student then has <b>${esc(D.duration)} minutes</b> from the moment they press Start, and answers submit automatically when time runs out.</p>
       </section>
       <div class="section-head" style="margin:10px 0 0"><h2>Question sets</h2><span class="muted" style="font-size:14px">Give different students different quizzes</span></div>
@@ -360,7 +361,7 @@ function viewDay() {
       <td data-l="Quiz"><a href="#/quiz/${esc(r.quizId)}">${esc(r.quizTitle)}</a>${multi ? `<br><small class="muted">${esc(hm(r.time))}</small>` : ''}</td>
       <td data-l="Score" class="r">${r.state === 'done' ? `${pctBadge(r.score, r.total)} <span class="muted" style="font-size:13px">${Math.round(r.score / r.total * 100)}%</span>` : stateBadge(r)}</td>
       <td data-l="Time" class="r">${r.state === 'done' ? fmtT(r.secs) : '–'}</td>
-      <td data-l="Submitted" class="r">${r.state === 'done' ? `${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}` : '–'}</td>
+      <td data-l="Submitted" class="r">${r.state === 'done' ? `${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}${r.endReason === 'left-fullscreen' ? ' <span class="badge bad" title="Left full screen, so the test was submitted">Left full screen</span>' : ''}${r.reloads ? ` <span class="badge warn" title="Came back to the running test without full screen">Reloaded ×${r.reloads}</span>` : ''}` : '–'}</td>
     </tr>`).join('')}</tbody></table></div>` : '<div class="card empty"><p>No students match.</p></div>';
   return shell(head(d.date === d.today ? "Today's results" : 'Daily results', `${esc(fmtDay(d.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}. What every student scored on the quiz they were given, whatever their group or set.`, nav),
     `<div class="toolbar">${seg}</div>
@@ -460,7 +461,7 @@ function viewQuiz() {
     <td data-l="Group"><span class="badge">${esc(groupName(D.sets, r.set))}</span></td>
     <td data-l="Score" class="r">${pctBadge(r.score, r.total)}</td>
     <td data-l="Time" class="r">${fmtT(r.secs)}</td>
-    <td data-l="Submitted" class="r">${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}</td>
+    <td data-l="Submitted" class="r">${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}${r.endReason === 'left-fullscreen' ? ' <span class="badge bad" title="Left full screen, so the test was submitted">Left full screen</span>' : ''}${r.reloads ? ` <span class="badge warn" title="Came back to the running test without full screen">Reloaded ×${r.reloads}</span>` : ''}</td>
     <td data-l="Answers"><div class="strip">${Q.map((q, k) => `<i class="${r.ans[k] < 0 ? '' : r.ans[k] === q.a ? 'ok' : 'bad'}" title="Q${k + 1}: ${r.ans[k] < 0 ? 'blank' : L[r.ans[k]]}"></i>`).join('')}</div></td>
     <td data-l="">${armed('retake:' + r.roll, 'Allow retake', 'Confirm: delete attempt', 'btn-ghost btn-sm', ` data-roll="${esc(r.roll)}"`)}</td>
   </tr>`).join('')}</tbody></table></div>
@@ -691,8 +692,8 @@ function downloadCsv(name, headRow, rows) {
 }
 function quizCsv() {
   const { quiz: z, attempts: A, sets } = V.data, Q = z.questions;
-  downloadCsv(`${z.id}-results.csv`, ['Name', 'Roll', 'Group', 'Score', 'Total', 'Percent', 'Time (s)', 'Submitted', 'Auto-submitted', ...Q.map((q, i) => 'Q' + (i + 1))],
-    A.slice().sort((a, b) => b.score - a.score).map(r => [r.name, r.roll, groupName(sets, r.set), r.score, r.total, Math.round(r.score / r.total * 100), r.secs, new Date(r.at).toLocaleString(), r.auto ? 'yes' : '', ...r.ans.map((x, i) => x < 0 ? '' : L[x] + (x === Q[i].a ? '' : ' (wrong)'))]));
+  downloadCsv(`${z.id}-results.csv`, ['Name', 'Roll', 'Group', 'Score', 'Total', 'Percent', 'Time (s)', 'Submitted', 'How it ended', 'Reloads', ...Q.map((q, i) => 'Q' + (i + 1))],
+    A.slice().sort((a, b) => b.score - a.score).map(r => [r.name, r.roll, groupName(sets, r.set), r.score, r.total, Math.round(r.score / r.total * 100), r.secs, new Date(r.at).toLocaleString(), r.endReason === 'left-fullscreen' ? 'left full screen' : r.auto ? 'time ran out' : 'submitted', r.reloads || 0, ...r.ans.map((x, i) => x < 0 ? '' : L[x] + (x === Q[i].a ? '' : ' (wrong)'))]));
 }
 function dayCsv() {
   const d = V.data.day;
@@ -762,6 +763,7 @@ $app.addEventListener('change', async e => {
     if (q && V.draft.papers.length === 1 && !V.data.editing) V.draft.duration = q.duration;
     markDirty(); render(); return;
   }
+  if (V.page === 'test' && el.id === 'tfs') { V.draft.fullscreen = el.checked; markDirty(); return; }
   if (V.page === 'test' && el.dataset.pf === 'shuffle') { V.draft.papers[+el.dataset.pi].shuffle = el.checked; markDirty(); return; }
   if (V.page === 'test' && el.dataset.act === 'pickOne') {
     const p = V.draft.papers[+el.dataset.pi], r = el.dataset.roll;
