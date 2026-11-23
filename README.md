@@ -32,6 +32,18 @@ Timed class quizzes with a student site and an admin dashboard. Built with Node.
 
 **Design:** a dark frosted-glass look that works on desktop and phone. There are four themes (Mono, Emerald, Gold and Rose), and each person picks theirs under Appearance.
 
+## Performance and reliability
+
+- **Caching:** tests, quizzes, groups and student records are kept in server memory and cleared on every admin change. A student page needs a single database read.
+- **Leaderboards:** computed at most every 10 seconds, and recomputed straight away after each submission.
+- **Static files:** CSS and JS are compressed once at startup (brotli or gzip) and carry a content hash in their URL. Browsers cache them for a year and download them again only after a deploy changes them.
+- **Atomic attempts:**
+  - Each saved answer is one conditional write that also checks the deadline.
+  - Submitting first locks the attempt in a single operation (`started -> grading`). This blocks any further answer saves and returns the final answers, so every answer is either counted or rejected, never lost.
+  - Many simultaneous starts or submits produce exactly one attempt, graded once.
+- **Safe admin edits:** saving a quiz or test is rejected with a 409 if someone else saved it after it was loaded. Nothing is silently overwritten.
+- **Startup:** the server retries the MongoDB connection until it succeeds, instead of crashing.
+
 ## Run locally
 
 Requirements: Node.js 20 or newer, and a MongoDB database (Atlas or local).

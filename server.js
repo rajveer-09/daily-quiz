@@ -1,9 +1,11 @@
 import express from 'express';
+import compression from 'compression';
 import { MongoClient } from 'mongodb';
 import { readdir, readFile } from 'node:fs/promises';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const {
@@ -18,7 +20,8 @@ const DEFAULT_DURATION = 30;     // minutes
 if (!MONGODB_URI) { console.error('MONGODB_URI is missing. Put it in the .env file.'); process.exit(1); }
 if (!ADMIN_EMAIL || !ADMIN_PASSWORD) console.warn('ADMIN_EMAIL / ADMIN_PASSWORD are not set in .env, so admin sign-in is disabled.');
 
-const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
+// A warm pool of connections so a burst of students at test time doesn't wait on new TLS handshakes.
+const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 15000, maxPoolSize: 50, minPoolSize: 5, maxIdleTimeMS: 300_000 });
 // Keep retrying instead of crashing, so a host whose IP is not yet allowed in Atlas recovers on its own.
 for (let attempt = 1; ; attempt++) {
   try { await client.connect(); break; }
@@ -45,6 +48,32 @@ await Promise.all([
   attempts.createIndex({ status: 1, deadline: 1 }),
   tests.createIndex({ date: 1, start: 1 }),
 ]);
+
+/* ---------- In-memory cache ----------
+   Tests, quizzes, groups and students change only through admin actions but are read on every student request.
+   They live in memory and are cleared on every admin write; a short TTL is the safety net (several server
+   instances, or direct database edits). Loads in flight when a key is cleared are discarded, never stored. */
+const CACHE_TTL = 30_000;
+const memo = new Map(); // key -> { has, v, at } | { p }
+function cachedGet(key, ttl, loader) {
+  const e = memo.get(key);
+  if (e && e.has && Date.now() - e.at < ttl) return Promise.resolve(e.v);
+  if (e && e.p) return e.p; // one database load per key, however many requests arrive together
+  const p = loader().then(
+    v => { const cur = memo.get(key); if (cur && cur.p === p) { if (v != null) memo.set(key, { has: true, v, at: Date.now() }); else memo.delete(key); } return v; },
+    err => { const cur = memo.get(key); if (cur && cur.p === p) memo.delete(key); throw err; });
+  memo.set(key, { p });
+  return p;
+}
+/** Clear cache keys: invalidate('tests') clears "tests"; invalidate('stu') clears every "stu:…" key. */
+function invalidate(...prefixes) {
+  for (const k of [...memo.keys()]) if (prefixes.some(x => k === x || k.startsWith(x + ':'))) memo.delete(k);
+}
+const getTests = () => cachedGet('tests', CACHE_TTL, () => tests.find({}).sort({ date: 1, start: 1 }).toArray());
+const loadSets = () => sets.find().sort({ order: 1, _id: 1 }).toArray();
+const getSets = () => cachedGet('sets', CACHE_TTL, loadSets);
+const getQuizzes = () => cachedGet('quizzes', CACHE_TTL, async () => new Map((await quizzes.find({}).toArray()).map(z => [z._id, z])));
+const getStudent = roll => cachedGet('stu:' + roll, CACHE_TTL, () => students.findOne({ roll }));
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -127,26 +156,51 @@ function grade(quiz, byQ) {
 
 async function regrade(quiz) {
   const list = await attempts.find({ quizId: quiz._id, status: 'submitted' }).toArray();
-  if (list.length) await attempts.bulkWrite(list.map(a => ({ updateOne: { filter: { _id: a._id }, update: { $set: grade(quiz, a.byQ) } } })));
+  // Each write is conditional on the attempt still being submitted, so it can't race a retake.
+  if (list.length) await attempts.bulkWrite(list.map(a => ({ updateOne: { filter: { _id: a._id, status: 'submitted' }, update: { $set: grade(quiz, a.byQ) } } })));
+  invalidate('lb');
   return list.length;
 }
 
-/* ---------- Timed attempts ---------- */
-async function finalize(a, z, byQ = a.byQ || {}, auto = false) {
-  z = z || await quizzes.findOne({ _id: a.quizId });
-  if (!z) return null;
-  const end = auto ? +a.deadline : Math.min(Date.now(), +a.deadline);
-  const upd = { status: 'submitted', byQ, ...grade(z, byQ), secs: Math.max(0, Math.round((end - a.startedAt) / 1000)), at: new Date(end), auto };
-  const r = await attempts.updateOne({ _id: a._id, status: 'started' }, { $set: upd });
-  if (!r.modifiedCount) return attempts.findOne({ _id: a._id });
-  return { ...a, ...upd };
+/* ---------- Timed attempts ----------
+   Attempt lifecycle: started -> grading -> submitted.
+   Submitting is two steps, and the first is atomic: findOneAndUpdate flips "started" to "grading", which both
+   stops any further answer saves and returns the latest saved answers in the same operation. So an answer that
+   arrives while a submit is happening is either included or rejected, never half-applied or lost silently. */
+async function finalize(a, auto = false) {
+  const claimed = await attempts.findOneAndUpdate({ _id: a._id, status: 'started' }, { $set: { status: 'grading', gradingAt: new Date() } }, { returnDocument: 'after' });
+  if (!claimed) return attempts.findOne({ _id: a._id }); // another request is submitting (or already submitted) it
+  return gradeClaimed(claimed, auto);
+}
+async function gradeClaimed(c, auto) {
+  const z = (await getQuizzes()).get(c.quizId);
+  if (!z) return c;
+  const end = auto ? +c.deadline : Math.min(Date.now(), +c.deadline);
+  const upd = { status: 'submitted', ...grade(z, c.byQ || {}), secs: Math.max(0, Math.round((end - c.startedAt) / 1000)), at: new Date(end), auto: !!auto };
+  await attempts.updateOne({ _id: c._id, status: 'grading' }, { $set: upd, $unset: { gradingAt: '' } });
+  invalidate('lb');
+  return { ...c, ...upd };
 }
 /** Auto-submit every attempt whose time ran out (answers were saved as the student went). */
 async function finalizeExpired() {
-  const list = await attempts.find({ status: 'started', deadline: { $lt: new Date(Date.now() - GRACE_MS) } }).toArray();
-  for (const a of list) await finalize(a, null, a.byQ || {}, true);
+  const now = Date.now();
+  const list = await attempts.find({ status: 'started', deadline: { $lt: new Date(now - GRACE_MS) } }, { projection: { _id: 1 } }).toArray();
+  for (const a of list) await finalize(a, true);
+  // Crash recovery: an attempt left in "grading" (the process stopped between the two steps) is graded now.
+  const stuck = await attempts.find({ status: 'grading', gradingAt: { $lt: new Date(now - 30_000) } }).toArray();
+  for (const c of stuck) await gradeClaimed(c, +new Date(c.deadline) < now);
 }
-setInterval(() => finalizeExpired().catch(e => console.error(e)), 15_000);
+// Requests call this; it runs at most every 3 seconds, and only one sweep runs at a time.
+let lastSweep = 0, sweeping = null;
+function sweepExpired(force = false) {
+  if (sweeping) return sweeping;
+  if (!force && Date.now() - lastSweep < 3000) return Promise.resolve();
+  lastSweep = Date.now();
+  sweeping = finalizeExpired().catch(e => console.error('sweep failed:', e.message)).finally(() => { sweeping = null; });
+  return sweeping;
+}
+setInterval(() => sweepExpired(true), 15_000);
+const isDone = a => a && a.status === 'submitted';
 
 /* ---------- Who gets which paper ----------
    In a test, a student gets the paper that names them individually, else the paper for their set, else the "everyone else" paper. */
@@ -155,13 +209,12 @@ function paperFor(test, roll, set) {
   return P.find(p => (p.rolls || []).includes(roll)) || (set && P.find(p => (p.sets || []).includes(set))) || P.find(p => p.everyone) || null;
 }
 
-async function getSets() { return sets.find().sort({ order: 1, _id: 1 }).toArray(); }
-
-/** What one student can see. open: quizId -> latest opened test item. upcoming: future items. */
+/** What one student can see. open: quizId -> latest opened test item. upcoming: future items.
+    Tests and groups come from memory; the student's own attempts are the only database read. */
 async function studentView(s) {
-  await finalizeExpired();
+  await sweepExpired();
   const now = Date.now(), t = today();
-  const [T, mine, SETS] = await Promise.all([tests.find({}).toArray(), attempts.find({ roll: s.roll }).toArray(), getSets()]);
+  const [T, mine, SETS] = await Promise.all([getTests(), attempts.find({ roll: s.roll }).toArray(), getSets()]);
   const group = s.set && SETS.some(x => x._id === s.set) ? s.set : null;
   const byQuiz = new Map(mine.map(a => [a.quizId, a]));
   const open = new Map(), up = new Map();
@@ -205,10 +258,10 @@ function orderFor(z, it, a) {
 
 function attemptJson(a, perm) {
   if (!a) return null;
-  if (a.status === 'started') return { status: 'started', startedAt: +new Date(a.startedAt), deadline: +new Date(a.deadline), byQ: a.byQ || {} };
+  if (!isDone(a)) return { status: 'started', startedAt: +new Date(a.startedAt), deadline: +new Date(a.deadline), byQ: a.byQ || {} };
   return { status: 'submitted', ans: perm ? perm.map(i => a.ans[i]) : a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto };
 }
-function stateOf(it, a, now) { return a ? (a.status === 'started' ? 'started' : 'done') : it.startsAt > now ? 'upcoming' : 'open'; }
+function stateOf(it, a, now) { return a ? (isDone(a) ? 'done' : 'started') : it.startsAt > now ? 'upcoming' : 'open'; }
 
 /** The quiz as one student may see it: no questions before starting, no answer key before submitting. */
 function quizPayload(z, it, a, v) {
@@ -232,7 +285,7 @@ function rankRows(rows, same) {
 async function auth(req, res, next) {
   try {
     const roll = cleanRoll(req.get('x-roll'));
-    const s = roll && await students.findOne({ roll });
+    const s = roll && await getStudent(roll);
     if (!s) return res.status(401).json({ error: 'Please sign in.' });
     req.student = s;
     next();
@@ -328,18 +381,55 @@ const failures = new Map();
 /* ---------- App ---------- */
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // behind Render's proxy: real client IPs for the admin sign-in lockout
+app.use(compression());
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(ROOT, 'public')));
-app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'public', 'admin.html')));
+
+/* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again
+   only when a file actually changes. The two HTML pages are served from memory and always revalidated. */
+const PUB = path.join(ROOT, 'public');
+const ASSETS = ['styles.css', 'common.js', 'app.js', 'admin.js'];
+const ASSET_V = createHash('sha1').update((await Promise.all(ASSETS.map(f => readFile(path.join(PUB, f))))).join('\n')).digest('hex').slice(0, 10);
+const HTML = {};
+for (const f of ['index.html', 'admin.html']) {
+  HTML[f] = (await readFile(path.join(PUB, f), 'utf8')).replace(/(href|src)="\/(styles\.css|common\.js|app\.js|admin\.js)"/g, `$1="/$2?v=${ASSET_V}"`);
+}
+const sendHtml = f => (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(HTML[f]); };
+app.get(['/', '/index.html'], sendHtml('index.html'));
+app.get(['/admin', '/admin.html'], sendHtml('admin.html'));
+// CSS/JS are compressed once at startup (brotli + gzip) and served from memory: no per-request compression work.
+const PACKED = new Map();
+for (const f of ASSETS) {
+  const raw = await readFile(path.join(PUB, f));
+  PACKED.set('/' + f, { type: f.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', raw,
+    br: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } }), gzip: zlib.gzipSync(raw, { level: 9 }) });
+}
+app.get([...PACKED.keys()], (req, res) => {
+  const a = PACKED.get(req.path), enc = req.acceptsEncodings('br', 'gzip');
+  res.set({ 'Content-Type': a.type, Vary: 'Accept-Encoding', ETag: `"${ASSET_V}-${enc || 'id'}"`,
+    'Cache-Control': req.query.v === ASSET_V ? 'public, max-age=31536000, immutable' : 'no-cache' });
+  if (req.fresh) return res.status(304).end();
+  if (enc) res.set('Content-Encoding', enc);
+  res.send(enc ? a[enc] : a.raw);
+});
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') res.set('Cache-Control', req.query.v === ASSET_V ? 'public, max-age=31536000, immutable' : 'no-cache');
+  next();
+});
+app.use(express.static(PUB, { index: false, cacheControl: false }));
 
 /* ===== Health check (for uptime monitors / cron pings that keep the server awake) ===== */
 const STARTED = Date.now();
 app.get('/api/health', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const t0 = Date.now();
   try {
-    await Promise.race([db.command({ ping: 1 }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))]);
-    res.json({ ok: true, db: 'up', dbMs: Date.now() - t0, uptimeSec: Math.round((Date.now() - STARTED) / 1000), time: new Date().toISOString() });
+    // The database ping is shared for 5 s, so a flood of health checks can't load the database.
+    const dbMs = await cachedGet('health', 5000, async () => {
+      const t0 = Date.now();
+      await Promise.race([db.command({ ping: 1 }), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))]);
+      return Date.now() - t0;
+    });
+    res.json({ ok: true, db: 'up', dbMs, uptimeSec: Math.round((Date.now() - STARTED) / 1000), time: new Date().toISOString() });
   } catch (e) {
     res.status(503).json({ ok: false, db: 'down', error: e.message, time: new Date().toISOString() });
   }
@@ -369,9 +459,7 @@ app.post('/api/login', async (req, res) => {
 
 // Everything for the student's home, upcoming and past pages. Sets and paper names are never sent.
 app.get('/api/home', auth, async (req, res) => {
-  const v = await studentView(req.student);
-  const ids = [...new Set([...v.open.keys(), ...v.upcoming.map(u => u.quizId)])];
-  const Z = new Map((await quizzes.find({ _id: { $in: ids } }).toArray()).map(z => [z._id, z]));
+  const [v, Z] = await Promise.all([studentView(req.student), getQuizzes()]);
   const item = it => {
     const z = Z.get(it.quizId);
     if (!z) return null;
@@ -380,7 +468,7 @@ app.get('/api/home', auth, async (req, res) => {
     return {
       id: z._id, title: z.title, description: z.description || '', topics: topicList(z), count: z.questions.length,
       date: it.date, startsAt: it.startsAt, duration: it.duration, isToday: it.date === v.t, state: s,
-      attempt: a ? (a.status === 'started' ? { deadline: +new Date(a.deadline) } : { score: a.score, total: a.total, at: a.at, auto: !!a.auto }) : null,
+      attempt: a ? (!isDone(a) ? { deadline: +new Date(a.deadline) } : { score: a.score, total: a.total, at: a.at, auto: !!a.auto }) : null,
     };
   };
   res.json({
@@ -399,7 +487,7 @@ async function findForStudent(req, res) {
     else res.status(404).json({ error: 'This quiz is not available to you.' });
     return null;
   }
-  const z = await quizzes.findOne({ _id: id });
+  const z = (await getQuizzes()).get(id);
   if (!z) { res.status(404).json({ error: 'This quiz is not available to you.' }); return null; }
   return { id, v, it, z, a: v.byQuiz.get(id) };
 }
@@ -426,17 +514,21 @@ app.post('/api/quizzes/:id/start', auth, async (req, res) => {
 });
 
 // Save one answer as the student goes, so time running out never loses work.
+// The hot path during a test: one atomic database write per answer.
 app.post('/api/quizzes/:id/answer', auth, async (req, res) => {
-  const id = String(req.params.id);
-  const a = await attempts.findOne({ roll: req.student.roll, quizId: id });
-  if (!a || a.status !== 'started') return res.status(409).json({ error: 'This quiz is no longer running.', done: true });
-  if (Date.now() > +a.deadline + GRACE_MS) { await finalize(a, null, a.byQ || {}, true); return res.status(409).json({ error: "Time's up. Your answers were submitted.", done: true }); }
-  const z = await quizzes.findOne({ _id: id }, { projection: { questions: 1 } });
+  const id = String(req.params.id), roll = req.student.roll;
+  const z = (await getQuizzes()).get(id);
   const q = z && z.questions.find(x => x.id === req.body?.qid);
   const c = Number(req.body?.choice);
   if (!q || !Number.isInteger(c) || c < -1 || c >= q.o.length) return res.status(400).json({ error: 'Bad answer.' });
-  await attempts.updateOne({ _id: a._id, status: 'started' }, c < 0 ? { $unset: { [`byQ.${q.id}`]: '' } } : { $set: { [`byQ.${q.id}`]: c } });
-  res.json({ ok: true, deadline: +a.deadline });
+  // Lands only while the attempt is still running and inside its time (plus a little grace for the network).
+  const r = await attempts.updateOne(
+    { roll, quizId: id, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } },
+    c < 0 ? { $unset: { [`byQ.${q.id}`]: '' } } : { $set: { [`byQ.${q.id}`]: c } });
+  if (r.matchedCount) return res.json({ ok: true });
+  const a = await attempts.findOne({ roll, quizId: id }, { projection: { status: 1 } });
+  if (a && a.status === 'started') await finalize(a, true); // its time ran out
+  res.status(409).json({ error: a && a.status === 'started' ? "Time's up. Your answers were submitted." : 'This quiz is no longer running.', done: true });
 });
 
 app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
@@ -444,55 +536,66 @@ app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
   if (!f) return;
   let a = f.a;
   if (!a) return res.status(400).json({ error: 'Start the quiz first.' });
-  if (a.status === 'started') {
-    const byQ = { ...(a.byQ || {}) };
-    const late = Date.now() > +a.deadline + GRACE_MS;
-    if (!late && req.body?.byQ && typeof req.body.byQ === 'object') {
-      for (const q of f.z.questions) {
-        const v = req.body.byQ[q.id];
-        if (Number.isInteger(v) && v >= 0 && v < q.o.length) byQ[q.id] = v;
-      }
+  if (!isDone(a)) {
+    const live = Date.now() <= +a.deadline + GRACE_MS;
+    // Answers sent with the submit (e.g. ones whose autosave failed) are written atomically first, only if still in time.
+    const body = req.body?.byQ;
+    if (live && body && typeof body === 'object') {
+      const $set = {};
+      for (const q of f.z.questions) { const v = body[q.id]; if (Number.isInteger(v) && v >= 0 && v < q.o.length) $set[`byQ.${q.id}`] = v; }
+      if (Object.keys($set).length) await attempts.updateOne({ _id: a._id, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } }, { $set });
     }
-    a = await finalize(a, f.z, byQ, late || !!req.body?.auto);
+    a = await finalize(a, !live || !!req.body?.auto);
+    // Another request may be mid-submit for this attempt: wait briefly for it to finish.
+    for (let i = 0; i < 20 && a && !isDone(a); i++) { await new Promise(r => setTimeout(r, 100)); a = await attempts.findOne({ _id: a._id }); }
   }
   res.json(quizPayload(f.z, f.it, a, f.v));
 });
 
 // Leaderboards show names only. Roll numbers sign students in, so they are never shown to other students.
+/** Ranked rows for the overall board (quizId null) or one quiz. Computed at most every 10 s and cleared on every submit. */
+function boardRows(quizId) {
+  return cachedGet('lb:' + (quizId || '*'), 10_000, async () => {
+    const [list, S] = await Promise.all([
+      attempts.find(quizId ? { quizId, status: 'submitted' } : { status: 'submitted' }, { projection: { roll: 1, score: 1, total: 1, secs: 1 } }).toArray(),
+      students.find({}, { projection: { roll: 1, name: 1 } }).toArray(),
+    ]);
+    const names = new Map(S.map(s => [s.roll, s.name]));
+    if (quizId) {
+      return rankRows(list.filter(a => names.has(a.roll)).sort((a, b) => b.score - a.score || a.secs - b.secs), (a, b) => a.score === b.score && a.secs === b.secs)
+        .map(r => ({ roll: r.roll, rank: r.rank, name: names.get(r.roll), score: r.score, total: r.total, secs: r.secs }));
+    }
+    const by = new Map();
+    for (const a of list) {
+      if (!names.has(a.roll)) continue;
+      const r = by.get(a.roll) || { roll: a.roll, points: 0, possible: 0, taken: 0, secs: 0 };
+      r.points += a.score; r.possible += a.total; r.taken++; r.secs += a.secs || 0;
+      by.set(a.roll, r);
+    }
+    return rankRows([...by.values()].sort((a, b) => b.points - a.points || a.secs - b.secs), (a, b) => a.points === b.points && a.secs === b.secs)
+      .map(r => ({ roll: r.roll, rank: r.rank, name: names.get(r.roll), points: r.points, possible: r.possible, taken: r.taken, avgPct: Math.round(pct(r.points, r.possible) * 100), secs: r.secs }));
+  });
+}
+// Roll numbers sign students in, so they are stripped before rows leave the server.
+const forViewer = (rows, roll) => rows.map(({ roll: r, ...x }) => ({ ...x, me: r === roll }));
+
 app.get('/api/leaderboard', auth, async (req, res) => {
-  const v = await studentView(req.student);
-  const [docs, all, S] = await Promise.all([
-    quizzes.find({ _id: { $in: [...v.open.keys()] } }, { projection: { title: 1, questions: 1 } }).toArray(),
-    attempts.find({ status: 'submitted' }, { projection: { roll: 1, score: 1, total: 1, secs: 1 } }).toArray(),
-    students.find({}, { projection: { roll: 1, name: 1 } }).toArray(),
-  ]);
-  const names = new Map(S.map(s => [s.roll, s.name]));
-  const by = new Map();
-  for (const a of all) {
-    if (!names.has(a.roll)) continue;
-    const r = by.get(a.roll) || { roll: a.roll, points: 0, possible: 0, taken: 0, secs: 0 };
-    r.points += a.score; r.possible += a.total; r.taken++; r.secs += a.secs || 0;
-    by.set(a.roll, r);
-  }
-  const rows = rankRows([...by.values()].sort((a, b) => b.points - a.points || a.secs - b.secs), (a, b) => a.points === b.points && a.secs === b.secs)
-    .map(r => ({ rank: r.rank, name: names.get(r.roll), points: r.points, possible: r.possible, taken: r.taken, avgPct: Math.round(pct(r.points, r.possible) * 100), secs: r.secs, me: r.roll === req.student.roll }));
+  const [v, Z, rows] = await Promise.all([studentView(req.student), getQuizzes(), boardRows(null)]);
   res.json({
-    quizzes: docs.map(z => ({ id: z._id, title: z.title, date: v.open.get(z._id).date, total: z.questions.length, isToday: v.open.get(z._id).date === v.t })).sort((a, b) => b.date.localeCompare(a.date)),
-    rows,
+    quizzes: [...v.open.keys()].map(id => Z.get(id)).filter(Boolean)
+      .map(z => ({ id: z._id, title: z.title, date: v.open.get(z._id).date, total: z.questions.length, isToday: v.open.get(z._id).date === v.t }))
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    rows: forViewer(rows, req.student.roll),
   });
 });
 
 app.get('/api/leaderboard/:id', auth, async (req, res) => {
   const id = String(req.params.id);
-  const v = await studentView(req.student);
-  const it = v.open.get(id);
-  const z = it && await quizzes.findOne({ _id: id }, { projection: { title: 1, questions: 1 } });
+  const [v, Z] = await Promise.all([studentView(req.student), getQuizzes()]);
+  const it = v.open.get(id), z = it && Z.get(id);
   if (!z) return res.status(404).json({ error: 'This quiz is not available to you.' });
-  const list = await attempts.find({ quizId: id, status: 'submitted' }, { projection: { roll: 1, score: 1, total: 1, secs: 1 } }).toArray();
-  const names = new Map((await students.find({ roll: { $in: list.map(a => a.roll) } }, { projection: { roll: 1, name: 1 } }).toArray()).map(s => [s.roll, s.name]));
-  const rows = rankRows(list.filter(a => names.has(a.roll)).sort((a, b) => b.score - a.score || a.secs - b.secs), (a, b) => a.score === b.score && a.secs === b.secs)
-    .map(r => ({ rank: r.rank, name: names.get(r.roll), score: r.score, total: r.total, secs: r.secs, me: r.roll === req.student.roll }));
-  res.json({ quiz: { id, title: z.title, date: it.date, total: z.questions.length, isToday: it.date === v.t }, rows });
+  const rows = await boardRows(id);
+  res.json({ quiz: { id, title: z.title, date: it.date, total: z.questions.length, isToday: it.date === v.t }, rows: forViewer(rows, req.student.roll) });
 });
 
 /* ===== Admin ===== */
@@ -513,15 +616,16 @@ app.use('/api/admin', adminAuth);
 
 /** Everything the admin pages need, with each test resolved to the students who get each paper. */
 async function adminState() {
-  await finalizeExpired();
+  await sweepExpired(true);
   const now = Date.now(), t = today();
-  const [S, Z, A, T, SETS] = await Promise.all([
+  const [S, ZM, A, T, SETS] = await Promise.all([
     students.find({}).toArray(),
-    quizzes.find({}, { projection: { title: 1, questions: 1, duration: 1, createdAt: 1 } }).toArray(),
-    attempts.find({}, { projection: { byQ: 0 } }).toArray(),
-    tests.find({}).sort({ date: 1, start: 1 }).toArray(),
+    getQuizzes(),
+    attempts.find({}, { projection: { byQ: 0, order: 0 } }).toArray(),
+    getTests(),
     getSets(),
   ]);
+  const Z = [...ZM.values()];
   const setIds = new Set(SETS.map(s => s._id));
   const groupOf = s => (s.set && setIds.has(s.set) ? s.set : null);
   const setName = new Map(SETS.map(s => [s._id, s.name]));
@@ -546,11 +650,12 @@ function testJson(st, test) {
       return {
         id: p.id, quizId: p.quizId, quizTitle: st.title.get(p.quizId) || 'Deleted quiz', everyone: !!p.everyone, shuffle: !!p.shuffle, sets: p.sets || [], rolls: p.rolls || [],
         count: mine.length, submitted: sub.length,
-        started: mine.filter(x => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return a && a.status === 'started'; }).length,
+        started: mine.filter(x => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return a && !isDone(a); }).length,
         avgPct: sub.length ? Math.round(sub.reduce((n, x) => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return n + pct(a.score, a.total); }, 0) / sub.length * 100) : null,
       };
     }),
     unassigned: st.S.length - list.length,
+    updatedAt: test.updatedAt || null,
   };
 }
 
@@ -575,7 +680,7 @@ app.get('/api/admin/overview', async (req, res) => {
   const weekAgo = now - 7 * 864e5;
   res.json({
     now, today: t, students: S.length, sets: setList(st),
-    attempts: done.length, inProgress: A.filter(a => a.status === 'started').length,
+    attempts: done.length, inProgress: A.filter(a => !isDone(a)).length,
     avgPct: done.length ? Math.round(done.reduce((s, a) => s + pct(a.score, a.total), 0) / done.length * 100) : null,
     activeWeek: new Set(done.filter(a => +new Date(a.at) > weekAgo).map(a => a.roll)).size,
     todayTests: T.filter(x => x.date === t).map(x => testJson(st, x)),
@@ -629,6 +734,7 @@ app.post('/api/admin/tests', async (req, res) => {
   try { t = await normalizeTest(req.body || {}); } catch (e) { if (e instanceof Bad) return res.status(400).json({ error: e.message }); throw e; }
   const id = 't' + newId();
   await tests.insertOne({ _id: id, ...t, createdAt: new Date(), updatedAt: new Date() });
+  invalidate('tests');
   res.status(201).json({ id });
 });
 
@@ -637,12 +743,18 @@ app.put('/api/admin/tests/:id', async (req, res) => {
   if (!await tests.findOne({ _id: id }, { projection: { _id: 1 } })) return res.status(404).json({ error: 'Test not found.' });
   let t;
   try { t = await normalizeTest(req.body || {}); } catch (e) { if (e instanceof Bad) return res.status(400).json({ error: e.message }); throw e; }
-  await tests.updateOne({ _id: id }, { $set: { ...t, updatedAt: new Date() } });
+  // Optimistic concurrency: only save over the version this admin loaded.
+  const filter = { _id: id }, ver = req.body?.version ? new Date(req.body.version) : null;
+  if (ver && !isNaN(ver)) filter.updatedAt = ver;
+  const r = await tests.updateOne(filter, { $set: { ...t, updatedAt: new Date() } });
+  invalidate('tests');
+  if (!r.matchedCount) return res.status(409).json({ error: 'Someone else changed this test while you were editing. Reload the page to get the latest version, then make your changes again.' });
   res.json({ id });
 });
 
 app.delete('/api/admin/tests/:id', async (req, res) => {
   const r = await tests.deleteOne({ _id: String(req.params.id) });
+  invalidate('tests');
   if (!r.deletedCount) return res.status(404).json({ error: 'Test not found.' });
   res.json({ deleted: true });
 });
@@ -662,7 +774,7 @@ app.get('/api/admin/quizzes/:id', async (req, res) => {
     today: st.t, sets: setList(st),
     tests: st.T.filter(x => (x.papers || []).some(p => p.quizId === id)).map(x => ({ id: x._id, title: x.title || '', date: x.date, start: x.start, status: testStatus(x, st.now) })),
     attempts: done.map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, set: s ? st.groupOf(s) : null, ans: a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, late: a.givenDate ? dayOf(a.at) > a.givenDate : false }; }),
-    inProgress: L.filter(a => a.status === 'started').map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, deadline: a.deadline }; }),
+    inProgress: L.filter(a => !isDone(a)).map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, deadline: a.deadline }; }),
     notTaken: [...(st.audience.get(id) || [])].filter(r => !touched.has(r) && student.has(r)).map(r => { const s = student.get(r); return { roll: r, name: s.name, set: st.groupOf(s) }; }).sort((a, b) => a.name.localeCompare(b.name)),
   });
 });
@@ -674,6 +786,7 @@ app.post('/api/admin/quizzes', async (req, res) => {
   let id = slug;
   while (await quizzes.findOne({ _id: id }, { projection: { _id: 1 } })) id = `${slug}-${newId(2)}`;
   await quizzes.insertOne({ _id: id, ...z, createdAt: new Date(), updatedAt: new Date() });
+  invalidate('quizzes');
   res.status(201).json({ id });
 });
 
@@ -682,7 +795,12 @@ app.put('/api/admin/quizzes/:id', async (req, res) => {
   if (!await quizzes.findOne({ _id: id }, { projection: { _id: 1 } })) return res.status(404).json({ error: 'Quiz not found.' });
   let z;
   try { z = normalizeQuiz(req.body || {}); } catch (e) { if (e instanceof Bad) return res.status(400).json({ error: e.message }); throw e; }
-  await quizzes.updateOne({ _id: id }, { $set: { ...z, updatedAt: new Date() } });
+  // Optimistic concurrency: only save over the version this admin loaded.
+  const filter = { _id: id }, ver = req.body?.version ? new Date(req.body.version) : null;
+  if (ver && !isNaN(ver)) filter.updatedAt = ver;
+  const r = await quizzes.updateOne(filter, { $set: { ...z, updatedAt: new Date() } });
+  invalidate('quizzes');
+  if (!r.matchedCount) return res.status(409).json({ error: 'Someone else changed this quiz while you were editing. Reload the page to get the latest version, then make your changes again.' });
   res.json({ id, regraded: await regrade({ _id: id, ...z }) });
 });
 
@@ -693,11 +811,13 @@ app.delete('/api/admin/quizzes/:id', async (req, res) => {
   const a = await attempts.deleteMany({ quizId: id });
   await tests.updateMany({}, { $pull: { papers: { quizId: id } } });
   await tests.deleteMany({ papers: { $size: 0 } });
+  invalidate('quizzes', 'tests', 'lb');
   res.json({ deleted: true, attemptsDeleted: a.deletedCount });
 });
 
 app.delete('/api/admin/quizzes/:id/attempts/:roll', async (req, res) => {
   const r = await attempts.deleteOne({ quizId: String(req.params.id), roll: cleanRoll(req.params.roll) });
+  invalidate('lb');
   if (!r.deletedCount) return res.status(404).json({ error: 'That attempt was not found.' });
   res.json({ deleted: true });
 });
@@ -757,12 +877,13 @@ app.get('/api/admin/sets', async (req, res) => {
 });
 
 app.post('/api/admin/sets', async (req, res) => {
-  const all = await getSets();
+  const all = await loadSets();
   const used = new Set(all.map(s => s._id));
   let id = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find(c => !used.has(c));
   for (let n = 27; !id; n++) if (!used.has('S' + n)) id = 'S' + n;
   const name = str(req.body?.name, 30) || `Group ${id}`;
   await sets.insertOne({ _id: id, name, order: all.reduce((m, s) => Math.max(m, s.order || 0), 0) + 1 });
+  invalidate('sets');
   res.status(201).json({ id, name });
 });
 
@@ -770,6 +891,7 @@ app.patch('/api/admin/sets/:id', async (req, res) => {
   const name = str(req.body?.name, 30);
   if (!name) return res.status(400).json({ error: 'Give the set a name.' });
   const r = await sets.updateOne({ _id: String(req.params.id) }, { $set: { name } });
+  invalidate('sets');
   if (!r.matchedCount) return res.status(404).json({ error: 'Set not found.' });
   res.json({ id: req.params.id, name });
 });
@@ -780,6 +902,7 @@ app.delete('/api/admin/sets/:id', async (req, res) => {
   if (!r.deletedCount) return res.status(404).json({ error: 'Set not found.' });
   const s = await students.updateMany({ set: id }, { $set: { set: null } });
   await tests.updateMany({}, { $pull: { 'papers.$[].sets': id } });
+  invalidate('sets', 'tests', 'stu');
   res.json({ deleted: true, studentsUnassigned: s.modifiedCount });
 });
 
@@ -794,14 +917,16 @@ app.post('/api/admin/assign', async (req, res) => {
   let set;
   try { set = await checkSet(req.body?.set); } catch (e) { return res.status(400).json({ error: e.message }); }
   const r = await students.updateMany({ roll: { $in: rolls } }, { $set: { set } });
+  invalidate('stu');
   res.json({ moved: r.modifiedCount, set });
 });
 
 app.post('/api/admin/split', async (req, res) => {
-  const all = await getSets();
+  const all = await loadSets();
   if (!all.length) return res.status(400).json({ error: 'Create a set first.' });
   const S = await students.find({}, { projection: { roll: 1 } }).sort({ roll: 1 }).toArray();
   if (S.length) await students.bulkWrite(S.map((s, i) => ({ updateOne: { filter: { _id: s._id }, update: { $set: { set: all[i % all.length]._id } } } })));
+  invalidate('stu');
   res.json({ students: S.length, sets: all.length });
 });
 
@@ -845,6 +970,7 @@ app.post('/api/admin/import', async (req, res) => {
     const r = await students.updateOne({ roll }, { $set, $setOnInsert: { roll, createdAt: now, ...(set === null ? { set: null } : {}) } }, { upsert: true });
     if (r.upsertedCount) added++; else if (r.modifiedCount) updated++;
   }
+  invalidate('stu', 'lb');
   res.json({ added, updated, unchanged: rows.size - added - updated, skipped });
 });
 
@@ -852,14 +978,13 @@ app.get('/api/admin/students/:roll', async (req, res) => {
   const roll = cleanRoll(req.params.roll);
   const s = await students.findOne({ roll });
   if (!s) return res.status(404).json({ error: 'Student not found.' });
-  const [v, Z, SETS] = await Promise.all([studentView(s), quizzes.find({}, { projection: { title: 1, questions: 1 } }).toArray(), getSets()]);
-  const title = new Map(Z.map(z => [z._id, z]));
+  const [v, title, SETS] = await Promise.all([studentView(s), getQuizzes(), getSets()]);
   res.json({
     student: { name: s.name, roll: s.roll, set: s.set && SETS.some(x => x._id === s.set) ? s.set : null, createdAt: s.createdAt, lastLoginAt: s.lastLoginAt },
     sets: SETS.map(x => ({ id: x._id, name: x.name })),
     quizzes: [...v.open.values()].filter(it => title.has(it.quizId)).map(it => {
       const z = title.get(it.quizId), a = v.byQuiz.get(it.quizId);
-      return { id: z._id, title: z.title, date: it.date, startsAt: it.startsAt, total: z.questions.length, state: a ? (a.status === 'started' ? 'started' : 'done') : 'open', attempt: a && a.status === 'submitted' ? { score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto } : null };
+      return { id: z._id, title: z.title, date: it.date, startsAt: it.startsAt, total: z.questions.length, state: a ? (isDone(a) ? 'done' : 'started') : 'open', attempt: isDone(a) ? { score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto } : null };
     }).sort((a, b) => b.startsAt - a.startsAt),
     upcoming: v.upcoming.filter(it => title.has(it.quizId)).map(it => ({ id: it.quizId, title: title.get(it.quizId).title, date: it.date, startsAt: it.startsAt, duration: it.duration })),
   });
@@ -877,6 +1002,7 @@ app.patch('/api/admin/students/:roll', async (req, res) => {
   const r = await students.updateOne({ roll }, { $set });
   if (!r.matchedCount) return res.status(404).json({ error: 'Student not found.' });
   if ($set.name) await attempts.updateMany({ roll }, { $set: { name: $set.name } });
+  invalidate('stu', 'lb');
   res.json({ roll, ...$set });
 });
 
@@ -886,6 +1012,7 @@ app.delete('/api/admin/students/:roll', async (req, res) => {
   if (!r.deletedCount) return res.status(404).json({ error: 'Student not found.' });
   const a = await attempts.deleteMany({ roll });
   await tests.updateMany({}, { $pull: { 'papers.$[].rolls': roll } });
+  invalidate('stu', 'tests', 'lb');
   res.json({ deleted: true, attemptsDeleted: a.deletedCount });
 });
 

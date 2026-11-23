@@ -110,14 +110,14 @@ async function refresh() {
 
 const blankQ = () => ({ t: '', q: '', c: '', o: ['', '', '', ''], a: 0, e: '', p: 0 });
 const newDraft = () => ({ title: '', description: '', duration: 30, topics: {}, questions: [blankQ()] });
-const draftOf = z => JSON.parse(JSON.stringify({ title: z.title, description: z.description, duration: z.duration || 30, topics: z.topics, questions: z.questions }));
+const draftOf = z => JSON.parse(JSON.stringify({ title: z.title, description: z.description, duration: z.duration || 30, topics: z.topics, questions: z.questions, version: z.updatedAt || null }));
 const blankPaper = () => ({ quizId: '', everyone: false, shuffle: false, sets: [], rolls: [] });
 function newTestDraft(d) {
   const t = new Date(now() + 3600e3); // next full hour, local time
   const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   return { title: '', date, start: `${String(t.getHours()).padStart(2, '0')}:00`, duration: 30, papers: [{ ...blankPaper(), everyone: true }] };
 }
-const testDraftOf = t => JSON.parse(JSON.stringify({ title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
+const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
 const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students']];
