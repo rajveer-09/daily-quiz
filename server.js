@@ -439,6 +439,16 @@ app.use('/api', (req, res, next) => {
 });
 app.use(express.json({ limit: '1mb' }));
 
+/* Backend-only mode: when the frontend is hosted elsewhere (FRONTEND_URL is set, e.g. on Render),
+   this server answers only /api/* and sends every page request to the frontend. */
+const FRONTEND = [...ALLOWED_ORIGINS][0];
+if (FRONTEND) {
+  app.use((req, res, next) => {
+    if (req.path === '/api' || req.path.startsWith('/api/')) return next();
+    res.redirect(302, FRONTEND + (req.path === '/admin' || req.path === '/admin.html' ? '/admin' : '/'));
+  });
+}
+
 /* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again
    only when a file actually changes. The two HTML pages are served from memory and always revalidated. */
 const PUB = path.join(ROOT, 'public');
