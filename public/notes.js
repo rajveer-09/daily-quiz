@@ -1,5 +1,5 @@
 /* Notes: Level -> Subject -> Topic, and every topic has four sections (tabs): notes, problem-solving framework, practice questions,
-   and "Test yourself" (a short quiz; questions in /notes/<topic>-quiz.json; the student's latest score is saved by the server).
+   and "Test yourself" (a short quiz; questions in /notes/<topic>-quiz.json; the student's best and latest scores are saved by the server).
    Shared by the student site and the admin dashboard (same views, same files).
    A section's content is an HTML fragment at /notes/<file>.html, named in the topic's `files`. A section without a file shows "Coming soon".
    To publish: add the file and name it under `files` below (and set `date`, `by`, `desc` on the topic). */
@@ -112,7 +112,7 @@ window.Notes = (() => {
     const scores = topic && hooks.scores ? await hooks.scores().catch(() => null) : null;
     if (section.id === 'quiz') {
       const quiz = file ? await fetchQuiz(file) : null;
-      if (quiz) QZ = { key: file, title: topic.title, qs: quiz.questions, i: 0, picks: [], phase: 'start', last: scores && scores[file] || null, saved: '' };
+      if (quiz) QZ = { key: file, title: topic.title, qs: quiz.questions, i: 0, picks: [], phase: 'start', best: scores && scores[file] ? (scores[file].best || scores[file]) : null, saved: '' };
       return { level, subject, topic, section, scores, doc: quiz ? { quiz, toc: [], mins: 0 } : null };
     }
     return { level, subject, topic, section, scores, doc: file ? await fetchDoc(file) : null };
@@ -183,7 +183,7 @@ window.Notes = (() => {
     const top = `<div class="nt-top"><a class="nt-back" href="${href(level.id)}">${icon('left')}${esc(level.name)}</a>${doc ? fsBtn() : ''}</div>`;
     const tabs = `<nav class="nt-tabs" aria-label="Topic sections">${SECTIONS.map(s => {
       const has = !!(topic.files && topic.files[s.id]), on = s.id === section.id;
-      const sc = s.id === 'quiz' && has && scores && scores[topic.files.quiz];
+      const sr = s.id === 'quiz' && has && scores && scores[topic.files.quiz], sc = sr && (sr.best || sr);
       return `<a href="${href(level.id, subject.id, topic.id, s.id === 'notes' ? '' : s.id)}"${on ? ' aria-current="page"' : ''}${has ? '' : ' class="soon"'} data-sec="${s.id}">${esc(s.label)}${has ? '' : '<small>Soon</small>'}${sc ? `<small class="qz-tab">${sc.score}/${sc.total}</small>` : ''}</a>`;
     }).join('')}</nav>`;
     const head = `<header class="page-head"><span class="eyebrow">${esc(level.name)} · ${esc(subject.title)} · Topic ${idx + 1}</span><h1>${esc(topic.title)}</h1>${meta}</header>`;
@@ -218,7 +218,7 @@ window.Notes = (() => {
     quizCache.set(file, q);
     return q;
   }
-  let QZ = null;                       // { key, title, qs, i, picks, phase: 'start' | 'q' | 'done', last, saved }
+  let QZ = null;                       // { key, title, qs, i, picks, phase: 'start' | 'q' | 'done', best, saved, savedAt }
   const LETTERS = 'ABCD';
   const pct = (a, b) => Math.round(a * 100 / b);
   const whenTxt = at => new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -232,10 +232,9 @@ window.Notes = (() => {
       return `<div class="card qz-card qz-start">
         <span class="eyebrow">Test yourself</span>
         <h2>${n} questions on ${esc(z.title)}</h2>
-        <p class="muted">One question at a time. You'll see your score and every answer at the end. Only your latest score is kept.</p>
-        ${z.last ? `<div class="qz-last"><span>Latest score</span><b>${z.last.score}<small>/${z.last.total}</small></b><em>${pct(z.last.score, z.last.total)}% · ${esc(whenTxt(z.last.at))}</em></div>` : ''}
-        <div><button type="button" class="btn btn-primary" data-nt="qzStart">${z.last ? 'Retake the quiz' : 'Start the quiz'}${icon('right')}</button></div>
-        ${hooks.save ? '' : '<p class="muted qz-note">Practice mode: scores are saved only on a student\'s own account.</p>'}
+        <p class="muted">One question at a time. You'll see your score and every answer at the end.</p>
+        ${z.best ? `<div class="qz-last"><span>Best score</span><b>${z.best.score}<small>/${z.best.total}</small></b><em>${pct(z.best.score, z.best.total)}% · ${esc(whenTxt(z.best.at))}</em></div>` : ''}
+        <div><button type="button" class="btn btn-primary" data-nt="qzStart">${z.best ? 'Retake the quiz' : 'Start the quiz'}${icon('right')}</button></div>
       </div>`;
     }
     if (z.phase === 'q') {
@@ -251,7 +250,7 @@ window.Notes = (() => {
       </div>`;
     }
     const score = z.qs.reduce((k, q, i) => k + (z.picks[i] === q.a ? 1 : 0), 0);
-    const note = { saving: 'Saving your score…', ok: 'Saved as your latest score.', err: "Couldn't save your score. Check your connection, then retake to save it.", off: "Practice mode: this score isn't saved." }[z.saved] || '';
+    const note = { saving: 'Saving your score…', ok: z.best && z.best.at === z.savedAt ? 'New best score.' : z.best ? `Your best is ${z.best.score}/${z.best.total}.` : '', err: "Couldn't save your score. Check your connection, then retake to save it." }[z.saved] || '';
     return `<div class="card qz-card qz-result">
         <span class="eyebrow">Your score</span>
         <div class="qz-score">${score}<small>/${n}</small></div>
@@ -285,9 +284,9 @@ window.Notes = (() => {
     const key = z.key;
     hooks.save(key, z.picks).then(r => {
       if (QZ !== z) return;
-      z.last = r; z.saved = 'ok'; drawQuiz();
+      z.best = r.best || r; z.savedAt = r.at; z.saved = 'ok'; drawQuiz();
       const tab = document.querySelector('.nt-tabs a[data-sec="quiz"]');
-      if (tab) { const old = tab.querySelector('.qz-tab'); if (old) old.remove(); tab.insertAdjacentHTML('beforeend', `<small class="qz-tab">${r.score}/${r.total}</small>`); }
+      if (tab) { const old = tab.querySelector('.qz-tab'); if (old) old.remove(); tab.insertAdjacentHTML('beforeend', `<small class="qz-tab">${z.best.score}/${z.best.total}</small>`); }
     }).catch(() => { if (QZ === z) { z.saved = 'err'; drawQuiz(); } });
   }
 

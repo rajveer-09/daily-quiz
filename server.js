@@ -44,7 +44,7 @@ const sets = db.collection('sets');          // admin-only groups: { _id, name, 
 const attempts = db.collection('attempts');
 const schedule = db.collection('schedule');  // legacy, migrated into tests
 const meta = db.collection('meta');
-const practice = db.collection('practice');  // notes "Test yourself": latest score only, { roll, key, score, total, at }
+const practice = db.collection('practice');  // notes "Test yourself": { roll, key, score, total, at, best: { score, total, at } }
 await Promise.all([
   students.createIndex({ roll: 1 }, { unique: true }),
   attempts.createIndex({ quizId: 1 }),
@@ -641,7 +641,7 @@ app.post('/api/tests/:id/flag', auth, readOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
-/* ===== Notes: "Test yourself" quizzes. Self-practice; only each student's latest score per quiz is kept. =====
+/* ===== Notes: "Test yourself" quizzes. Self-practice; each student's latest and best score per quiz is kept. =====
    The questions live in public/notes/<key>.json (key = "<topic>-quiz"); the server marks the answers itself. */
 const practiceQuiz = new Map();
 async function loadPracticeQuiz(key) {
@@ -655,8 +655,8 @@ async function loadPracticeQuiz(key) {
   } catch (e) { return null; }
 }
 app.get('/api/practice', auth, async (req, res) => {
-  const rows = await practice.find({ roll: req.student.roll }, { projection: { _id: 0, key: 1, score: 1, total: 1, at: 1 } }).toArray();
-  res.json({ scores: Object.fromEntries(rows.map(r => [r.key, { score: r.score, total: r.total, at: r.at }])) });
+  const rows = await practice.find({ roll: req.student.roll }, { projection: { _id: 0, key: 1, score: 1, total: 1, at: 1, best: 1 } }).toArray();
+  res.json({ scores: Object.fromEntries(rows.map(r => [r.key, { score: r.score, total: r.total, at: r.at, best: r.best || { score: r.score, total: r.total, at: r.at } }])) });
 });
 app.post('/api/practice/:key', auth, readOnly, async (req, res) => {
   const key = String(req.params.key);
@@ -666,8 +666,12 @@ app.post('/api/practice/:key', auth, readOnly, async (req, res) => {
   const total = quiz.questions.length;
   const score = quiz.questions.reduce((n, q, i) => n + (ans[i] === q.a ? 1 : 0), 0);
   const at = Date.now();
-  await practice.updateOne({ roll: req.student.roll, key }, { $set: { score, total, at } }, { upsert: true });
-  res.json({ score, total, at });
+  // Keep the latest attempt and the best one (highest percentage; a tie keeps the newer attempt).
+  const prev = await practice.findOne({ roll: req.student.roll, key });
+  const old = prev && (prev.best || { score: prev.score, total: prev.total, at: prev.at });
+  const best = !old || score / total >= old.score / old.total ? { score, total, at } : old;
+  await practice.updateOne({ roll: req.student.roll, key }, { $set: { score, total, at, best } }, { upsert: true });
+  res.json({ score, total, at, best });
 });
 
 app.post('/api/tests/:id/submit', auth, readOnly, async (req, res) => {
