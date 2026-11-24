@@ -1,3 +1,7 @@
+/* Where the API lives. On Vercel the frontend calls the Render backend;
+   anywhere else (localhost, Render itself) the API is on the same server. */
+window.API_BASE = /\.vercel\.app$/.test(location.hostname) ? 'https://quiz-me.onrender.com' : '';
+
 /* Shared helpers for the student site and the admin dashboard. */
 window.UI = (() => {
   'use strict';

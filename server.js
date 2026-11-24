@@ -423,6 +423,20 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // behind Render's proxy: real client IPs for the admin sign-in lockout
 app.use(compression());
+// CORS: lets a frontend hosted elsewhere (e.g. https://bigonotes.vercel.app) call this API.
+// FRONTEND_URL is a comma-separated list of allowed origins.
+const ALLOWED_ORIGINS = new Set(String(process.env.FRONTEND_URL || '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean));
+app.use('/api', (req, res, next) => {
+  const origin = req.get('Origin');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Roll, X-Preview',
+      'Access-Control-Max-Age': '86400' });
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 
 /* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again

@@ -26,7 +26,7 @@ let navSeq = 0, lastHash = location.hash, skipHash = false;
 const now = () => Date.now() + V.skew;
 
 async function api(url, method = 'GET', body) {
-  const r = await fetch(url, {
+  const r = await fetch(window.API_BASE + url, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: session ? 'Bearer ' + session.token : '' },
     body: body ? JSON.stringify(body) : undefined,

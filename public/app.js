@@ -53,7 +53,7 @@ function exitFs() {
 const needsFs = () => !!(V.quiz && V.quiz.state === 'started' && V.quiz.fullscreen && fsSupported());
 
 async function api(url, body) {
-  const r = await fetch(url, {
+  const r = await fetch(window.API_BASE + url, {
     method: body ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json', 'X-Roll': me ? me.roll : '', ...(preview ? { 'X-Preview': preview.token } : {}) },
     body: body ? JSON.stringify(body) : undefined,
