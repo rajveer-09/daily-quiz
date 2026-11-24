@@ -16,6 +16,8 @@ services:
       # Secrets: Render asks for these when you create the service from this file.
       - key: MONGODB_URI
         sync: false
+      - key: STUDENT_PASSWORD
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

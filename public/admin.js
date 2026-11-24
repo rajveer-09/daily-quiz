@@ -137,12 +137,12 @@ function shell(head, body) {
   const label = (NAV.find(n => n[0] === active) || [0, 0, 0, 'Admin'])[3];
   return `<div class="admin${V.menu ? ' menu-open' : ''}${UI.sideMini() ? ' mini' : ''}">${UI.sideEdge()}
   <header class="amtop">
-    <a class="brand" href="#/"><span class="logo">qm</span><span>${esc(label)}</span></a>
+    <a class="brand" href="#/"><span class="logo">bo</span><span>${esc(label)}</span></a>
     <div class="amtop-r">${UI.modeBtn()}<button type="button" class="btn btn-sm amenu" data-act="menu" aria-expanded="${!!V.menu}" aria-controls="adminNav">${icon('menu')}Menu</button></div>
   </header>
   <div class="scrim" data-act="menuClose" aria-hidden="true"></div>
   <aside class="side card" id="adminNav" aria-label="Admin menu">
-    <div class="side-top"><a class="brand" href="#/"><span class="logo">qm</span><span>QuizMe <small>Admin</small></span></a><button type="button" class="btn btn-icon btn-sm side-x" data-act="menuClose" aria-label="Close menu">${icon('x')}</button></div>
+    <div class="side-top"><a class="brand" href="#/"><span class="logo">bo</span><span>BigONotebook <small>Admin</small></span></a><button type="button" class="btn btn-icon btn-sm side-x" data-act="menuClose" aria-label="Close menu">${icon('x')}</button></div>
     ${NAV.map(([k, h, i, t]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}" title="${t}">${icon(i)}<span>${t}</span></a>`).join('')}
     <div class="foot">
       <span class="em muted">Signed in as<br><b style="color:var(--ink)">${esc(session.email)}</b></span>
@@ -191,7 +191,7 @@ function testCard(t, sets, compact) {
 /* ---------- Login ---------- */
 function viewLogin() {
   return `${UI.modeBtn('corner')}<div class="center"><form class="card pad slide-in" id="lf" novalidate style="width:min(100%,420px);padding:32px">
-    <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">qm</span>QuizMe</a>
+    <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">bo</span>BigONotebook</a>
     <div class="eyebrow">Admin</div>
     <h2 style="font-size:26px;font-weight:800;margin:4px 0 6px">Sign in</h2>
     <p class="muted" style="margin-bottom:22px">Schedule timed tests, decide which question set each student gets, and see the results.</p>
@@ -917,7 +917,7 @@ function render() {
   else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
-  document.title = `${V.page === 'notes' ? Notes.title(V.data) : t ? t.textContent : 'Admin'} · QuizMe Admin`;
+  document.title = `${V.page === 'notes' ? Notes.title(V.data) : t ? t.textContent : 'Admin'} · BigONotebook Admin`;
 }
 function renderKeepFocus(id) {
   const el = document.getElementById(id), pos = el ? el.selectionStart : 0;
