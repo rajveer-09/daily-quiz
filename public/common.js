@@ -1,3 +1,7 @@
+/* Where the API lives. On Vercel the frontend calls the Render backend;
+   anywhere else (localhost, Render itself) the API is on the same server. */
+window.API_BASE = /\.vercel\.app$/.test(location.hostname) ? 'https://big-o-notes.onrender.com' : '';
+
 /* Shared helpers for the student site and the admin dashboard. */
 window.UI = (() => {
   'use strict';
@@ -32,6 +36,8 @@ window.UI = (() => {
     right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eyeOff: '<path d="M10.7 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/>',
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     layers: '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',

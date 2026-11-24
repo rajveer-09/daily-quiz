@@ -24,14 +24,15 @@ if (pvm) {
 
 /* ---------- State ---------- */
 let me = preview ? { roll: preview.roll, name: preview.name || preview.roll } : store.get(ME_KEY);
-if (!me || !me.roll) me = null;
+// A saved sign-in from before passwords (no token) counts as signed out.
+if (!me || !me.roll || (!preview && !me.token)) me = null;
 
 const V = {
   page: '', loading: false, loadErr: '',
   home: null, board: null, skew: 0,
   quiz: null, cur: 0, byQ: {}, qlb: null, lb: null, locked: null,
   confirm: false, busy: false, subErr: '', welcome: '', saving: 0, saveErr: false,
-  login: { step: 'roll', roll: '', name: '', err: '', busy: false },
+  login: { step: 'roll', roll: '', password: '', name: '', err: '', busy: false },
   filter: 'all', pastFilter: 'all', open: new Set(), flags: new Set(),
 };
 let navSeq = 0, autoSubmitting = false, reloadAt = 0, gAt = 0;
@@ -53,9 +54,9 @@ function exitFs() {
 const needsFs = () => !!(V.quiz && V.quiz.state === 'started' && V.quiz.fullscreen && fsSupported());
 
 async function api(url, body) {
-  const r = await fetch(url, {
+  const r = await fetch(window.API_BASE + url, {
     method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-Roll': me ? me.roll : '', ...(preview ? { 'X-Preview': preview.token } : {}) },
+    headers: { 'Content-Type': 'application/json', 'X-Roll': me ? me.roll : '', 'X-Token': me && me.token ? me.token : '', ...(preview ? { 'X-Preview': preview.token } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   let data = {};
@@ -67,9 +68,9 @@ async function api(url, body) {
   return data;
 }
 
-function setMe(s) {
+function setMe(s, token) {
   if (!s) return;
-  me = { name: s.name, roll: s.roll };
+  me = { name: s.name, roll: s.roll, token: token || (me && me.token) || '' };
   if (preview) { preview.name = s.name; ss.set(preview); } else store.set(ME_KEY, me);
 }
 
@@ -79,7 +80,8 @@ function logout() {
   if (preview) return exitPreview();
   me = null; store.del(ME_KEY);
   Object.assign(V, { home: null, board: null, quiz: null, welcome: '' });
-  V.login = { step: 'roll', roll: '', name: '', err: '', busy: false };
+  V.login = { step: 'roll', roll: '', password: '', name: '', err: '', busy: false };
+  V.showPw = false;
   if (location.hash !== '#/login') location.hash = '#/login'; else route();
 }
 
@@ -217,38 +219,54 @@ function shell(content) {
   const today = V.home ? fmtDay(V.home.today, { weekday: 'short', day: 'numeric', month: 'short' }) : new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   return `<div class="shell${UI.sideMini() ? ' mini' : ''}">${UI.sideEdge()}
     <aside class="side card">
-      <a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotes</span></a>
+      <a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotebook</span></a>
       <nav aria-label="Main" style="display:grid;gap:2px">${NAV.map(([k, h, i, t, key]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}" title="${t} (press G then ${key})"${active === k ? ' aria-current="page"' : ''}>${icon(i)}<span>${t}</span>${badge(k) || `<kbd>G ${key}</kbd>`}</a>`).join('')}</nav>
-      <a class="side-foot" href="#/profile" title="Your profile">${avatar(me.name, 'sm')}<div class="t"><b>${esc(me.name)}</b><span>${esc(me.roll)}</span></div></a>
+      <div class="side-me">
+        <a class="side-foot" href="#/profile" title="Your profile">${avatar(me.name, 'sm')}<div class="t"><b>${esc(me.name)}</b><span>${esc(me.roll)}</span></div></a>
+        <button type="button" class="side-out" data-act="askLogout" title="${preview ? 'Exit preview' : 'Log out'}" aria-label="${preview ? 'Exit preview' : 'Log out'}">${icon('logout')}</button>
+      </div>
     </aside>
     <main class="main">
-      <header class="mtop"><a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotes</span></a><div class="mtop-r">${UI.modeBtn()}<a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></div></header>
+      <header class="mtop"><a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotebook</span></a><div class="mtop-r">${UI.modeBtn()}<a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></div></header>
       <div class="topbar"><div class="crumb">${crumbFor(active)}</div><div class="tb-r"><span class="when">${esc(today)}</span>${UI.modeBtn()}</div></div>
       <div class="content">${content}</div>
     </main>
   </div>
-  <nav class="bnav" aria-label="Main">${NAV.map(([k, h, i, t]) => `<a href="${h}" class="${active === k ? 'on' : ''}"${active === k ? ' aria-current="page"' : ''}>${icon(i)}${t}</a>`).join('')}</nav>`;
+  <nav class="bnav" aria-label="Main">${NAV.map(([k, h, i, t]) => `<a href="${h}" class="${active === k ? 'on' : ''}"${active === k ? ' aria-current="page"' : ''}>${icon(i)}${t}</a>`).join('')}</nav>
+  ${V.askOut ? `<div class="overlay" data-act="noLogout"><div class="dialog slide-in" role="dialog" aria-modal="true" aria-labelledby="loh">
+    <h2 id="loh">${preview ? 'Exit preview?' : 'Log out?'}</h2>
+    <p>${preview ? 'You will go back to the admin dashboard.' : `You're signed in as <b>${esc(me.name)}</b> (${esc(me.roll)}). Sign in again with your roll number any time.`}</p>
+    <div class="row"><button type="button" class="btn" data-act="noLogout">Cancel</button><button type="button" class="btn btn-danger armed" data-act="logout">${icon('logout')}${preview ? 'Exit preview' : 'Log out'}</button></div>
+  </div></div>` : ''}`;
 }
 
 /* ---------- Sign in ---------- */
 function viewLogin() {
+  // Same card as the admin sign-in (admin.js viewLogin), so the two pages match.
   const S = V.login, roll = S.step === 'roll';
   return `${UI.modeBtn('corner')}<div class="auth-page">
-  <header class="auth-top"><span class="brand"><span class="logo">bo</span><span>BigONotes</span></span><a class="adm" href="/admin">Admin sign-in</a></header>
   <main class="auth-main">
-    <form class="auth-card slide-in" id="lf" novalidate>
+    <form class="card pad slide-in" id="lf" novalidate style="width:min(100%,420px);padding:32px">
+      <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">bo</span>BigONotebook</a>
       ${roll ? `
-      <div><h1>Sign in with your roll number</h1><p class="sub">No password. If it's your first time, we'll ask your name next.</p></div>
-      <div class="field"><label for="rl">Roll number</label>
-        <input class="input input-lg mono" id="rl" value="${esc(S.roll)}" placeholder="N24H01B0000" autocomplete="username" autocapitalize="characters" spellcheck="false" maxlength="30" inputmode="text">
-        <span class="hint">It's on your ID card.</span></div>`
+      <div class="eyebrow">Student</div>
+      <h2 style="font-size:26px;font-weight:800;margin:4px 0 6px">Sign in</h2>
+      <p class="muted" style="margin-bottom:22px">Take your scheduled tests, see your scores and read the class notes.</p>
+      <div class="stack" style="gap:14px">
+        <div class="field"><label for="rl">Roll number</label><input class="input mono" id="rl" value="${esc(S.roll)}" autocomplete="username" autocapitalize="characters" spellcheck="false" maxlength="30" inputmode="text"></div>
+        <div class="field"><label for="pw">Password</label>
+          <div class="pw-wrap"><input class="input" id="pw" type="${V.showPw ? 'text' : 'password'}" value="${esc(S.password)}" autocomplete="current-password" maxlength="100" autocapitalize="off" spellcheck="false">
+            <button type="button" class="pw-eye" data-act="togglePw" aria-label="${V.showPw ? 'Hide password' : 'Show password'}" aria-pressed="${!!V.showPw}" title="${V.showPw ? 'Hide password' : 'Show password'}">${icon(V.showPw ? 'eyeOff' : 'eye')}</button></div></div>
+      </div>`
       : `
-      <div><div class="roll-chip"><b>${esc(S.roll)}</b><span>· new here</span></div><h1 style="margin-top:8px">What's your name?</h1><p class="sub">Use the name your teacher knows you by, so they can find your results. You only do this once.</p></div>
-      <div class="field"><label for="nm">Full name</label>
-        <input class="input input-lg" id="nm" value="${esc(S.name)}" autocomplete="name" maxlength="60" placeholder="Your full name"></div>`}
-      ${S.err ? `<p class="err" role="alert">${esc(S.err)}</p>` : ''}
-      <button class="btn btn-primary btn-lg"${S.busy ? ' disabled' : ''}>${S.busy ? 'Checking…' : roll ? 'Continue' : 'Create my account'}</button>
-      ${roll ? '' : '<button type="button" class="back-link" data-act="changeRoll">← Wrong roll number?</button>'}
+      <div class="roll-chip"><b>${esc(S.roll)}</b><span>· new here</span></div>
+      <h2 style="font-size:26px;font-weight:800;margin:4px 0 6px">What's your name?</h2>
+      <p class="muted" style="margin-bottom:22px">Use the name your teacher knows you by, so they can find your results. You only do this once.</p>
+      <div class="field"><label for="nm">Full name</label><input class="input" id="nm" value="${esc(S.name)}" autocomplete="name" maxlength="60"></div>`}
+      ${S.err ? `<p class="err" role="alert" style="margin-top:12px">${esc(S.err)}</p>` : ''}
+      <button class="btn btn-primary btn-lg btn-block" style="margin-top:22px"${S.busy ? ' disabled' : ''}>${S.busy ? 'Signing in…' : roll ? 'Sign in' : 'Create my account'}</button>
+      ${roll ? '<p class="muted" style="text-align:center;margin-top:18px;font-size:14px"><a href="/admin">Admin sign-in</a></p>'
+        : '<p style="text-align:center;margin-top:14px"><button type="button" class="back-link" data-act="changeRoll">← Wrong roll number?</button></p>'}
     </form>
   </main>
   <footer class="auth-foot"><span>Tests run in full screen. Use a laptop or an Android phone.</span><span class="mono">Times in IST</span></footer>
@@ -375,7 +393,7 @@ function viewProfile() {
   return `<section class="profile-head">
     ${avatar(me.name, 'lg')}
     <div class="t"><h1>${esc(me.name)}</h1><span class="mono">${esc(me.roll)}</span></div>
-    <button class="btn" data-act="logout">${icon('logout')}${preview ? 'Exit preview' : 'Log out'}</button>
+    <button class="btn ph-out" data-act="askLogout">${icon('logout')}${preview ? 'Exit preview' : 'Log out'}</button>
   </section>
   <div class="kpis">
     <div class="card kpi"><span class="k-label">Tests taken</span><span class="k-val">${done.length}</span></div>
@@ -625,11 +643,11 @@ function viewBoard() {
 
 /* ---------- Render ---------- */
 function render() {
-  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · BigONotes'; return; }
+  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · BigONotebook'; return; }
   if (!V.loading && !V.loadErr && V.quiz && V.quiz.state === 'started' && V.page === 'quiz') {
     // Focus mode: no sidebar or menus while a test is running.
     $app.innerHTML = `<div class="focus">${V.fsGate ? viewFsGate() : viewTake()}</div>`;
-    document.title = V.quiz.title + ' · BigONotes';
+    document.title = V.quiz.title + ' · BigONotebook';
     return;
   }
   let html;
@@ -647,7 +665,7 @@ function render() {
   else html = '';
   $app.innerHTML = shell(html) + (preview ? `<div class="pv-bar" role="status">${icon('user')}<span>Viewing as <b>${esc(me.name)}</b> <span class="mono">${esc(me.roll)}</span> · read-only</span><button class="btn btn-sm" data-act="exitPreview">Exit</button></div>` : '');
   const nt = V.page === 'notes' ? Notes.title(V.notes) : '';
-  document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · BigONotes` : nt ? `${nt} · BigONotes` : 'BigONotes');
+  document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · BigONotebook` : nt ? `${nt} · BigONotebook` : 'BigONotebook');
 }
 
 /* Clocks: countdowns to start, and the time left in a running test. */
@@ -745,17 +763,21 @@ async function signIn() {
   const roll = S.roll.replace(/\s+/g, '').toUpperCase();
   const fail = (msg, id) => { S.err = msg; S.busy = false; render(); const el = document.getElementById(id); if (el) el.focus(); };
   if (!roll) return fail('Enter your roll number.', 'rl');
+  if (!S.password) return fail('Enter the password.', 'pw');
   if (S.step === 'name' && S.name.trim().length < 2) return fail('Please enter your full name.', 'nm');
   S.busy = true; S.err = ''; S.roll = roll; render();
   try {
-    const d = await api('/api/login', S.step === 'name' ? { roll, name: S.name } : { roll });
-    setMe(d.student);
-    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to BigONotes.` : '';
-    V.login = { step: 'roll', roll: '', name: '', err: '', busy: false };
+    const d = await api('/api/login', S.step === 'name' ? { roll, password: S.password, name: S.name } : { roll, password: S.password });
+    setMe(d.student, d.token);
+    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to BigONotebook.` : '';
+    V.login = { step: 'roll', roll: '', password: '', name: '', err: '', busy: false };
+    V.showPw = false;
     toast(d.isNew ? 'Registered. Welcome aboard.' : `Welcome back, ${me.name}`);
     location.hash = '#/home';
   } catch (e) {
     if (e.data && e.data.needName) { S.step = 'name'; S.busy = false; S.err = S.name ? e.message : ''; render(); const el = document.getElementById('nm'); if (el) el.focus(); return; }
+    // Wrong password: back to the first step with the password cleared.
+    if (e.data && e.data.badPassword) { S.step = 'roll'; S.password = ''; return fail(e.message, 'pw'); }
     fail(e.message, S.step === 'name' ? 'nm' : 'rl');
   }
 }
@@ -764,6 +786,7 @@ $app.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'rl') { const pos = t.selectionStart; t.value = t.value.toUpperCase(); t.setSelectionRange(pos, pos); V.login.roll = t.value; }
   else if (t.id === 'nm') V.login.name = t.value;
+  else if (t.id === 'pw') V.login.password = t.value;
 });
 $app.addEventListener('change', e => {
   if (e.target.id === 'lbq') location.hash = e.target.value ? '#/leaderboard/' + encodeURIComponent(e.target.value) : '#/leaderboard';
@@ -774,7 +797,17 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const a = b.dataset.act;
-  if (a === 'logout') logout();
+  // Log out asks first. Clicks inside the dialog box don't count as clicking the backdrop.
+  if (a === 'togglePw') {
+    // Flip the box in place (no re-render) so the cursor and typed text stay put.
+    V.showPw = !V.showPw;
+    const pw = document.getElementById('pw'), label = V.showPw ? 'Hide password' : 'Show password';
+    if (pw) { pw.type = V.showPw ? 'text' : 'password'; pw.focus(); const n = pw.value.length; try { pw.setSelectionRange(n, n); } catch (err) {} }
+    b.innerHTML = icon(V.showPw ? 'eyeOff' : 'eye'); b.setAttribute('aria-label', label); b.title = label; b.setAttribute('aria-pressed', V.showPw);
+  }
+  else if (a === 'askLogout') { V.askOut = true; render(); const c = document.querySelector('.dialog [data-act="noLogout"]'); if (c) c.focus(); }
+  else if (a === 'noLogout') { if (b.classList.contains('overlay') && e.target.closest('.dialog')) return; V.askOut = false; render(); }
+  else if (a === 'logout') { V.askOut = false; logout(); }
   else if (a === 'exitPreview') exitPreview();
   else if (a === 'retry') route();
   else if (a === 'changeRoll') { V.login.step = 'roll'; V.login.err = ''; render(); const el = document.getElementById('rl'); if (el) el.focus(); }
@@ -803,6 +836,7 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && V.askOut) { V.askOut = false; render(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.closest && e.target.closest('input,textarea,select')) return;
   const k = e.key.toLowerCase();

@@ -14,6 +14,8 @@ const {
 } = process.env;
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || randomBytes(32).toString('hex');
+// One shared password every student types with their roll number. Set STUDENT_PASSWORD to change it.
+const STUDENT_PASSWORD = process.env.STUDENT_PASSWORD || 'notebook';
 const GRACE_MS = 20_000;         // network allowance after a timed quiz ends
 const DEFAULT_DURATION = 30;     // minutes
 
@@ -300,12 +302,14 @@ function rankRows(rows, same) {
 async function auth(req, res, next) {
   try {
     const roll = cleanRoll(req.get('x-roll'));
-    const s = roll && await getStudent(roll);
-    if (!s) return res.status(401).json({ error: 'Please sign in.' });
-    req.student = s;
     // Admin "view as student": the request carries the admin's token. Read-only (see readOnly below).
     const pv = req.get('x-preview');
     if (pv) { if (!adminFrom(pv)) return res.status(401).json({ error: 'Your admin preview has expired. Open it again from the admin pages.' }); req.preview = true; }
+    // Otherwise the student's own sign-in token must be for this exact roll number.
+    else if (!roll || studentFrom(req.get('x-token')) !== roll) return res.status(401).json({ error: 'Please sign in.' });
+    const s = roll && await getStudent(roll);
+    if (!s) return res.status(401).json({ error: 'Please sign in.' });
+    req.student = s;
     next();
   } catch (e) { next(e); }
 }
@@ -413,6 +417,22 @@ function adminFrom(tok) {
   } catch (e) {}
   return null;
 }
+/** Student sign-in tokens: signed like admin tokens, but carry a roll number and last 30 days. */
+function makeStudentToken(roll) {
+  const body = Buffer.from(JSON.stringify({ t: 's', roll, exp: Date.now() + 30 * 864e5 })).toString('base64url');
+  return `${body}.${sign(body)}`;
+}
+/** The roll number for a valid, unexpired student token, else null. */
+function studentFrom(tok) {
+  const [body, sig] = String(tok || '').split('.');
+  try {
+    if (body && sig && safeEq(sig, sign(body))) {
+      const p = JSON.parse(Buffer.from(body, 'base64url').toString());
+      if (p.t === 's' && typeof p.roll === 'string' && p.exp > Date.now()) return p.roll;
+    }
+  } catch (e) {}
+  return null;
+}
 function adminAuth(req, res, next) {
   const email = adminFrom((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
   if (email) { req.admin = email; return next(); }
@@ -425,7 +445,31 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // behind Render's proxy: real client IPs for the admin sign-in lockout
 app.use(compression());
+// CORS: lets a frontend hosted elsewhere (e.g. https://bigonotes.vercel.app) call this API.
+// FRONTEND_URL is a comma-separated list of allowed origins.
+const ALLOWED_ORIGINS = new Set(String(process.env.FRONTEND_URL || '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean));
+app.use('/api', (req, res, next) => {
+  const origin = req.get('Origin');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.set({ 'Access-Control-Allow-Origin': origin, Vary: 'Origin',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Roll, X-Token, X-Preview',
+      'Access-Control-Max-Age': '86400' });
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
+
+/* Backend-only mode: when the frontend is hosted elsewhere (FRONTEND_URL is set, e.g. on Render),
+   this server answers only /api/* and sends every page request to the frontend. */
+const FRONTEND = [...ALLOWED_ORIGINS][0];
+if (FRONTEND) {
+  app.use((req, res, next) => {
+    if (req.path === '/api' || req.path.startsWith('/api/')) return next();
+    res.redirect(302, FRONTEND + (req.path === '/admin' || req.path === '/admin.html' ? '/admin' : '/'));
+  });
+}
 
 /* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again
    only when a file actually changes. The two HTML pages are served from memory and always revalidated. */
@@ -481,11 +525,20 @@ app.get('/api/health', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const roll = cleanRoll(req.body?.roll);
   if (!ROLL_RE.test(roll)) return res.status(400).json({ error: 'Enter a valid roll number (letters and numbers, like N24H01B0245).' });
+  // Password first, before saying anything about whether the roll number exists.
+  // Locked per roll number, not per IP: a whole hall shares one IP on the college Wi-Fi.
+  const key = 's:' + roll, f = failures.get(key);
+  if (f && f.n >= 10 && f.until > Date.now()) return res.status(429).json({ error: 'Too many wrong passwords for this roll number. Wait 15 minutes and try again.' });
+  if (!safeEq(String(req.body?.password ?? ''), STUDENT_PASSWORD)) {
+    failures.set(key, { n: f && f.until > Date.now() ? f.n + 1 : 1, until: Date.now() + 15 * 60e3 });
+    return res.status(401).json({ badPassword: true, error: 'Wrong password. Ask your teacher if you have forgotten it.' });
+  }
+  failures.delete(key);
   const now = new Date();
   const existing = await students.findOne({ roll });
   if (existing) {
     await students.updateOne({ _id: existing._id }, { $set: { lastLoginAt: now } });
-    return res.json({ student: { name: existing.name, roll }, isNew: false });
+    return res.json({ student: { name: existing.name, roll }, token: makeStudentToken(roll), isNew: false });
   }
   const name = cleanName(req.body?.name);
   if (!name) return res.status(404).json({ needName: true, roll, error: 'This roll number is new here. Enter your name to register.' });
@@ -494,9 +547,9 @@ app.post('/api/login', async (req, res) => {
   catch (e) {
     if (e.code !== 11000) throw e;
     const s = await students.findOne({ roll });
-    return res.json({ student: { name: s.name, roll }, isNew: false });
+    return res.json({ student: { name: s.name, roll }, token: makeStudentToken(roll), isNew: false });
   }
-  res.status(201).json({ student: { name, roll }, isNew: true });
+  res.status(201).json({ student: { name, roll }, token: makeStudentToken(roll), isNew: true });
 });
 
 // Everything for the student's home, upcoming and past pages. Sets and paper names are never sent.
@@ -1177,6 +1230,6 @@ app.use((err, req, res, next) => {
 await startup();
 app.listen(PORT, () => {
   console.log(`Today is ${today()} (${QUIZ_TZ})`);
-  console.log(`BigONotes running at http://localhost:${PORT}`);
+  console.log(`BigONotebook running at http://localhost:${PORT}`);
   console.log(`Admin:               http://localhost:${PORT}/admin`);
 });

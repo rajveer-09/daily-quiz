@@ -1,4 +1,4 @@
-# BigONotes
+# BigONotebook
 
 Timed class quizzes with a student site and an admin dashboard. Built with Node.js, Express and MongoDB, with a plain HTML/CSS/JS front end.
 
@@ -8,7 +8,7 @@ Timed class quizzes with a student site and an admin dashboard. Built with Node.
 ## Features
 
 **Students**
-- Sign in with just a roll number. A new roll number asks for a name once, which registers the student.
+- Sign in with a roll number and the class password (`STUDENT_PASSWORD`). A new roll number asks for a name once, which registers the student.
 - The home page shows upcoming tests with a live countdown, their topics, the duration and the number of questions. Questions stay hidden until the student presses Start.
 - Tests are timed:
   - The timer starts on Start and the server enforces it.
@@ -70,6 +70,7 @@ npm start
 | `DB_NAME` | Database name (default `daily_quiz`) |
 | `PORT` | HTTP port (default `3000`) |
 | `QUIZ_TZ` | Time zone for test times (default `Asia/Kolkata`) |
+| `STUDENT_PASSWORD` | Shared password students enter with their roll number (default `notebook`) |
 | `ADMIN_EMAIL` | Admin sign-in email |
 | `ADMIN_PASSWORD` | Admin sign-in password |
 | `ADMIN_SECRET` | Long random string that signs admin sessions |
