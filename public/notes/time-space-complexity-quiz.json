@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "What is the time complexity?", "code": "for (int i = 0; i < n; i++)\n    for (int j = 0; j < n; j++) cnt++;", "o": ["O(n)", "O(n²)", "O(2n)", "O(n log n)"], "a": 1, "e": "Nested loops multiply: n rounds × n rounds = n²." },
+    { "q": "What is the time complexity?", "code": "for (int i = 1; i < n; i *= 2) cnt++;", "o": ["O(n)", "O(n / 2)", "O(log n)", "O(√n)"], "a": 2, "e": "i doubles each round, so it reaches n after about log₂ n rounds." },
+    { "q": "What does 3n² + 5n + 100 simplify to?", "o": ["O(3n²)", "O(n² + n)", "O(n²)", "O(100)"], "a": 2, "e": "Keep the fastest-growing term and drop the constant in front of it." },
+    { "q": "What is the time complexity?", "code": "for (int i = 1; i * i <= n; i++) cnt++;", "o": ["O(n²)", "O(√n)", "O(log n)", "O(n)"], "a": 1, "e": "The loop stops once i × i passes n, which is after about √n rounds." },
+    { "q": "n ≤ 2 × 10^5 with a 1-second limit. Which complexity is safe?", "o": ["O(n²)", "O(n³)", "O(n log n)", "O(2ⁿ)"], "a": 2, "e": "O(n log n) is about 3.5 × 10^6 steps. O(n²) would be about 4 × 10^10, far above the roughly 10^8 operations per second." },
+    { "q": "What is the time complexity?", "code": "int j = 0;\nfor (int i = 0; i < n; i++)\n    while (j < n) j++;", "o": ["O(n²)", "O(n)", "O(n log n)", "O(1)"], "a": 1, "e": "j is set once and never reset, so the while loop moves j from 0 to n only once in total. The total work is about 2n." },
+    { "q": "What is the extra space of vector<int> a(n) plus a few variables?", "o": ["O(1)", "O(log n)", "O(n)", "O(n²)"], "a": 2, "e": "The vector stores n numbers. A few single variables are O(1), so the total is O(n)." },
+    { "q": "What is the time complexity?", "code": "for (int i = 1; i <= n; i++)\n    for (int j = 1; j <= i; j++) cnt++;", "o": ["O(n)", "O(n log n)", "O(n²)", "O(n³)"], "a": 2, "e": "The inner loop depends on i: 1 + 2 + … + n = n(n + 1)/2, which is O(n²)." }
+  ]
+}

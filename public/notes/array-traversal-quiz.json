@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "An array has 5 elements. Which indexes are valid?", "o": ["1 to 5", "0 to 5", "0 to 4", "1 to 4"], "a": 2, "e": "Indexes start at 0, so an array of size n uses 0 to n − 1." },
+    { "q": "What should the largest-value tracker start at?", "o": ["0", "a[0]", "INT_MAX", "-1"], "a": 1, "mono": true, "e": "Start with a real element. If every value is negative, starting at 0 (or −1) would give a wrong answer." },
+    { "q": "What does this print?", "code": "int a[] = {7, -2, 9, 4, 9};\nint pos = 0;\nfor (int i = 1; i < 5; i++)\n    if (a[i] > a[pos]) pos = i;\ncout << pos;", "run": true, "o": ["2", "4", "3", "0"], "a": 0, "e": "The largest value 9 appears at indexes 2 and 4. With > the champion changes only on a strictly bigger value, so the first one (index 2) is kept." },
+    { "q": "What does this print?", "code": "int a[] = {3, 1, 4, 1, 5};\nlong long s = 0;\nfor (int i = 0; i < 5; i++) s += a[i];\ncout << s;", "run": true, "o": ["13", "14", "15", "5"], "a": 1, "e": "3 + 1 + 4 + 1 + 5 = 14." },
+    { "q": "You need the first position of x. When should the loop stop?", "o": ["After checking every element", "At the first match, with break", "When x is larger than a[i]", "It shouldn't stop"], "a": 1, "e": "Break at the first match, or a later match would overwrite the position. To count matches instead, never break." },
+    { "q": "What happens if you read a[n] from an array of size n?", "o": ["It gives 0", "A compile error", "Out of bounds: garbage values or a crash", "It gives a[0]"], "a": 2, "e": "C++ doesn't check the index. Reading past the end is undefined behaviour: wrong values, or a crash." },
+    { "q": "What does this print?", "code": "int a[] = {1, 1, 0, 1, 1, 1};\nint run = 0, best = 0;\nfor (int i = 0; i < 6; i++) {\n    run = a[i] ? run + 1 : 0;\n    if (run > best) best = run;\n}\ncout << best;", "run": true, "o": ["5", "2", "3", "6"], "a": 2, "e": "The run resets to 0 at the 0, so the longest run of 1s is the last three." },
+    { "q": "The array's size comes from the input. What should you use?", "o": ["A fixed int a[10];", "vector<int> a(n);", "char a[n];", "No array is needed"], "a": 1, "mono": true, "e": "A vector's size can be decided while the program runs. Plain arrays need a constant size." }
+  ]
+}

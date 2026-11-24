@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "What does this print?", "code": "cout << 7 / 2 << \" \" << 7 % 3;", "run": true, "o": ["3.5 1", "3 1", "3 2", "4 1"], "a": 1, "e": "int / int cuts off the fraction, so 7 / 2 is 3. 7 % 3 is the remainder, 1." },
+    { "q": "Which type should hold a whole number up to 10^18?", "o": ["int", "long long", "float", "char"], "a": 1, "mono": true, "e": "int only reaches about 2.1 × 10^9. long long reaches about 9.2 × 10^18." },
+    { "q": "What does this print?", "code": "char c = 'A' + 2;\ncout << c;", "run": true, "o": ["C", "67", "A2", "Compile error"], "a": 0, "e": "'A' is 65, so 'A' + 2 is 67, which is stored in a char and printed as the letter C." },
+    { "q": "What does this print?", "code": "cout << -7 % 3;", "run": true, "o": ["2", "-1", "1", "-2"], "a": 1, "e": "In C++ the remainder takes the sign of the first number, so -7 % 3 is -1. For a non-negative remainder use ((a % b) + b) % b." },
+    { "q": "Why can 0.1 + 0.2 == 0.3 be false?", "o": ["== doesn't work with decimals", "Decimals are stored with tiny rounding errors", "0.1 is stored as an int", "The compiler skips decimal comparisons"], "a": 1, "e": "Most decimals can't be stored exactly in binary. Compare with a tolerance: fabs(x - y) < 1e-9." },
+    { "q": "What does this print?", "code": "int a = 100000, b = 100000;\nlong long p = 1LL * a * b;\ncout << p;", "run": true, "o": ["10000000000", "1410065408", "Overflow error", "0"], "a": 0, "e": "1LL makes the multiplication happen in long long, so there is no overflow. Without it, a * b would overflow as an int." },
+    { "q": "What does this print?", "code": "cout << (double)7 / 2 << \" \" << (double)(7 / 2);", "run": true, "o": ["3.5 3.5", "3 3", "3.5 3", "3 3.5"], "a": 2, "e": "Casting before dividing keeps the fraction (3.5). In (double)(7 / 2) the integer division has already happened, giving 3." },
+    { "q": "What does endl do that \"\\n\" doesn't?", "o": ["Adds two newlines", "Flushes the output", "Works only on Windows", "Nothing, they are the same"], "a": 1, "e": "endl prints a newline and flushes the output, which is slower in big loops. \"\\n\" only prints the newline." }
+  ]
+}

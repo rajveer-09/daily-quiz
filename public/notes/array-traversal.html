@@ -1,0 +1,87 @@
+<!-- Notes: Array Traversal (Level 1 · Arrays). Fragment: loaded into the notes reader. -->
+<h2 id="what" data-key="Indexes">1. What an array is</h2>
+<p>An <b>array</b> stores many values of the <b>same type</b> under one name, side by side in memory. Each value is reached by its <b>index</b>, its position counted <b>from 0</b>. An array of size n has indexes 0 to n − 1.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>index</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th></tr></thead>
+  <tbody><tr><td>a[index]</td><td>7</td><td>-2</td><td>9</td><td>4</td><td>9</td></tr></tbody>
+</table></div>
+<p><code>a[0]</code> is 7, <code>a[4]</code> is the last element, and <code>a[5]</code> doesn't exist.</p>
+
+<h2 id="declare" data-key="Array or vector">2. Creating and reading an array</h2>
+<pre><code class="cpp">int a[5] = {7, -2, 9, 4, 9};      // fixed size, known while writing the code
+
+int n;
+cin &gt;&gt; n;
+vector&lt;int&gt; v(n);                 // size chosen while the program runs (header &lt;vector&gt;)
+for (int i = 0; i &lt; n; i++) cin &gt;&gt; v[i];</code></pre>
+<ul>
+  <li>A plain array's size must be a constant. When the size comes from the input, use a <code>vector</code>, or a plain array sized for the largest possible input (for n ≤ 1000, <code>int a[1000];</code>).</li>
+  <li><code>vector&lt;int&gt; v(n, 0);</code> creates n zeros. <code>v.size()</code> is its length and <code>v.push_back(x)</code> adds x at the end.</li>
+  <li>A plain array declared <b>inside</b> a function starts with garbage values; one declared <b>outside</b> <code>main</code> (global) starts as all zeros. Write <code>int cnt[26] = {0};</code> to zero a local array.</li>
+  <li>Very large arrays (over about 10^6 elements) belong outside <code>main</code>, where there is room for them.</li>
+</ul>
+
+<h2 id="traverse">3. Traversal: visiting every element</h2>
+<p><b>Traversal</b> means walking the array once, usually from index 0 to n − 1, and doing something with each element.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int a[5] = {7, -2, 9, 4, 9};
+    int n = 5;
+    for (int i = 0; i &lt; n; i++) cout &lt;&lt; a[i] &lt;&lt; " ";        // forwards
+    cout &lt;&lt; "\n";
+    for (int i = n - 1; i &gt;= 0; i--) cout &lt;&lt; a[i] &lt;&lt; " ";   // backwards
+    cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>7 -2 9 4 9
+9 4 9 -2 7 </code></pre>
+
+<h2 id="remember" data-key="One-pass patterns">4. One pass, one thing to remember</h2>
+<p>Almost every traversal question is: walk the array once and keep track of one thing.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Goal</th><th>What to remember</th><th>Start with</th></tr></thead>
+  <tbody>
+    <tr><td>Sum or average</td><td>a running total</td><td><code>0</code> (in <code>long long</code>)</td></tr>
+    <tr><td>Largest or smallest</td><td>the champion value, and its index</td><td><code>a[0]</code> and index 0</td></tr>
+    <tr><td>Search</td><td>the position found</td><td><code>-1</code>, meaning “not found”</td></tr>
+    <tr><td>Count with a test</td><td>a counter</td><td><code>0</code></td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int a[] = {7, -2, 9, 4, 9};
+    int n = 5;
+    long long sum = 0;
+    int best = a[0], pos = 0, evens = 0, where = -1;
+    for (int i = 0; i &lt; n; i++) {
+        sum += a[i];                                       // running total
+        if (a[i] &gt; best) { best = a[i]; pos = i; }         // champion and its index
+        if (a[i] % 2 == 0) evens++;                        // counter
+        if (where == -1 &amp;&amp; a[i] == 4) where = i;           // first position of 4
+    }
+    cout &lt;&lt; sum &lt;&lt; " " &lt;&lt; best &lt;&lt; " " &lt;&lt; pos &lt;&lt; " " &lt;&lt; evens &lt;&lt; " " &lt;&lt; where &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>27 9 2 2 3</code></pre>
+<p>The largest value 9 appears twice. <code>&gt;</code> keeps the <b>first</b> one (index 2); <code>&gt;=</code> would keep the last (index 4).</p>
+
+<h2 id="positions" data-key="Bounds">5. Indexes and positions</h2>
+<ul>
+  <li>Indexes start at 0, but problems often number positions from 1. If they ask for a position, print <code>index + 1</code>.</li>
+  <li>The element before <code>a[i]</code> is <code>a[i - 1]</code>, which exists only when <code>i ≥ 1</code>. The one after is <code>a[i + 1]</code>, which exists only when <code>i ≤ n − 2</code>.</li>
+  <li>Reading or writing outside 0 to n − 1 is <b>out of bounds</b>. C++ doesn't stop you: you get garbage values, wrong answers or a crash.</li>
+</ul>
+
+<h2 id="mistakes" data-key="Mistakes">6. Common mistakes</h2>
+<ol>
+  <li><b>Looping to <code>i &lt;= n</code></b>, which reads <code>a[n]</code>, one past the end.</li>
+  <li><b>Starting the maximum at 0</b>: if every value is negative, 0 wrongly wins. Start at <code>a[0]</code>.</li>
+  <li><b>Printing the index when the position was asked for</b>, or the other way round.</li>
+  <li><b>An <code>int</code> sum of many large values</b>: 10^5 values of 10^9 need <code>long long</code>.</li>
+  <li><b>Forgetting to zero a local array</b> used for counting.</li>
+  <li><b>Checking <code>a[i - 1]</code> at <code>i = 0</code></b> or <code>a[i + 1]</code> at the last index.</li>
+</ol>

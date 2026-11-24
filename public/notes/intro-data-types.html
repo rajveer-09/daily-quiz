@@ -1,0 +1,171 @@
+<!-- Notes: Introduction and Data Types (Level 0 · Fundamentals). Fragment: loaded into the notes reader. -->
+<h2 id="first-program">1. Your first C++ program</h2>
+<p>A <b>programming language</b> is a language with fixed rules (syntax) for giving instructions to a computer. C++ code is <b>compiled</b>: a compiler (such as g++) translates it into machine code that the CPU runs.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;     // brings in cin and cout
+using namespace std;     // lets us write cout instead of std::cout
+
+int main() {             // every program starts running here
+    cout &lt;&lt; "Hello, world!" &lt;&lt; "\n";
+    return 0;            // 0 tells the system: finished without errors
+}</code></pre>
+<pre class="plain out"><code>Hello, world!</code></pre>
+<div class="nt-table"><table>
+  <thead><tr><th>Line</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>#include &lt;iostream&gt;</code></td><td>A <b>preprocessor directive</b>. Copies the <b>header file</b> <code>iostream</code> into the program, so the compiler knows <code>cin</code> and <code>cout</code>.</td></tr>
+    <tr><td><code>using namespace std;</code></td><td>Standard library names live in the namespace <code>std</code>. This line lets us skip the <code>std::</code> prefix.</td></tr>
+    <tr><td><code>int main()</code></td><td>The <b>entry point</b>. A program has exactly one <code>main</code>, and it returns an <code>int</code> to the operating system.</td></tr>
+    <tr><td><code>return 0;</code></td><td>Ends the program. 0 means success; any other value signals an error.</td></tr>
+  </tbody>
+</table></div>
+<p>Other headers you will use: <code>&lt;cmath&gt;</code> (maths functions), <code>&lt;climits&gt;</code> (limits such as <code>INT_MAX</code>), <code>&lt;iomanip&gt;</code> (output formatting) and <code>&lt;string&gt;</code>. In competitive programming, <code>#include &lt;bits/stdc++.h&gt;</code> includes all of them at once (it works with g++ only).</p>
+<p><b>Comments</b> are ignored by the compiler: <code>// one line</code> or <code>/* several lines */</code>.</p>
+
+<h2 id="io">2. Output and input</h2>
+<p><code>cout</code> prints with the <b>insertion operator</b> <code>&lt;&lt;</code>. <code>cin</code> reads with the <b>extraction operator</b> <code>&gt;&gt;</code>. Both can be chained.</p>
+<pre><code class="cpp">int a, b, c;
+cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;              // input "10 20 30" or one number per line
+cout &lt;&lt; a + b + c &lt;&lt; "\n";       // 60</code></pre>
+<ul>
+  <li><code>cin &gt;&gt;</code> skips spaces and newlines, and stops at the next space. To read a whole line with spaces, use <code>getline(cin, s);</code></li>
+  <li><code>endl</code> prints a newline <b>and flushes</b> the output. <code>"\n"</code> only prints a newline, so it is faster when printing many lines. Prefer <code>"\n"</code>.</li>
+  <li>Every statement ends with a <b>semicolon</b> <code>;</code>. There is no semicolon after <code>#include</code> lines or after a function's closing brace.</li>
+</ul>
+
+<h2 id="variables">3. Variables and constants</h2>
+<p>A <b>variable</b> is a named box that holds a value of one type. A <b>constant</b> can't change after it is set; changing it is a compile error.</p>
+<pre><code class="cpp">int count = 5;
+count = 10;               // fine: variables can change
+const int MAX = 100;      // MAX = 200; would not compile</code></pre>
+<p>Names may use letters, digits and <code>_</code>, can't start with a digit, can't be a keyword (<code>int</code>, <code>for</code>…), and are <b>case-sensitive</b>: <code>sum</code> and <code>Sum</code> are different variables. Always give a variable a value before reading it.</p>
+
+<h2 id="types" data-key="Type sizes">4. Data types</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Type</th><th>Size (typical)</th><th>Holds</th></tr></thead>
+  <tbody>
+    <tr><td><code>bool</code></td><td>1 byte</td><td><code>true</code> or <code>false</code></td></tr>
+    <tr><td><code>char</code></td><td>1 byte</td><td>One character, stored as a number from −128 to 127</td></tr>
+    <tr><td><code>int</code></td><td>4 bytes</td><td>−2,147,483,648 to 2,147,483,647 (about ±2.1 × 10^9)</td></tr>
+    <tr><td><code>unsigned int</code></td><td>4 bytes</td><td>0 to 4,294,967,295 (about 4.3 × 10^9)</td></tr>
+    <tr class="hl"><td><code>long long</code></td><td>8 bytes</td><td>About ±9.22 × 10^18</td></tr>
+    <tr><td><code>float</code></td><td>4 bytes</td><td>Decimals, about 6–7 significant digits</td></tr>
+    <tr class="hl"><td><code>double</code></td><td>8 bytes</td><td>Decimals, about 15–16 significant digits</td></tr>
+  </tbody>
+</table></div>
+<p><code>sizeof(x)</code> gives the size in bytes. The limits are in <code>&lt;climits&gt;</code>: <code>INT_MIN</code>, <code>INT_MAX</code>, <code>UINT_MAX</code>, <code>LLONG_MAX</code>.</p>
+<aside class="nt-call tip"><b>Which type?</b> Whole numbers up to about 2 × 10^9: <code>int</code>. Anything larger, including products and big sums: <code>long long</code>. Decimals: <code>double</code> (not <code>float</code>).</aside>
+
+<h2 id="chars" data-key="ASCII tricks">5. Characters and ASCII</h2>
+<p>A <code>char</code> is stored as a number, its <b>ASCII code</b>. So you can do arithmetic on characters.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Characters</th><th>Codes</th></tr></thead>
+  <tbody>
+    <tr><td><code>'0'</code> … <code>'9'</code></td><td>48 … 57</td></tr>
+    <tr><td><code>'A'</code> … <code>'Z'</code></td><td>65 … 90</td></tr>
+    <tr><td><code>'a'</code> … <code>'z'</code></td><td>97 … 122</td></tr>
+    <tr><td>space</td><td>32</td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    char c = 'C', d = '7';
+    cout &lt;&lt; (int)c &lt;&lt; "\n";             // its ASCII code
+    cout &lt;&lt; c - 'A' &lt;&lt; "\n";            // position from 0: A=0, B=1, C=2
+    cout &lt;&lt; d - '0' &lt;&lt; "\n";            // the digit's value
+    cout &lt;&lt; (char)(c + 32) &lt;&lt; "\n";     // lowercase = uppercase + 32
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>67
+2
+7
+c</code></pre>
+<p><b>Single quotes</b> make one character: <code>'A'</code> is a <code>char</code>. <b>Double quotes</b> make a string: <code>"A"</code> is text, stored as <code>'A'</code> plus a hidden end marker <code>'\0'</code>, so it takes 2 bytes.</p>
+
+<h2 id="bool">6. Booleans</h2>
+<p>A <code>bool</code> holds <code>true</code> or <code>false</code>. Comparisons such as <code>n % 2 == 0</code> produce a <code>bool</code>. <code>cout</code> prints <code>true</code> as 1 and <code>false</code> as 0; add <code>boolalpha</code> to print the words. Any non-zero number converts to <code>true</code>, and 0 to <code>false</code>.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    bool isEven = (10 % 2 == 0);
+    cout &lt;&lt; isEven &lt;&lt; "\n";
+    cout &lt;&lt; boolalpha &lt;&lt; isEven &lt;&lt; "\n";
+    int a = true, b = true;              // true is stored as 1
+    cout &lt;&lt; a + b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1
+true
+2</code></pre>
+
+<h2 id="arithmetic" data-key="Division traps">7. Arithmetic traps: division and remainder</h2>
+<ul>
+  <li><code>int / int</code> gives an <code>int</code>: the fraction is cut off, toward zero. <code>7 / 2</code> is <code>3</code> and <code>-7 / 2</code> is <code>-3</code>.</li>
+  <li><code>%</code> gives the remainder and works on integers only. Its sign follows the first number: <code>-7 % 3</code> is <code>-1</code>.</li>
+  <li>For a remainder that is never negative, use <code>((a % b) + b) % b</code>.</li>
+</ul>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    cout &lt;&lt; 7 / 2 &lt;&lt; " " &lt;&lt; -7 / 2 &lt;&lt; "\n";        // integer division
+    cout &lt;&lt; 7.0 / 2 &lt;&lt; "\n";                       // one double makes it real division
+    cout &lt;&lt; -7 % 3 &lt;&lt; " " &lt;&lt; ((-7 % 3) + 3) % 3 &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>3 -3
+3.5
+-1 2</code></pre>
+
+<h2 id="casting" data-key="Type casting">8. Type casting</h2>
+<p><b>Type casting</b> converts a value to another type.</p>
+<ul>
+  <li><b>Implicit</b> (automatic): <code>double d = 5;</code> stores <code>5.0</code>. In <code>int + double</code>, the <code>int</code> is promoted, so the result is a <code>double</code>.</li>
+  <li><b>Explicit</b> (you ask for it): <code>(double)a</code> or the C++ style <code>static_cast&lt;double&gt;(a)</code>.</li>
+  <li>Casting a decimal to <code>int</code> <b>cuts off the fraction</b> toward zero: <code>(int)3.9</code> is 3 and <code>(int)-3.9</code> is −3.</li>
+</ul>
+<pre><code class="cpp">int a = 7, b = 2;
+double avg = (double)a / b;    // 3.5: cast first, then divide
+double bad = (double)(a / b);  // 3: the division already happened in int</code></pre>
+
+<h2 id="overflow" data-key="Overflow">9. Overflow</h2>
+<p>If a result doesn't fit its type, it <b>overflows</b> and the value is wrong. (For signed types this is undefined behaviour; in practice it usually wraps around to a strange number.)</p>
+<p>The type of the result is decided by the operands, <b>not</b> by the variable you store it in:</p>
+<pre><code class="cpp">int a = 100000, b = 100000;
+long long wrong = a * b;          // overflows: the product is computed as int
+long long right = 1LL * a * b;    // 10000000000: computed as long long</code></pre>
+<p>If inputs or products can go above about 2 × 10^9, read them into <code>long long</code> from the start.</p>
+
+<h2 id="floats" data-key="Comparing decimals">10. Decimal numbers</h2>
+<p>Most decimals can't be stored exactly in binary. <code>0.1 + 0.2</code> is not exactly <code>0.3</code>, so <b>never compare decimals with <code>==</code></b>. Check that the difference is tiny instead:</p>
+<pre><code class="cpp">if (fabs(x - y) &lt; 1e-9) { /* treat x and y as equal */ }    // fabs is in &lt;cmath&gt;</code></pre>
+<p>A literal like <code>6.753</code> is a <code>double</code>; <code>6.753f</code> is a <code>float</code>. Storing <code>6.753</code> in a <code>float</code> loses digits, so <code>a == 6.753</code> is false for <code>float a = 6.753;</code></p>
+<p>Printing and rounding (<code>&lt;cmath&gt;</code> and <code>&lt;iomanip&gt;</code>):</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cmath&gt;
+#include &lt;iomanip&gt;
+using namespace std;
+
+int main() {
+    double x = 2.5;
+    cout &lt;&lt; floor(x) &lt;&lt; " " &lt;&lt; ceil(x) &lt;&lt; " " &lt;&lt; round(x) &lt;&lt; "\n";   // down, up, nearest
+    cout &lt;&lt; round(-2.5) &lt;&lt; "\n";                                     // halves go away from zero
+    cout &lt;&lt; fixed &lt;&lt; setprecision(2) &lt;&lt; 10.0 / 3 &lt;&lt; "\n";            // exactly 2 decimals
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>2 3 3
+-3
+3.33</code></pre>
+
+<h2 id="mistakes">11. Common mistakes</h2>
+<ol>
+  <li><b>Integer division by accident.</b> <code>(a + b + c) / 3</code> drops the fraction. Divide by <code>3.0</code>.</li>
+  <li><b>Overflow before storing.</b> <code>long long p = a * b;</code> with <code>int</code> operands still overflows. Use <code>1LL * a * b</code>.</li>
+  <li><b>Comparing decimals with <code>==</code>.</b> Compare with a tolerance.</li>
+  <li><b>Negative remainders.</b> <code>-7 % 3</code> is <code>-1</code>, not 2.</li>
+  <li><b>Mixing up <code>'A'</code> and <code>"A"</code>.</b> Single quotes for one character, double quotes for text.</li>
+  <li><b>Reading a variable before giving it a value.</b> Its value is garbage.</li>
+  <li><b>Using <code>endl</code> in big loops.</b> It flushes every time; <code>"\n"</code> is faster.</li>
+</ol>

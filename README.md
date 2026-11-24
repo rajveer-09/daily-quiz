@@ -1,4 +1,4 @@
-# QuizMe
+# BigONotes
 
 Timed class quizzes with a student site and an admin dashboard. Built with Node.js, Express and MongoDB, with a plain HTML/CSS/JS front end.
 

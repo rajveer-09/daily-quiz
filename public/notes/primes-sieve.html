@@ -20,7 +20,7 @@ int main() {
 }</code></pre>
 <p><b>Time complexity:</b> O(n). For <code>n = 10^9</code> that is about 10^9 operations, which is too slow (roughly 1 second for every 10^8 simple operations).</p>
 
-<h2 id="divisors-sqrt">2. Finding all divisors in O(√n), optimised</h2>
+<h2 id="divisors-sqrt" data-key="Divisors in √n">2. Finding all divisors in O(√n), optimised</h2>
 <h3>Key observation: divisors come in pairs</h3>
 <p>If <code>i</code> divides <code>n</code>, then <code>n / i</code> also divides <code>n</code>.</p>
 <p>For <code>n = 36</code>:</p>
@@ -106,7 +106,7 @@ int main() {
 }</code></pre>
 <p><b>Time complexity:</b> O(n).</p>
 
-<h2 id="prime-sqrt">4. Prime check, O(√n), optimised</h2>
+<h2 id="prime-sqrt" data-key="Prime check">4. Prime check, O(√n), optimised</h2>
 <h3>Why only up to √n?</h3>
 <p>If <code>n</code> is <b>not</b> prime (composite), then <code>n = a × b</code> with <code>1 &lt; a ≤ b &lt; n</code>.</p>
 <p>By the same pair argument as before, <code>a ≤ √n</code>.</p>
@@ -143,7 +143,7 @@ int main() {
 <pre class="plain"><code>N numbers × O(√N) each  =  O(N √N)</code></pre>
 <p>For <code>N = 10^6</code> this is about 10^9 operations, which is too slow. We need a better method, and that is the <b>Sieve</b>.</p>
 
-<h2 id="sieve">5. Sieve of Eratosthenes</h2>
+<h2 id="sieve" data-key="Sieve">5. Sieve of Eratosthenes</h2>
 <h3>Idea</h3>
 <p>Instead of asking "is this number prime?" for every number separately, we <b>cross out the multiples</b> of each prime. Whatever is never crossed out is prime.</p>
 <ol>
@@ -203,7 +203,7 @@ int main() {
 <p>Another way to see it: for any <code>i &gt; √n</code>, the first multiple we would mark is <code>i * i</code>, and <code>i * i &gt; n</code>. So the inner loop would not even run. Going further does no work.</p>
 <p><b>Example (n = 30):</b> √30 ≈ 5.47. After processing 2, 3 and 5, all composites up to 30 are marked. The prime 7 would start marking at 49, which is beyond 30.</p>
 
-<h2 id="q2">Q2. Why does <code>j</code> start from <code>i * i</code> and not <code>2 * i</code>?</h2>
+<h2 id="q2" data-key="Start at i × i">Q2. Why does <code>j</code> start from <code>i * i</code> and not <code>2 * i</code>?</h2>
 <p>Look at the multiples of <code>i</code> that are smaller than <code>i * i</code>:</p>
 <pre class="plain"><code>2·i,  3·i,  4·i,  ...,  (i−1)·i</code></pre>
 <p>Each of these is <code>k · i</code> with <code>k &lt; i</code>. The number <code>k</code> has a prime factor <code>p ≤ k &lt; i</code>, and that prime <code>p</code> was <b>already processed earlier</b>, so <code>k · i</code> was <b>already crossed out</b>.</p>
@@ -240,7 +240,7 @@ int main() {
 </ul>
 <p>For <code>n = 10^6</code>, log log n ≈ 3, so the sieve takes roughly 3 × 10^6 operations.</p>
 
-<h2 id="summary">6. Complexity Summary</h2>
+<h2 id="summary" data-key="Which to use">6. Complexity Summary</h2>
 <div class="nt-table"><table>
   <thead><tr><th>Task</th><th>Approach</th><th>Time</th></tr></thead>
   <tbody>
@@ -258,7 +258,7 @@ int main() {
   <li>Checking <b>many</b> numbers, or needing all primes up to N (N ≤ about 10^7): precompute once with the sieve, then each query is an O(1) lookup.</li>
 </ul>
 
-<h2 id="mistakes">7. Common Mistakes</h2>
+<h2 id="mistakes" data-key="Mistakes">7. Common Mistakes</h2>
 <ol>
   <li><b>Treating 1 as prime.</b> Always set <code>isPrime[0] = isPrime[1] = false</code>.</li>
   <li><b>Using <code>sqrt()</code> in the loop condition.</b> Floating-point error can cause off-by-one bugs. Prefer <code>i * i &lt;= n</code>.</li>

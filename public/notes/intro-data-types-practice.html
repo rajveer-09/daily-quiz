@@ -1,0 +1,165 @@
+<!-- Practice questions: Introduction and Data Types (Level 0 · Fundamentals). Fragment: loaded into the notes reader.
+     Each problem: statement, samples (.nt-io), a hint and a solution. The samples are checked against the solution code. -->
+<p>Try each problem on your own first. Open the hint only when you are stuck, and the solution only after you have an answer.</p>
+
+<h2 id="p1">1. Big Sum</h2>
+<p>Read two whole numbers <code>a</code> and <code>b</code> and print <code>a + b</code>.</p>
+<p><b>Limits:</b> 0 ≤ a, b ≤ 10^18</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1000000000000000000 1000000000000000000</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2000000000000000000</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Does 10^18 fit in an <code>int</code>? Does 2 × 10^18 fit in a <code>long long</code>?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p><code>int</code> holds only about 2.1 × 10^9. <code>long long</code> holds about 9.22 × 10^18, so even the sum fits.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long a, b;
+    cin &gt;&gt; a &gt;&gt; b;
+    cout &lt;&lt; a + b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Division Trap</h2>
+<p>Read two integers <code>a</code> and <code>b</code>. On the first line print <code>a / b</code> using integer division. On the second line print the exact result of the division.</p>
+<p><b>Limits:</b> −1000 ≤ a ≤ 1000, 1 ≤ b ≤ 1000</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>7 2</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>3
+3.5</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-7 2</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-3
+-3.5</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Which way does integer division cut off the fraction for negative numbers? How do you make the computer keep the fraction?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p><code>int / int</code> cuts the fraction off toward zero, so <code>-7 / 2</code> is <code>-3</code>, not <code>-4</code>. Casting one side to <code>double</code> first gives the exact result.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int a, b;
+    cin &gt;&gt; a &gt;&gt; b;
+    cout &lt;&lt; a / b &lt;&lt; "\n";
+    cout &lt;&lt; (double)a / b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Shift the Letter</h2>
+<p>Read one lowercase letter. Print the letter that comes 3 places after it in the alphabet, wrapping around after <code>z</code>.</p>
+<p><b>Limits:</b> the input is one character from <code>a</code> to <code>z</code></p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>a</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>d</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>x</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>a</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Turn the letter into a position from 0 to 25 with <code>c - 'a'</code>. How does <code>% 26</code> help with the wrap-around?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Position = <code>c - 'a'</code>. Add 3, take <code>% 26</code> so 26 becomes 0 again, then add <code>'a'</code> to get back a letter.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    char c;
+    cin &gt;&gt; c;
+    char shifted = (c - 'a' + 3) % 26 + 'a';
+    cout &lt;&lt; shifted &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Negative Remainder</h2>
+<p>Read two integers <code>a</code> and <code>b</code>. On the first line print C++'s <code>a % b</code>. On the second line print the remainder as it is defined in maths, which is always between 0 and <code>b − 1</code>.</p>
+<p><b>Limits:</b> −10^9 ≤ a ≤ 10^9, 1 ≤ b ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-7 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1
+2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>7 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1
+1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>In C++, the remainder takes the sign of the first number. If it comes out negative, what can you add to make it fall between 0 and <code>b − 1</code>?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p><code>a % b</code> is between <code>−(b − 1)</code> and <code>b − 1</code>. Adding <code>b</code> makes it positive, and a second <code>% b</code> brings a positive value back into range.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long a, b;
+    cin &gt;&gt; a &gt;&gt; b;
+    cout &lt;&lt; a % b &lt;&lt; "\n";
+    cout &lt;&lt; ((a % b) + b) % b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<p>The numbers are read as <code>long long</code> because <code>(a % b) + b</code> can reach about 2 × 10^9, which doesn't fit in an <code>int</code>.</p>
+</details>
+
+<h2 id="p5">5. Fits in 32 Bits</h2>
+<p>Read one integer <code>n</code>. Print <code>YES</code> if it fits in an <code>int</code>, otherwise <code>NO</code>.</p>
+<p><b>Limits:</b> −10^18 ≤ n ≤ 10^18</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2147483647</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2147483648</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-2147483648</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>You can't read a number that doesn't fit into an <code>int</code> variable. What type can hold every possible input? Which constants in <code>&lt;climits&gt;</code> give the range of <code>int</code>?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Read into <code>long long</code> so the value is stored correctly, then compare it with <code>INT_MIN</code> and <code>INT_MAX</code>.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;climits&gt;
+using namespace std;
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    if (n &gt;= INT_MIN &amp;&amp; n &lt;= INT_MAX) cout &lt;&lt; "YES\n";
+    else cout &lt;&lt; "NO\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Float Equality</h2>
+<p>Read three decimal numbers <code>a</code>, <code>b</code> and <code>c</code>. Print <code>YES</code> if <code>a + b</code> equals <code>c</code> (allowing a difference of up to 10^-6), otherwise <code>NO</code>.</p>
+<p><b>Limits:</b> −1000 ≤ a, b, c ≤ 1000, with up to 6 decimal places</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0.1 0.2 0.3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1 2 4</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Try printing <code>0.1 + 0.2 == 0.3</code>. Why isn't it 1? What can you compare instead of the two values themselves?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Decimals are stored with tiny rounding errors, so 0.1 + 0.2 is not exactly 0.3 and <code>==</code> fails. Check that the difference is within the tolerance instead.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cmath&gt;
+using namespace std;
+
+int main() {
+    double a, b, c;
+    cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;
+    if (fabs((a + b) - c) &lt;= 1e-6) cout &lt;&lt; "YES\n";
+    else cout &lt;&lt; "NO\n";
+    return 0;
+}</code></pre>
+</details>

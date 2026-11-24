@@ -1,0 +1,116 @@
+<!-- Problem-solving framework: Prime Numbers and Sieve (Level 1 · Maths). Fragment: loaded into the notes reader. -->
+<h2 id="spot">1. Spot a prime or divisor question</h2>
+<p>Signal words in the statement:</p>
+<ul>
+  <li>“prime”, “composite”, “co-prime”, “prime factors”, “factorise”</li>
+  <li>“divisor”, “factor”, “divides”, “multiple”, “perfect number”</li>
+  <li>“count the primes up to N”, “primes in the range [L, R]”</li>
+  <li>“number of divisors”, “sum of divisors”, “exactly k divisors”</li>
+  <li>many queries on numbers up to 10^6 or 10^7 (a strong hint to precompute with a sieve)</li>
+</ul>
+
+<h2 id="tool">2. Pick the tool from the limits</h2>
+<p>The two questions that decide everything: <b>one number or many?</b> and <b>how large?</b></p>
+<div class="nt-table"><table>
+  <thead><tr><th>Situation</th><th>Tool</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Divisors of one number, n up to about 10^12</td><td>pair loop while <code>d * d &lt;= n</code></td><td>O(√n)</td></tr>
+    <tr><td>Is one number prime? n up to about 10^12</td><td>trial division up to √n, stop at the first divisor</td><td>O(√n)</td></tr>
+    <tr><td>Many prime checks, or all primes up to N (N up to about 10^7)</td><td>Sieve of Eratosthenes, once</td><td>O(N log log N), then O(1) per check</td></tr>
+    <tr><td>Factorise many numbers up to about 10^6</td><td>smallest-prime-factor (SPF) sieve</td><td>one sieve, then O(log x) per number</td></tr>
+    <tr><td>Divisor counts or sums for many numbers up to about 10^6</td><td>for each i, visit its multiples (<code>j += i</code>)</td><td>O(N log N), then O(1) per number</td></tr>
+  </tbody>
+</table></div>
+<aside class="nt-call tip"><b>Rule of thumb:</b> with q questions on numbers up to N, checking each one costs about q × √N. If that passes about 10^8, build a sieve up to N once instead.</aside>
+
+<h2 id="steps">3. Before you code</h2>
+<ol>
+  <li><b>Read the limits:</b> the largest value, and how many numbers or queries.</li>
+  <li><b>Pick the tool</b> from the table above.</li>
+  <li><b>Check the sieve's memory:</b> a <code>vector&lt;bool&gt;</code> of 10^7 is about 1.25 MB, but an <code>int</code> array of 10^7 is 40 MB.</li>
+  <li><b>Handle 0, 1 and 2 first:</b> 0 and 1 are not prime; 2 is the only even prime.</li>
+  <li><b>Watch overflow:</b> write <code>i * i &lt;= n</code> with <code>long long i</code> (or <code>i &lt;= n / i</code>), never <code>i &lt;= sqrt(n)</code>.</li>
+  <li><b>Size arrays n + 1</b> so index n exists.</li>
+</ol>
+
+<h2 id="templates">4. Templates</h2>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+bool isPrime(long long n) {                    // one number: O(sqrt n)
+    if (n &lt; 2) return false;
+    for (long long i = 2; i * i &lt;= n; i++)
+        if (n % i == 0) return false;
+    return true;
+}
+
+int countDivisors(long long n) {               // one number: O(sqrt n)
+    int cnt = 0;
+    for (long long d = 1; d * d &lt;= n; d++)
+        if (n % d == 0) cnt += (d == n / d) ? 1 : 2;   // a perfect square counts once
+    return cnt;
+}
+
+vector&lt;bool&gt; sieve(int n) {                   // every number up to n: O(n log log n)
+    vector&lt;bool&gt; p(n + 1, true);
+    p[0] = false;
+    if (n &gt;= 1) p[1] = false;
+    for (long long i = 2; i * i &lt;= n; i++)
+        if (p[i])
+            for (long long j = i * i; j &lt;= n; j += i) p[j] = false;
+    return p;
+}
+
+int main() {
+    cout &lt;&lt; isPrime(97) &lt;&lt; " " &lt;&lt; isPrime(91) &lt;&lt; " " &lt;&lt; isPrime(1) &lt;&lt; "\n";
+    cout &lt;&lt; countDivisors(36) &lt;&lt; " " &lt;&lt; countDivisors(1000000000000LL) &lt;&lt; "\n";
+    vector&lt;bool&gt; p = sieve(30);
+    for (int i = 2; i &lt;= 30; i++) if (p[i]) cout &lt;&lt; i &lt;&lt; " ";
+    cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1 0 0
+9 169
+2 3 5 7 11 13 17 19 23 29 </code></pre>
+
+<h2 id="edge">5. Test before you submit</h2>
+<p>Run every solution on: <b>0</b>, <b>1</b>, <b>2</b>, a <b>perfect square</b> (36), a <b>large prime</b> (999983), a <b>product of two large primes</b>, and the <b>largest allowed value</b>.</p>
+
+<h2 id="example">Worked example</h2>
+<p><b>Problem:</b> read q numbers and print <code>YES</code> if each is prime, otherwise <code>NO</code>. <b>Limits:</b> q ≤ 10^5, each number ≤ 10^6.</p>
+<div class="nt-steps">
+  <p><b>1. Limits:</b> many numbers (10^5), each up to 10^6.</p>
+  <p><b>2. Tool:</b> trial division would cost q × √N = 10^5 × 10^3 = 10^8 steps, which is borderline. A sieve up to 10^6 costs about 3 × 10^6 steps once, then each check is O(1). Use the sieve.</p>
+  <p><b>3. Memory:</b> 10^6 bools, about 125 KB as a <code>vector&lt;bool&gt;</code>. Fine.</p>
+  <p><b>4. Edge cases:</b> 1 → NO, 2 → YES.</p>
+</div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+const int MAX = 1000000;
+
+int main() {
+    vector&lt;bool&gt; isPrime(MAX + 1, true);
+    isPrime[0] = isPrime[1] = false;
+    for (long long i = 2; i * i &lt;= MAX; i++)
+        if (isPrime[i])
+            for (long long j = i * i; j &lt;= MAX; j += i) isPrime[j] = false;
+    int q;
+    cin &gt;&gt; q;
+    while (q--) {
+        int x;
+        cin &gt;&gt; x;
+        cout &lt;&lt; (isPrime[x] ? "YES" : "NO") &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4
+97 1 2 999999</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES
+NO
+YES
+NO</code></pre></div>
+</div>

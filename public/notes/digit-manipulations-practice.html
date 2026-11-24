@@ -1,0 +1,296 @@
+<!-- Practice questions: Digit Manipulations (Level 1 · Maths). Based on "Digit Manipulation Notes" (18 Nov 2026) and the
+     "Digit Manipulation Cheat Sheet" (2 Nov 2026), Rajveer. Each problem: statement, samples (.nt-io), a hint and a solution.
+     The samples are checked against the solution code. -->
+<p>Every problem uses the same template; only step 2 changes. Try each one first, and open the hint only when you are stuck.</p>
+
+<h2 id="p1">1. Count the Digits</h2>
+<p>Read a non-negative integer <code>n</code>. Print how many digits it has.</p>
+<p><b>Limits:</b> 0 ≤ n ≤ 10^18</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4729</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Each round of the loop handles exactly one digit. What happens to <code>while (n &gt; 0)</code> when n is 0?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Count how many times the loop runs; step 1 isn't even needed. 0 is handled separately because the loop never runs for it. O(log n) time, O(1) space.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int countDigits(long long n) {
+    if (n == 0) return 1;          // the loop won't run for 0
+    int count = 0;
+    while (n &gt; 0) {
+        count++;                   // step 2
+        n = n / 10;                // step 3
+    }
+    return count;
+}
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; countDigits(n) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Reverse Integer</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/reverse-integer/" target="_blank" rel="noopener">LeetCode 7 · Reverse Integer</a></p>
+<p>Read a 32-bit integer <code>x</code>. Print its digits reversed, keeping the sign. If the reversed value doesn't fit in a 32-bit <code>int</code>, print <code>0</code>. Don't use <code>long long</code>.</p>
+<p><b>Limits:</b> −2,147,483,648 ≤ x ≤ 2,147,483,647</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-123</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-321</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>120</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>21</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1534236469</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>In C++, <code>-123 % 10</code> is <code>-3</code>, so the template already handles negatives if the loop runs <code>while (x != 0)</code>. When must you check for overflow: before or after <code>rev * 10</code>?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Check <b>before</b> <code>rev * 10</code>: once it has overflowed, the value is already wrong. <code>INT_MAX</code> ends in 7 and <code>INT_MIN</code> in 8, which gives the last-digit checks. Dry run for −123: d = −3, rev = −3 → d = −2, rev = −32 → d = −1, rev = −321. O(log n) time, O(1) space.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;climits&gt;
+using namespace std;
+
+int reverseInt(int x) {
+    int rev = 0;
+    while (x != 0) {
+        int d = x % 10;            // negative digits for negative x
+        x /= 10;
+        if (rev &gt; INT_MAX / 10 || (rev == INT_MAX / 10 &amp;&amp; d &gt; 7)) return 0;
+        if (rev &lt; INT_MIN / 10 || (rev == INT_MIN / 10 &amp;&amp; d &lt; -8)) return 0;
+        rev = rev * 10 + d;
+    }
+    return rev;
+}
+
+int main() {
+    int x;
+    cin &gt;&gt; x;
+    cout &lt;&lt; reverseInt(x) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Palindrome Number</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/palindrome-number/" target="_blank" rel="noopener">LeetCode 9 · Palindrome Number</a></p>
+<p>Read an integer <code>x</code>. Print <code>YES</code> if it reads the same forwards and backwards, otherwise <code>NO</code>. Don't convert it to a string.</p>
+<p><b>Limits:</b> −2,147,483,648 ≤ x ≤ 2,147,483,647</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>12321</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-121</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Negative numbers and numbers ending in 0 (except 0 itself) can never be palindromes. Do you need to reverse the whole number, or is half enough?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Reverse only the back half: move digits from x to rev until rev catches up with x. For an odd number of digits, <code>rev / 10</code> drops the middle digit. Reversing only half can't overflow and does half the work. Dry run for 12321: (x, rev) = (1232, 1) → (123, 12) → (12, 123); stop; 12 == 123 / 10 → YES. O(log n) time, O(1) space.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+bool isPalindrome(int x) {
+    if (x &lt; 0 || (x % 10 == 0 &amp;&amp; x != 0)) return false;
+    int rev = 0;
+    while (x &gt; rev) {              // reverse only half
+        rev = rev * 10 + x % 10;
+        x /= 10;
+    }
+    return x == rev || x == rev / 10;
+}
+
+int main() {
+    int x;
+    cin &gt;&gt; x;
+    cout &lt;&lt; (isPalindrome(x) ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Armstrong Number</h2>
+<p>A k-digit number is an <b>Armstrong number</b> if the sum of its digits, each raised to the power k, equals the number itself: 153 = 1³ + 5³ + 3³. Read <code>n</code> and print <code>YES</code> or <code>NO</code>.</p>
+<p><b>Limits:</b> 0 ≤ n ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>153</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>123</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1634</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>You need k before you can add the powers, so count the digits first (problem 1). Then run the template again on a copy. Use an integer loop for the power, not <code>pow()</code>.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Two passes: count the digits k, then add digit^k for every digit and compare with the original. The sum can pass <code>INT_MAX</code> for 10-digit inputs, so it is a <code>long long</code>. O(log n) time (the power loop runs at most 10 times), O(1) space. Others to test: 370, 371, 407.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int countDigits(long long n) {
+    if (n == 0) return 1;
+    int count = 0;
+    while (n &gt; 0) { count++; n /= 10; }
+    return count;
+}
+
+bool isArmstrong(long long n) {
+    int k = countDigits(n);
+    long long sum = 0, temp = n;   // work on a copy, keep n for the comparison
+    while (temp &gt; 0) {
+        int digit = temp % 10;               // step 1
+        long long power = 1;                 // step 2: digit^k with an integer loop
+        for (int i = 0; i &lt; k; i++) power *= digit;
+        sum += power;
+        temp /= 10;                          // step 3
+    }
+    return sum == n;
+}
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; (isArmstrong(n) ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. Strong Number</h2>
+<p>A number is a <b>Strong number</b> if the sum of the factorials of its digits equals the number itself: 145 = 1! + 4! + 5!. Read <code>n</code> and print <code>YES</code> or <code>NO</code>.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>145</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>123</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>40585</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Write a small <code>factorial()</code> helper (remember 0! = 1). Save the original before the loop.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>For each digit, add <code>factorial(digit)</code> to the sum, then compare with the saved original. Digits are only 0–9, so you could also compute <code>fact[0..9]</code> once and look them up. Also test 1 and 2, which are Strong numbers.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+long long factorial(int x) {       // 0! = 1
+    long long fact = 1;
+    for (int i = 1; i &lt;= x; i++) fact *= i;
+    return fact;
+}
+
+bool isStrong(long long n) {
+    long long original = n, sum = 0;   // save a copy
+    while (n &gt; 0) {
+        int digit = n % 10;            // step 1
+        sum += factorial(digit);       // step 2
+        n /= 10;                       // step 3
+    }
+    return sum == original;
+}
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; (isStrong(n) ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Add Digits</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/add-digits/" target="_blank" rel="noopener">LeetCode 258 · Add Digits</a></p>
+<p>Read <code>n</code>. Replace it with the sum of its digits, again and again, until a single digit is left. Print that digit.</p>
+<p><b>Limits:</b> 0 ≤ n ≤ 2,147,483,647</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>38</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>The loop version is the digit-sum template inside <code>while (n &gt;= 10)</code>. For an O(1) answer: what is n % 9 compared with its digit sum % 9?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>38 → 3 + 8 = 11 → 1 + 1 = 2. Because n and its digit sum leave the same remainder when divided by 9, the answer is the <b>digital root</b>: 0 for n = 0, otherwise 1 + (n − 1) % 9. Here 1 + 37 % 9 = 2. Loop: O(log n); formula: O(1).</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int addDigits(int n) {
+    while (n &gt;= 10) {                  // repeat until one digit is left
+        int sum = 0;
+        for (int t = n; t &gt; 0; t /= 10) sum += t % 10;
+        n = sum;
+    }
+    return n;                          // same as: n == 0 ? 0 : 1 + (n - 1) % 9
+}
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; addDigits(n) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p7">7. Happy Number</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/happy-number/" target="_blank" rel="noopener">LeetCode 202 · Happy Number</a></p>
+<p>Start with <code>n</code> and replace it with the sum of the squares of its digits, again and again. If this reaches 1, the number is <b>happy</b>; otherwise it loops forever. Print <code>YES</code> if n is happy, otherwise <code>NO</code>.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 2,147,483,647</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>19</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Write <code>next(x)</code> = sum of the squares of the digits of x. A number that isn't happy falls into a cycle. How can you detect a cycle without storing every value?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>19 → 1² + 9² = 82 → 68 → 100 → 1, so 19 is happy. Unhappy numbers fall into a cycle (it contains 4). Move a slow pointer one step and a fast pointer two steps (Floyd's cycle detection): they meet inside the cycle, or the fast one reaches 1. O(log n) time, O(1) space (O(log n) if you store the values in a set instead).</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int nextNum(int x) {                   // sum of squares of the digits
+    int sum = 0;
+    while (x &gt; 0) {
+        int d = x % 10;
+        sum += d * d;
+        x /= 10;
+    }
+    return sum;
+}
+
+bool isHappy(int n) {
+    int slow = n, fast = nextNum(n);
+    while (fast != 1 &amp;&amp; slow != fast) {
+        slow = nextNum(slow);
+        fast = nextNum(nextNum(fast));
+    }
+    return fast == 1;
+}
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; (isHappy(n) ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>

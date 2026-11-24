@@ -1,0 +1,61 @@
+<!-- Problem-solving framework: Introduction and Data Types (Level 0 · Fundamentals). Fragment: loaded into the notes reader. -->
+<h2 id="steps">The 5 checks</h2>
+<p>Most mistakes in beginner problems are not about logic. They come from the wrong type, a hidden overflow or an integer division. Run these five checks <b>before</b> you write code.</p>
+<ol class="nt-steps-list">
+  <li><b>Read the limits.</b> What are the smallest and largest inputs? Are there decimals, negatives or characters?</li>
+  <li><b>Pick the type for every value</b>, including results in the middle of a calculation.
+    <ul>
+      <li>Whole numbers up to about 2 × 10^9: <code>int</code>.</li>
+      <li>Bigger, or a sum or product that can grow past that: <code>long long</code>.</li>
+      <li>Decimals: <code>double</code>.</li>
+    </ul>
+  </li>
+  <li><b>Look at every operation.</b>
+    <ul>
+      <li>Multiplication or a large sum: can it overflow? Use <code>long long</code> or <code>1LL *</code>.</li>
+      <li>Division: do you need the fraction? Make one side a <code>double</code>.</li>
+      <li>Remainder: can the number be negative?</li>
+    </ul>
+  </li>
+  <li><b>Characters:</b> turn letters into positions with <code>c - 'a'</code> and digit characters into numbers with <code>c - '0'</code>. Work with the numbers, then convert back with <code>(char)</code>.</li>
+  <li><b>Match the output exactly:</b> number of decimals (<code>fixed &lt;&lt; setprecision(k)</code>), upper or lower case (<code>YES</code> or <code>Yes</code>), spaces and newlines.</li>
+</ol>
+
+<h2 id="example">Worked example</h2>
+<p><b>Problem:</b> read three whole numbers, each between 1 and 10^9. Print their average with exactly 2 decimal places.</p>
+<div class="nt-steps">
+  <p><b>1. Limits:</b> three numbers, each up to 10^9. The answer has decimals.</p>
+  <p><b>2. Types:</b> each number fits in <code>int</code>, but their sum can reach 3 × 10^9, which does not. Read them as <code>long long</code>. The average is a <code>double</code>.</p>
+  <p><b>3. Operations:</b> <code>(a + b + c) / 3</code> is integer division and loses the fraction. Divide by <code>3.0</code>.</p>
+  <p><b>4. Characters:</b> none.</p>
+  <p><b>5. Output:</b> exactly 2 decimals, so use <code>fixed &lt;&lt; setprecision(2)</code>.</p>
+</div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+using namespace std;
+
+int main() {
+    long long a, b, c;
+    cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;
+    double avg = (a + b + c) / 3.0;
+    cout &lt;&lt; fixed &lt;&lt; setprecision(2) &lt;&lt; avg &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1000000000 1000000000 999999999</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>999999999.67</code></pre></div>
+</div>
+
+<h2 id="debug">When the answer is wrong</h2>
+<p>Go down this list before changing your logic.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>You see</th><th>Likely cause</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td>A huge negative or strange number</td><td>Overflow</td><td><code>long long</code>, or <code>1LL *</code> before multiplying</td></tr>
+    <tr><td><code>3</code> where you expected <code>3.5</code></td><td>Integer division</td><td>Make one side a <code>double</code>: <code>a / 2.0</code></td></tr>
+    <tr><td><code>NO</code> for values that look equal</td><td>Comparing decimals with <code>==</code></td><td><code>fabs(x - y) &lt; 1e-9</code></td></tr>
+    <tr><td>A number where you expected a letter</td><td>Printing an <code>int</code></td><td>Cast back: <code>(char)(c + 1)</code></td></tr>
+    <tr><td>A negative remainder</td><td><code>%</code> keeps the sign of the first number</td><td><code>((a % b) + b) % b</code></td></tr>
+    <tr><td>Right numbers, judged wrong</td><td>Output format</td><td>Check decimals, case, spaces and newlines</td></tr>
+  </tbody>
+</table></div>

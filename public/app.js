@@ -217,12 +217,12 @@ function shell(content) {
   const today = V.home ? fmtDay(V.home.today, { weekday: 'short', day: 'numeric', month: 'short' }) : new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   return `<div class="shell${UI.sideMini() ? ' mini' : ''}">${UI.sideEdge()}
     <aside class="side card">
-      <a class="brand" href="#/home"><span class="logo">qm</span><span>QuizMe</span></a>
+      <a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotes</span></a>
       <nav aria-label="Main" style="display:grid;gap:2px">${NAV.map(([k, h, i, t, key]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}" title="${t} (press G then ${key})"${active === k ? ' aria-current="page"' : ''}>${icon(i)}<span>${t}</span>${badge(k) || `<kbd>G ${key}</kbd>`}</a>`).join('')}</nav>
       <a class="side-foot" href="#/profile" title="Your profile">${avatar(me.name, 'sm')}<div class="t"><b>${esc(me.name)}</b><span>${esc(me.roll)}</span></div></a>
     </aside>
     <main class="main">
-      <header class="mtop"><a class="brand" href="#/home"><span class="logo">qm</span><span>QuizMe</span></a><div class="mtop-r">${UI.modeBtn()}<a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></div></header>
+      <header class="mtop"><a class="brand" href="#/home"><span class="logo">bo</span><span>BigONotes</span></a><div class="mtop-r">${UI.modeBtn()}<a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></div></header>
       <div class="topbar"><div class="crumb">${crumbFor(active)}</div><div class="tb-r"><span class="when">${esc(today)}</span>${UI.modeBtn()}</div></div>
       <div class="content">${content}</div>
     </main>
@@ -234,7 +234,7 @@ function shell(content) {
 function viewLogin() {
   const S = V.login, roll = S.step === 'roll';
   return `${UI.modeBtn('corner')}<div class="auth-page">
-  <header class="auth-top"><span class="brand"><span class="logo">qm</span><span>QuizMe</span></span><a class="adm" href="/admin">Admin sign-in</a></header>
+  <header class="auth-top"><span class="brand"><span class="logo">bo</span><span>BigONotes</span></span><a class="adm" href="/admin">Admin sign-in</a></header>
   <main class="auth-main">
     <form class="auth-card slide-in" id="lf" novalidate>
       ${roll ? `
@@ -625,11 +625,11 @@ function viewBoard() {
 
 /* ---------- Render ---------- */
 function render() {
-  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · QuizMe'; return; }
+  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · BigONotes'; return; }
   if (!V.loading && !V.loadErr && V.quiz && V.quiz.state === 'started' && V.page === 'quiz') {
     // Focus mode: no sidebar or menus while a test is running.
     $app.innerHTML = `<div class="focus">${V.fsGate ? viewFsGate() : viewTake()}</div>`;
-    document.title = V.quiz.title + ' · QuizMe';
+    document.title = V.quiz.title + ' · BigONotes';
     return;
   }
   let html;
@@ -647,7 +647,7 @@ function render() {
   else html = '';
   $app.innerHTML = shell(html) + (preview ? `<div class="pv-bar" role="status">${icon('user')}<span>Viewing as <b>${esc(me.name)}</b> <span class="mono">${esc(me.roll)}</span> · read-only</span><button class="btn btn-sm" data-act="exitPreview">Exit</button></div>` : '');
   const nt = V.page === 'notes' ? Notes.title(V.notes) : '';
-  document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · QuizMe` : nt ? `${nt} · QuizMe` : 'QuizMe');
+  document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · BigONotes` : nt ? `${nt} · BigONotes` : 'BigONotes');
 }
 
 /* Clocks: countdowns to start, and the time left in a running test. */
@@ -750,7 +750,7 @@ async function signIn() {
   try {
     const d = await api('/api/login', S.step === 'name' ? { roll, name: S.name } : { roll });
     setMe(d.student);
-    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to QuizMe.` : '';
+    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to BigONotes.` : '';
     V.login = { step: 'roll', roll: '', name: '', err: '', busy: false };
     toast(d.isNew ? 'Registered. Welcome aboard.' : `Welcome back, ${me.name}`);
     location.hash = '#/home';
@@ -840,6 +840,11 @@ function onFsChange() {
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
 
+// Notes "Test yourself": the student's latest scores, and saving a new one (not in admin preview).
+Notes.init({
+  scores: () => (me ? api('/api/practice').then(d => d.scores) : Promise.resolve({})),
+  save: preview ? null : (key, answers) => api('/api/practice/' + encodeURIComponent(key), { answers }),
+});
 window.addEventListener('hashchange', route);
 route();
 })();

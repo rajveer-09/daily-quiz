@@ -42,9 +42,11 @@ const sets = db.collection('sets');          // admin-only groups: { _id, name, 
 const attempts = db.collection('attempts');
 const schedule = db.collection('schedule');  // legacy, migrated into tests
 const meta = db.collection('meta');
+const practice = db.collection('practice');  // notes "Test yourself": latest score only, { roll, key, score, total, at }
 await Promise.all([
   students.createIndex({ roll: 1 }, { unique: true }),
   attempts.createIndex({ quizId: 1 }),
+  practice.createIndex({ roll: 1, key: 1 }, { unique: true }),
   attempts.createIndex({ testId: 1 }),
   attempts.createIndex({ status: 1, deadline: 1 }),
   tests.createIndex({ date: 1, start: 1 }),
@@ -584,6 +586,35 @@ app.post('/api/tests/:id/flag', auth, readOnly, async (req, res) => {
   if (req.body?.type !== 'reload') return res.status(400).json({ error: 'Unknown flag.' });
   await attempts.updateOne({ roll: req.student.roll, testId: String(req.params.id), status: 'started' }, { $inc: { 'flags.reload': 1 } });
   res.json({ ok: true });
+});
+
+/* ===== Notes: "Test yourself" quizzes. Self-practice; only each student's latest score per quiz is kept. =====
+   The questions live in public/notes/<key>.json (key = "<topic>-quiz"); the server marks the answers itself. */
+const practiceQuiz = new Map();
+async function loadPracticeQuiz(key) {
+  if (!/^[a-z0-9-]+-quiz$/.test(key)) return null;
+  if (practiceQuiz.has(key)) return practiceQuiz.get(key);
+  try {
+    const q = JSON.parse(await readFile(path.join(PUB, 'notes', key + '.json'), 'utf8'));
+    if (!Array.isArray(q.questions) || !q.questions.length) return null;
+    practiceQuiz.set(key, q);
+    return q;
+  } catch (e) { return null; }
+}
+app.get('/api/practice', auth, async (req, res) => {
+  const rows = await practice.find({ roll: req.student.roll }, { projection: { _id: 0, key: 1, score: 1, total: 1, at: 1 } }).toArray();
+  res.json({ scores: Object.fromEntries(rows.map(r => [r.key, { score: r.score, total: r.total, at: r.at }])) });
+});
+app.post('/api/practice/:key', auth, readOnly, async (req, res) => {
+  const key = String(req.params.key);
+  const quiz = await loadPracticeQuiz(key);
+  if (!quiz) return res.status(404).json({ error: 'That quiz was not found.' });
+  const ans = Array.isArray(req.body?.answers) ? req.body.answers : [];
+  const total = quiz.questions.length;
+  const score = quiz.questions.reduce((n, q, i) => n + (ans[i] === q.a ? 1 : 0), 0);
+  const at = Date.now();
+  await practice.updateOne({ roll: req.student.roll, key }, { $set: { score, total, at } }, { upsert: true });
+  res.json({ score, total, at });
 });
 
 app.post('/api/tests/:id/submit', auth, readOnly, async (req, res) => {
@@ -1129,6 +1160,7 @@ app.delete('/api/admin/students/:roll', async (req, res) => {
   const r = await students.deleteOne({ roll });
   if (!r.deletedCount) return res.status(404).json({ error: 'Student not found.' });
   const a = await attempts.deleteMany({ roll });
+  await practice.deleteMany({ roll });
   await tests.updateMany({}, { $pull: { 'papers.$[].rolls': roll } });
   invalidate('stu', 'tests', 'lb');
   res.json({ deleted: true, attemptsDeleted: a.deletedCount });
@@ -1145,6 +1177,6 @@ app.use((err, req, res, next) => {
 await startup();
 app.listen(PORT, () => {
   console.log(`Today is ${today()} (${QUIZ_TZ})`);
-  console.log(`QuizMe running at http://localhost:${PORT}`);
+  console.log(`BigONotes running at http://localhost:${PORT}`);
   console.log(`Admin:               http://localhost:${PORT}/admin`);
 });

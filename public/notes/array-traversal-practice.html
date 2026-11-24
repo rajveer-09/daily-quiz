@@ -1,0 +1,214 @@
+<!-- Practice questions: Array Traversal (Level 1 · Arrays). Fragment: loaded into the notes reader.
+     Each problem: statement, samples (.nt-io), a hint and a solution. The samples are checked against the solution code. -->
+<p>In every problem the first line is <code>n</code>, the number of elements, and the second line holds the <code>n</code> elements. Try each problem first; open the hint only when you are stuck.</p>
+
+<h2 id="p1">1. Largest and Its Position</h2>
+<p>Print the largest element and its position, counting positions from 1. If the largest value appears more than once, print its first position.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, −10^9 ≤ a[i] ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+7 -2 9 4 9</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>9 3</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+-5 -1 -8</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1 2</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>What should the champion start as, if every value can be negative? Which comparison keeps the first of two equal values?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Start with <code>a[0]</code> at index 0. Replace only on a strictly larger value (<code>&gt;</code>), so ties keep the first one. Print <code>index + 1</code> for the position.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    long long best = a[0];
+    int pos = 0;
+    for (int i = 1; i &lt; n; i++)
+        if (a[i] &gt; best) { best = a[i]; pos = i; }
+    cout &lt;&lt; best &lt;&lt; " " &lt;&lt; pos + 1 &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. First Position</h2>
+<p>After the array, a third line holds a number <code>x</code>. Print the first position (from 1) where <code>x</code> appears, or <code>-1</code> if it doesn't appear.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, −10^9 ≤ a[i], x ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6
+4 8 15 16 8 42
+8</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+1 2 3
+7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Start the answer at −1. When should the loop stop?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Keep the position, starting at −1 for “not found”, and <code>break</code> at the first match so a later match can't overwrite it.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    long long x;
+    cin &gt;&gt; x;
+    int pos = -1;
+    for (int i = 0; i &lt; n; i++)
+        if (a[i] == x) { pos = i + 1; break; }
+    cout &lt;&lt; pos &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Count in Range</h2>
+<p>After the array, a third line holds two numbers <code>L</code> and <code>R</code>. Print how many elements are between <code>L</code> and <code>R</code>, inclusive.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, −10^9 ≤ a[i] ≤ 10^9, L ≤ R</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>7
+3 10 -4 7 7 12 0
+0 7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>“Inclusive” means the end values count. Which comparisons does that give?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>A counter that goes up when <code>L &lt;= a[i] &amp;&amp; a[i] &lt;= R</code>. Here 3, 7, 7 and 0 are in range.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    long long L, R;
+    cin &gt;&gt; L &gt;&gt; R;
+    int count = 0;
+    for (int i = 0; i &lt; n; i++)
+        if (L &lt;= a[i] &amp;&amp; a[i] &lt;= R) count++;
+    cout &lt;&lt; count &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Even Number of Digits</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/find-numbers-with-even-number-of-digits/" target="_blank" rel="noopener">LeetCode 1295 · Find Numbers with Even Number of Digits</a></p>
+<p>Print how many elements have an even number of digits. For example 12 (2 digits) and 7896 (4 digits) count; 345 and 7 don't.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 500, 1 ≤ a[i] ≤ 10^5</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+12 345 2 6 7896</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4
+555 901 482 1771</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Two problems in one: first write a test for one number (how many digits does it have?), then count how many elements pass it.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>The outer loop walks the array; the inner loop counts the digits of a copy of each element. The counter goes up when that count is even.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;int&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    int count = 0;
+    for (int i = 0; i &lt; n; i++) {
+        int t = a[i], digits = 0;          // a copy, so the array isn't changed
+        while (t &gt; 0) { digits++; t /= 10; }
+        if (digits % 2 == 0) count++;
+    }
+    cout &lt;&lt; count &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. Max Consecutive Ones</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/max-consecutive-ones/" target="_blank" rel="noopener">LeetCode 485 · Max Consecutive Ones</a></p>
+<p>The array holds only 0s and 1s. Print the length of the longest run of 1s in a row.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, each a[i] is 0 or 1</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6
+1 1 0 1 1 1</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>3</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+0 0 0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Keep two things while walking: the length of the current run, and the best run so far. What should happen to the current run when you see a 0?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>A counter that grows on every 1 and <b>resets</b> to 0 on every 0, plus a champion that remembers the largest value the counter ever reached. One pass, O(n) time, O(1) extra space.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;int&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    int run = 0, best = 0;
+    for (int i = 0; i &lt; n; i++) {
+        if (a[i] == 1) run++;
+        else run = 0;                     // the run is broken
+        if (run &gt; best) best = run;
+    }
+    cout &lt;&lt; best &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Second Largest</h2>
+<p>Print the second largest <b>distinct</b> value in the array, or <code>-1</code> if there isn't one (every element is equal).</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, 0 ≤ a[i] ≤ 10^9</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6
+12 35 1 10 34 35</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>34</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+10 10 10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Keep two champions: the largest and the second largest. When a new value beats the largest, what happens to the old largest?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>One pass with two values, both starting at −1 (every element is at least 0). A new largest pushes the old largest down to second. A value between them (and not equal to the largest) becomes the new second.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+    long long first = -1, second = -1;
+    for (int i = 0; i &lt; n; i++) {
+        if (a[i] &gt; first) { second = first; first = a[i]; }
+        else if (a[i] &lt; first &amp;&amp; a[i] &gt; second) second = a[i];
+    }
+    cout &lt;&lt; second &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>

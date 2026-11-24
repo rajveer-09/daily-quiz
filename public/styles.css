@@ -1,4 +1,4 @@
-/* QuizMe — Console.
+/* BigONotes — Console.
    Near-black, flat surfaces, hairline borders, one accent, mono for numbers.
    Desktop: fixed sidebar + content column. Tablet: icon sidebar. Phone: top bar + bottom tab bar. */
 :root{
@@ -220,7 +220,7 @@ table.table{width:100%;border-collapse:collapse;font-size:14px}
 .side .foot{flex-direction:column;align-items:stretch;font-size:12.5px}
 .side .em b{word-break:break-all}
 .main{display:flex;flex-direction:column;min-width:0}
-.topbar{min-height:56px;padding:10px 32px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--mute)}
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);min-height:56px;padding:10px 32px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--mute)}
 .topbar .crumb{display:flex;align-items:center;gap:8px}
 .topbar .crumb a{color:var(--mute);text-decoration:none}
 .topbar .crumb a:hover{color:var(--ink)}
@@ -719,7 +719,7 @@ a.trow .tnum{color:var(--ink);border-color:var(--line-3)}
 
 .nt-body{font-size:15.5px;line-height:1.7;color:var(--ink-2);max-width:78ch}
 .nt-body>*+*{margin-top:14px}
-.nt-body h2{font-size:22px;color:var(--ink);margin-top:44px;padding-top:28px;border-top:1px solid var(--line);scroll-margin-top:24px}
+.nt-body h2{font-size:22px;color:var(--ink);margin-top:44px;padding-top:28px;border-top:1px solid var(--line);scroll-margin-top:72px}
 .nt-body h2:first-child{margin-top:0;padding-top:0;border-top:0}
 .nt-body h3{font-size:16.5px;color:var(--ink);margin-top:28px;letter-spacing:-.01em}
 .nt-body h2+*,.nt-body h3+*{margin-top:12px}
@@ -728,7 +728,7 @@ a.trow .tnum{color:var(--ink);border-color:var(--line-3)}
 .nt-body a:hover{text-decoration-color:var(--ink)}
 .nt-body ul,.nt-body ol{margin:14px 0 0;padding-left:22px;display:grid;gap:6px}
 .nt-body li::marker{color:var(--faint)}
-.nt-body :not(pre)>code{font-size:.86em;padding:1px 6px;border-radius:5px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.nt-body :not(pre)>code{font-size:.86em;padding:1px 6px;border-radius:5px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink);white-space:nowrap}
 .nt-body h2 code,.nt-body h3 code{font-size:.85em}
 .nt-body pre{margin:0;padding:16px 18px;overflow-x:auto;background:var(--code-bg);border:1px solid var(--line-2);border-radius:10px;font-size:13px;line-height:1.65;color:var(--code-ink);tab-size:4;-webkit-overflow-scrolling:touch}
 .nt-body pre code{font-size:inherit;white-space:pre}
@@ -755,13 +755,27 @@ a.trow .tnum{color:var(--ink);border-color:var(--line-3)}
 .nt-aside{font-size:14px;color:var(--mute)}
 .nt-steps{display:grid;gap:8px;padding:14px 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .nt-steps p{font-size:14.5px}
+.nt-body .nt-k{margin-top:16px;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.nt-body .nt-k+ul,.nt-body .nt-k+ol,.nt-body .nt-k+p{margin-top:6px}
+.nt-body h3+.nt-k{margin-top:10px}
 .nt-hint{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .nt-body .nt-hint+.nt-hint{margin-top:8px}
 .nt-hint summary{cursor:pointer;padding:11px 16px;font-size:14.5px;font-weight:500;color:var(--ink);list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .nt-hint summary::-webkit-details-marker{display:none}
-.nt-hint summary::after{content:"Show hint";font-size:12px;font-weight:400;color:var(--mute);font-family:var(--mono);white-space:nowrap}
+.nt-hint summary::after{content:"Show";font-size:12px;font-weight:400;color:var(--mute);font-family:var(--mono);white-space:nowrap}
 .nt-hint[open] summary::after{content:"Hide"}
 .nt-hint p{padding:0 16px 14px;font-size:14.5px}
+.nt-hint .nt-code,.nt-hint>pre{margin:0 16px 16px}
+.nt-hint p+.nt-code,.nt-hint .nt-code+p{margin-top:0}
+/* Sample input / output, side by side (stacked on phones). */
+.nt-io{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.nt-io>div{display:grid;gap:6px;align-content:start}
+.nt-io span{font-size:12px;font-weight:500;color:var(--mute)}
+.nt-body .nt-io pre{margin:0;padding:10px 14px}
+.nt-body .nt-io+.nt-io{margin-top:10px}
+/* Output shown under a program. */
+.nt-body pre.out{position:relative;padding-top:30px;margin-top:8px}
+.nt-body pre.out::before{content:"Output";position:absolute;top:9px;left:18px;font-family:var(--sans);font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
 .nt-pager{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:24px;max-width:78ch}
 .nt-pg{display:grid;gap:2px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);text-decoration:none;color:inherit;background:var(--panel)}
 a.nt-pg:hover{border-color:var(--line-3);background:var(--panel-2);color:inherit}
@@ -798,8 +812,21 @@ a.nt-pg:hover{border-color:var(--line-3);background:var(--panel-2);color:inherit
 .mode-btn svg{width:16px;height:16px}
 .mode-btn.corner{position:fixed;top:14px;right:14px;z-index:20}
 .tb-r,.mtop-r,.amtop-r{display:flex;align-items:center;gap:10px}
-.side .foot .row .mode-btn{width:32px;height:32px}
-.mini .side .foot .row .mode-btn{order:-1}
+
+/* ---------- Admin menu footer: Student site link + one account row ---------- */
+.side .nv-site{margin-top:auto}
+.acct{display:flex;align-items:center;gap:8px;margin-top:8px;padding:12px 4px 2px 6px;border-top:1px solid var(--line)}
+.acct-t{flex:1;min-width:0;display:grid;gap:1px}
+.acct-t b{font-size:12.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-t span{font-size:11px;color:var(--faint)}
+.acct .acct-btn{flex:none;width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--mute);cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.acct .acct-btn:hover{background:var(--panel-2);border-color:var(--line-2);color:var(--ink)}
+.acct .acct-btn svg{width:16px;height:16px}
+@media (min-width:861px){
+  .mini .acct{flex-direction:column;gap:4px;padding:10px 0 2px}
+  .mini .acct .avatar,.mini .acct-t{display:none}
+  .mini .acct .acct-btn{width:44px;height:32px}
+}
 
 /* ---------- Left menu: hide/show with a round arrow on its right edge ---------- */
 .side-edge{position:fixed;top:50%;left:calc(var(--side-w) - 14px);z-index:35;width:28px;height:28px;margin-top:-14px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line-3);background:var(--bg);color:var(--mute);cursor:pointer;transition:color .12s,border-color .12s,background .12s}
@@ -819,14 +846,26 @@ a.nt-pg:hover{border-color:var(--line-3);background:var(--panel-2);color:inherit
 @media (max-width:1100px){.shell .side-edge{display:none}}
 @media (max-width:860px){.side-edge{display:none}}
 
+/* Notes pages sit in the middle of the screen; a topic reads in one centred column. */
+.content:has(.nt-scope),.amain:has(.nt-scope){margin-inline:auto}
+.nt-scope{display:grid;gap:24px;width:100%;min-width:0}
+.nt-page{max-width:820px;margin-inline:auto}
+.nt-page .nt-body,.nt-page .nt-pager{max-width:none}
 /* Notes: subjects on a level page, section tabs on a topic. */
-.nt-subj{display:grid;gap:12px}
-.nt-subj+.nt-subj{margin-top:8px}
-.nt-subj-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.nt-subj-h h2{font-size:19px}
-.nt-subj-h h2 a{color:var(--ink);text-decoration:none}
-.nt-subj-h h2 a:hover{text-decoration:underline;text-decoration-color:var(--line-3);text-underline-offset:4px}
-.nt-subj-h .muted{font-size:13px}
+.nt-subjs{display:grid;gap:10px}
+.nt-subj{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.nt-subj-h{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;width:100%;padding:16px 20px;cursor:pointer}
+.nt-subj-h:hover{background:var(--panel-2)}
+.nt-subj-h:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.nt-subj-h .t{flex:1;font-size:17px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.nt-subj-h svg{width:18px;height:18px;color:var(--mute);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.nt-subj.open .nt-subj-h svg{transform:rotate(180deg)}
+.nt-subj-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s cubic-bezier(.2,.8,.2,1)}
+.nt-subj.open .nt-subj-b{grid-template-rows:1fr}
+.nt-subj-in{min-height:0;overflow:hidden;border-top:1px solid transparent;opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .28s cubic-bezier(.2,.8,.2,1),border-color .2s}
+.nt-subj.open .nt-subj-in{opacity:1;transform:none;border-top-color:var(--line)}
+.nt-subj-b .tlist{border:0;border-radius:0}
+.nt-subj-b .dashed{border:0;border-radius:0}
 .nt-secs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .nt-secs:empty{display:none}
 .lvl li{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
@@ -834,11 +873,62 @@ a.nt-pg:hover{border-color:var(--line-3);background:var(--panel-2);color:inherit
 .lvl li.on small{color:var(--ok)}
 .nt-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .nt-tabs::-webkit-scrollbar{display:none}
-.nt-tabs a{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--mute);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap}
+.nt-tabs a{flex:none;display:inline-flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--mute);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap}
 .nt-tabs a:hover{color:var(--ink)}
 .nt-tabs a[aria-current]{color:var(--ink);border-bottom-color:var(--acc)}
 .nt-tabs a.soon{color:var(--faint)}
 .nt-tabs small{font-family:var(--mono);font-size:10.5px;font-weight:400;color:var(--dim);border:1px solid var(--line-2);border-radius:4px;padding:0 5px}
+
+/* Notes: section boxes under the tabs; clicking one scrolls to that section. */
+.nt-jump{display:flex;flex-wrap:wrap;gap:6px}
+.nt-jump button{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--panel);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:500;line-height:1.5;white-space:nowrap;cursor:pointer;transition:border-color .12s,background .12s,color .12s}
+.nt-jump button:hover{border-color:var(--line-3);background:var(--panel-2);color:var(--ink)}
+
+/* Notes: a practice problem's link (LeetCode, CSES…), right under its title. */
+.nt-body .nt-lc{margin-top:6px;font-size:13px}
+.nt-body .nt-lc a{color:var(--mute);text-decoration:none;border-bottom:1px solid var(--line-3)}
+.nt-body .nt-lc a::after{content:" ↗"}
+.nt-body .nt-lc a:hover{color:var(--ink);border-color:var(--ink)}
+
+/* Notes: Test yourself quiz. */
+.nt-quiz{display:grid;gap:14px}
+.nt-body.nt-quiz>*+*{margin-top:0}
+.qz-card{display:grid;gap:14px;padding:22px 24px}
+.qz-card h2{font-size:20px;letter-spacing:-.02em;margin:0;padding:0;border:0}
+.qz-card p{margin:0}
+.qz-last{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:12px 14px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:var(--panel-2)}
+.qz-last span{font-size:13px;color:var(--mute)}
+.qz-last b{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--ink)}
+.qz-last b small{font-size:14px;color:var(--mute);font-weight:500}
+.qz-last em{font-style:normal;font-size:13px;color:var(--mute)}
+.qz-note{font-size:13px}
+.qz-top{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:12px;color:var(--mute)}
+.qz-top .progress{flex:1}
+.qz-text{font-size:16.5px;font-weight:500;color:var(--ink);line-height:1.5}
+.nt-body pre.qz-code{margin:0}
+.qz-opts{display:grid;gap:8px}
+.qz-opt{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:1px solid var(--line-2);border-radius:var(--r-sm);background:transparent;color:var(--ink-2);font:inherit;font-size:15px;text-align:left;cursor:pointer;transition:border-color .12s,background .12s}
+.qz-opt:hover{border-color:var(--line-3);background:var(--panel-2)}
+.qz-opt .k{flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:6px;border:1px solid var(--line-3);font-family:var(--mono);font-size:12px;color:var(--mute)}
+.qz-opt.on{border-color:var(--acc);background:rgba(var(--acc-rgb),.08);color:var(--ink)}
+.qz-opt.on .k{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.qz-nav{display:flex;justify-content:space-between;gap:10px}
+.qz-score{font-family:var(--mono);font-size:44px;font-weight:600;line-height:1;color:var(--ink)}
+.qz-score small{font-size:22px;color:var(--mute)}
+.nt-body h2.qz-h{font-size:17px;margin:10px 0 0;padding:0;border:0}
+.qz-review{display:grid;gap:10px}
+.qz-rv{display:grid;gap:10px;padding:16px 18px;border-left:3px solid var(--line-3)}
+.qz-rv.ok{border-left-color:var(--ok)}
+.qz-rv.bad{border-left-color:var(--bad)}
+.qz-rv-h{display:flex;align-items:center;gap:10px}
+.qz-rv-h b{font-size:13px;color:var(--mute);font-weight:500}
+.qz-rv .qz-text{font-size:15px}
+.qz-ans{font-size:14px;color:var(--mute)}
+.qz-ans b{color:var(--ink);font-weight:500}
+.qz-ans.good b{color:var(--ok)}
+.qz-why{font-size:14px;color:var(--ink-2)}
+.nt-tabs small.qz-tab{color:var(--ok);border-color:var(--ok-line)}
+@media (max-width:480px){.qz-card{padding:18px 16px}.qz-opt{font-size:14px;padding:11px 12px}}
 
 /* Notes: full-screen icon at the top-right of an open topic. */
 .reading .shell .side,.reading .admin .side,.reading .side-edge,.reading .bnav,.reading .mtop,.reading .amtop{display:none!important}

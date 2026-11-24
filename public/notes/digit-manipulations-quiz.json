@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "What does this print?", "code": "int n = 4729;\ncout << n % 10 << \" \" << n / 10;", "run": true, "o": ["4 729", "9 472", "9 473", "2 47"], "a": 1, "e": "n % 10 is the last digit (9) and n / 10 drops it (472)." },
+    { "q": "What does this print?", "code": "int n = 1200, rev = 0;\nwhile (n > 0) {\n    rev = rev * 10 + n % 10;\n    n /= 10;\n}\ncout << rev;", "run": true, "o": ["0021", "21", "2100", "12"], "a": 1, "e": "Reversing 1200 gives 0021, and numbers have no leading zeros, so it is 21. Trailing zeros vanish when reversed." },
+    { "q": "Counting digits with while (n > 0): what goes wrong for n = 0?", "o": ["It loops forever", "It gives 0 instead of 1", "It crashes", "Nothing"], "a": 1, "e": "The loop never runs for 0, so the count stays 0. Handle 0 separately, or use a do-while loop." },
+    { "q": "What does this print?", "code": "cout << -123 % 10;", "run": true, "o": ["3", "-3", "7", "-7"], "a": 1, "e": "In C++, % takes the sign of the left number, so the last digit of a negative number comes out negative. Take abs() first." },
+    { "q": "The product of the digits should start at:", "o": ["0", "1", "n", "10"], "a": 1, "e": "Starting at 0 would make every product 0. 1 is the “nothing yet” value for multiplication." },
+    { "q": "What is the digital root of 38 (add the digits until one digit is left)?", "o": ["11", "2", "3", "8"], "a": 1, "e": "3 + 8 = 11, then 1 + 1 = 2. The formula 1 + (n − 1) % 9 gives 1 + 37 % 9 = 2." },
+    { "q": "Why save a copy of n before the digit loop?", "o": ["The loop turns n into 0", "It makes the loop faster", "Copies prevent overflow", "The compiler requires it"], "a": 0, "e": "n / 10 runs until n is 0, so the original value is gone. Palindrome and Armstrong checks need it after the loop." },
+    { "q": "Which is an Armstrong number (each digit raised to the number of digits, added up, gives the number)?", "o": ["153", "123", "100", "145"], "a": 0, "e": "1³ + 5³ + 3³ = 1 + 125 + 27 = 153. 145 is a Strong number (1! + 4! + 5!), not an Armstrong number." }
+  ]
+}

@@ -1,0 +1,234 @@
+<!-- Practice questions: If-Else and Loops (Level 0 · Fundamentals). Fragment: loaded into the notes reader.
+     Each problem: statement, samples (.nt-io), a hint and a solution. The samples are checked against the solution code. -->
+<p>Try each problem on your own first. Each one matches a pattern from the Problem-solving framework tab. Open the hint only when you are stuck, and the solution only after you have an answer.</p>
+
+<h2 id="p1">1. Middle Value</h2>
+<p>Read three integers. Print the middle one: the value that would sit in the middle if the three were sorted.</p>
+<p><b>Limits:</b> −10^9 ≤ each number ≤ 10^9 · <b>Pattern:</b> comparing a few values</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5 -2 9</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>5</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3 3 1</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>3</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>If you know the largest and the smallest, what is left over from the total?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Middle = total − largest − smallest. It works with equal values too. The total of three numbers up to 10^9 needs <code>long long</code>.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;algorithm&gt;
+using namespace std;
+
+int main() {
+    long long a, b, c;
+    cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;
+    long long hi = max(a, max(b, c));
+    long long lo = min(a, min(b, c));
+    cout &lt;&lt; a + b + c - hi - lo &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Type of Triangle</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/type-of-triangle/" target="_blank" rel="noopener">LeetCode 3024 · Type of Triangle</a></p>
+<p>Read the three side lengths of a triangle. If they can't form a triangle, print <code>none</code>. Otherwise print <code>equilateral</code> if all three sides are equal, <code>isosceles</code> if exactly two are equal, or <code>scalene</code> if all are different.</p>
+<p><b>Limits:</b> 1 ≤ each side ≤ 100 · <b>Pattern:</b> validate first, then classify</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3 3 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>equilateral</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3 4 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>scalene</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3 3 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>isosceles</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1 2 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>none</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Three sides form a triangle only if every two of them add up to more than the third. Handle the invalid case first and stop. Then count how many of the three pairs are equal.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Validate first: if any two sides add up to no more than the third, it's <code>none</code>. Then <code>(a == b) + (b == c) + (a == c)</code> counts equal pairs: 3 means all equal, 1 means exactly two, 0 means all different. (2 is impossible: two equal pairs make the third equal too.)</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int a, b, c;
+    cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;
+    if (a + b &lt;= c || a + c &lt;= b || b + c &lt;= a) {
+        cout &lt;&lt; "none\n";
+        return 0;
+    }
+    int same = (a == b) + (b == c) + (a == c);
+    if (same == 3) cout &lt;&lt; "equilateral\n";
+    else if (same == 1) cout &lt;&lt; "isosceles\n";
+    else cout &lt;&lt; "scalene\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Grade Card</h2>
+<p>Read marks out of 100. Print the grade: <code>A</code> for 90 and above, <code>B</code> for 75 to 89, <code>C</code> for 50 to 74, and <code>F</code> below 50.</p>
+<p><b>Limits:</b> 0 ≤ marks ≤ 100 · <b>Pattern:</b> rule ladder</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>82</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>B</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>50</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>C</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Check the highest grade first. Once <code>marks &gt;= 90</code> is false, what do you already know when you test <code>marks &gt;= 75</code>?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>An <code>else if</code> ladder from the top grade down. Each check only runs when every check above it was false, so each needs just one comparison. Test the boundaries: 90, 89, 75, 74, 50, 49.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int marks;
+    cin &gt;&gt; marks;
+    if (marks &gt;= 90) cout &lt;&lt; "A\n";
+    else if (marks &gt;= 75) cout &lt;&lt; "B\n";
+    else if (marks &gt;= 50) cout &lt;&lt; "C\n";
+    else cout &lt;&lt; "F\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Pass Mark</h2>
+<p>Read a student's marks and the total marks of the exam. Print <code>Pass</code> if the marks are at least 40% of the total, otherwise <code>Fail</code>.</p>
+<p><b>Limits:</b> 1 ≤ total ≤ 10^9, 0 ≤ marks ≤ total · <b>Pattern:</b> formula check</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>38 95</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>Pass</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>37 95</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>Fail</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>38 / 95 is exactly 0.4. Can you write the check without dividing at all?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>marks / total ≥ 40 / 100 is the same as marks × 100 ≥ 40 × total. No division means no lost fractions and no rounding errors. The products reach 10^11, so use <code>long long</code>.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long marks, total;
+    cin &gt;&gt; marks &gt;&gt; total;
+    if (marks * 100 &gt;= 40 * total) cout &lt;&lt; "Pass\n";
+    else cout &lt;&lt; "Fail\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. FizzBuzz</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/fizz-buzz/" target="_blank" rel="noopener">LeetCode 412 · Fizz Buzz</a></p>
+<p>Read <code>n</code>. For each number from 1 to <code>n</code>, print on its own line: <code>FizzBuzz</code> if it is divisible by both 3 and 5, <code>Fizz</code> if only by 3, <code>Buzz</code> if only by 5, otherwise the number itself.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5 · <b>Pattern:</b> divisibility labels</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>15</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1
+2
+Fizz
+4
+Buzz
+Fizz
+7
+8
+Fizz
+Buzz
+11
+Fizz
+13
+14
+FizzBuzz</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Which case has to be checked first? Think about what happens to 15 if you check “divisible by 3” first.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>The overlap (“both”) goes first, because 15 is also divisible by 3. Divisible by both 3 and 5 is the same as divisible by their LCM, 15.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    for (int i = 1; i &lt;= n; i++) {
+        if (i % 15 == 0) cout &lt;&lt; "FizzBuzz\n";
+        else if (i % 3 == 0) cout &lt;&lt; "Fizz\n";
+        else if (i % 5 == 0) cout &lt;&lt; "Buzz\n";
+        else cout &lt;&lt; i &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Sum Multiples</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/sum-multiples/" target="_blank" rel="noopener">LeetCode 2652 · Sum Multiples</a></p>
+<p>Read <code>n</code>. Print the sum of all numbers from 1 to <code>n</code> that are divisible by 3, 5 or 7.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^3 · <b>Pattern:</b> accumulator with a condition</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>21</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>40</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Visit every number from 1 to n. What should the sum start at? A number divisible by both 3 and 5 (like 15) must be added only once.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>A loop over 1 to n with one condition joined by <code>||</code>. Because it is one <code>if</code>, a number like 15 or 21 is added once, not twice. For n = 7: 3 + 5 + 6 + 7 = 21.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    int sum = 0;
+    for (int i = 1; i &lt;= n; i++)
+        if (i % 3 == 0 || i % 5 == 0 || i % 7 == 0) sum += i;
+    cout &lt;&lt; sum &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p7">7. Digit Count and Sum</h2>
+<p>Read an integer <code>n</code>. Print how many digits it has and the sum of its digits, separated by a space. Ignore the minus sign.</p>
+<p><b>Limits:</b> −10^9 ≤ n ≤ 10^9 · <b>Pattern:</b> digits of a number</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4071</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4 12</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1 0</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>-305</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>3 8</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p><code>t % 10</code> is the last digit and <code>t / 10</code> removes it. What happens to <code>while (t &gt; 0)</code> when n is 0, or negative?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Take the absolute value first, peel off digits while <code>t &gt; 0</code>, and handle 0 on its own (it has one digit, but the loop never runs).</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cstdlib&gt;
+using namespace std;
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    long long t = llabs(n);
+    int count = 0, sum = 0;
+    if (t == 0) count = 1;
+    while (t &gt; 0) {
+        sum += t % 10;
+        count++;
+        t /= 10;
+    }
+    cout &lt;&lt; count &lt;&lt; " " &lt;&lt; sum &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>

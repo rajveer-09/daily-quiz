@@ -1,0 +1,130 @@
+<!-- Notes: Time and Space Complexity (Level 0 · Fundamentals). Fragment: loaded into the notes reader. -->
+<h2 id="why" data-key="10^8 rule">1. What it is, and why it matters</h2>
+<ul>
+  <li><b>Time complexity</b> is how the number of operations grows with the input size n.</li>
+  <li><b>Space complexity</b> is how much extra memory the algorithm needs as n grows.</li>
+</ul>
+<p>Two programs can give the same answer, but one finishes in a blink and the other takes hours. Online judges give a <b>time limit</b>, usually 1–2 seconds, and a <b>memory limit</b>, usually 256 MB.</p>
+<aside class="nt-call tip"><b>Rule of thumb:</b> a computer does about <b>10^8 simple operations per second</b>. Estimate your program's operations for the largest input and compare.</aside>
+
+<h2 id="counting">2. Counting steps</h2>
+<p>We don't time programs with a stopwatch. We count how the number of steps <b>grows with the input size</b> <code>n</code>.</p>
+<pre><code class="cpp">long long sum = 0;
+for (int i = 1; i &lt;= n; i++) {   // runs n times
+    sum += i;                    // 1 step each time
+}
+// about n steps in total</code></pre>
+<p>If <code>n</code> doubles, this loop does twice the work. That is <b>linear</b> growth, written <b>O(n)</b>.</p>
+
+<h2 id="big-o" data-key="Big-O rules">3. Big-O notation</h2>
+<p><b>Big-O</b> describes how the running time grows for large <code>n</code>. To find it:</p>
+<ol>
+  <li>Count the steps as a formula, e.g. <code>3n² + 5n + 7</code>.</li>
+  <li>Keep only the <b>fastest-growing term</b>: <code>3n²</code>.</li>
+  <li><b>Drop the constant</b> in front: <code>n²</code>. So the code is <b>O(n²)</b>.</li>
+</ol>
+<p>For large <code>n</code>, the biggest term decides everything: at n = 10^5, <code>n²</code> is 10^10 while <code>5n</code> is only 5 × 10^5.</p>
+
+<h2 id="common">4. Common complexities</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Big-O</th><th>Name</th><th>Typical code</th><th>Largest n in about 1 second</th></tr></thead>
+  <tbody>
+    <tr><td>O(1)</td><td>constant</td><td>a formula, e.g. <code>n * (n + 1) / 2</code></td><td>any</td></tr>
+    <tr><td>O(log n)</td><td>logarithmic</td><td>halving: <code>n /= 2</code> until 1</td><td>any (log₂ 10^18 ≈ 60)</td></tr>
+    <tr><td>O(√n)</td><td>square root</td><td><code>for (i = 1; i * i &lt;= n; i++)</code></td><td>about 10^14–10^16</td></tr>
+    <tr><td>O(n)</td><td>linear</td><td>one loop over the input</td><td>about 10^8</td></tr>
+    <tr><td>O(n log n)</td><td>n log n</td><td>sorting</td><td>about 10^6–10^7</td></tr>
+    <tr><td>O(n²)</td><td>quadratic</td><td>two nested loops over the input</td><td>about 10^4</td></tr>
+    <tr><td>O(n³)</td><td>cubic</td><td>three nested loops</td><td>about 500</td></tr>
+    <tr><td>O(2ⁿ)</td><td>exponential</td><td>trying every subset</td><td>about 25</td></tr>
+    <tr><td>O(n!)</td><td>factorial</td><td>trying every order</td><td>about 10</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="loops" data-key="Reading loops">5. Reading complexity from loops</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Code shape</th><th>Steps</th><th>Big-O</th></tr></thead>
+  <tbody>
+    <tr><td>One loop, <code>i</code> from 1 to n</td><td>n</td><td>O(n)</td></tr>
+    <tr><td>Two loops <b>one after the other</b> (n and m)</td><td>n + m</td><td>O(n + m)</td></tr>
+    <tr><td>Loop <b>inside</b> a loop (n and m)</td><td>n × m</td><td>O(n · m)</td></tr>
+    <tr><td>Inner loop <code>j &lt; i</code> inside <code>i &lt; n</code></td><td>0 + 1 + … + (n−1) = n(n−1)/2</td><td>O(n²)</td></tr>
+    <tr><td><code>i *= 2</code>, <code>i *= 3</code> or <code>n /= 2</code> each round</td><td>about log₂ n, log₃ n</td><td>O(log n)</td></tr>
+    <tr><td><code>i = i * i</code> each round</td><td>about log log n</td><td>O(log log n)</td></tr>
+    <tr><td><code>i * i &lt;= n</code></td><td>about √n</td><td>O(√n)</td></tr>
+    <tr><td>A loop with a fixed count, even 1,000,000</td><td>a constant</td><td>O(1)</td></tr>
+    <tr><td>Inner loop's count <b>depends on i</b></td><td>write the series and add it</td><td>see section 6</td></tr>
+  </tbody>
+</table></div>
+<ul>
+  <li><b>The base of the log doesn't matter:</b> log₃ n = log₂ n / log₂ 3, which is a constant times log₂ n. All are O(log n).</li>
+  <li><b>A big fixed number is still O(1).</b> What matters is whether the count grows with n.</li>
+  <li><b>Check whether the inner loop variable resets.</b> If <code>j</code> is set once outside both loops, it only moves from 0 to n once in total, so nested-looking code can be O(n):</li>
+</ul>
+<pre><code class="cpp">int j = 0;                        // set once, never reset
+for (int i = 0; i &lt; n; i++)
+    while (j &lt; n) j++;            // all rounds together: j goes 0 to n once, so O(n), not O(n²)</code></pre>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long n = 1000000;
+    long long a = 0, b = 0, c = 0;
+    for (long long i = 1; i &lt;= n; i++) a++;          // n rounds
+    for (long long i = 1; i &lt;= n; i *= 2) b++;       // log n rounds
+    for (long long i = 1; i * i &lt;= n; i++) c++;      // sqrt n rounds
+    cout &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; " " &lt;&lt; c &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1000000 20 1000</code></pre>
+
+<h2 id="series" data-key="Series sums">6. When the inner loop depends on i: add the series</h2>
+<p>If the inner loop's count changes with <code>i</code>, don't just multiply the two loop counts. Write how many times the inner loop runs for i = 1, 2, 3, …, then add them up.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Inner loop runs</th><th>Total</th><th>Big-O</th></tr></thead>
+  <tbody>
+    <tr><td>i times (<code>j &lt;= i</code>)</td><td>1 + 2 + … + n = n(n+1)/2</td><td>O(n²)</td></tr>
+    <tr><td>i² times (<code>j &lt;= i * i</code>)</td><td>1² + 2² + … + n² ≈ n³/3</td><td>O(n³)</td></tr>
+    <tr><td>i times, while i doubles (1, 2, 4, …)</td><td>1 + 2 + 4 + … + n/2 &lt; n</td><td>O(n)</td></tr>
+    <tr><td>log i times (<code>j *= 2</code> up to i)</td><td>log 1 + log 2 + … + log n = log(n!) ≤ n log n</td><td>O(n log n)</td></tr>
+  </tbody>
+</table></div>
+<p>The same idea works for a <code>while</code> loop that adds a growing amount: if <code>s</code> becomes 1, 3, 6, 10, … (1 + 2 + … + k), it passes n after about √(2n) steps, so the loop is O(√n).</p>
+
+<h2 id="constraints" data-key="Limits → approach">7. From the limits to the approach</h2>
+<p>The input limits tell you which complexity is allowed. Read them <b>before</b> you choose an approach.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Largest n</th><th>Complexity that fits</th></tr></thead>
+  <tbody>
+    <tr><td>n ≤ 10</td><td>O(n!)</td></tr>
+    <tr><td>n ≤ 20</td><td>O(2ⁿ)</td></tr>
+    <tr><td>n ≤ 500</td><td>O(n³)</td></tr>
+    <tr><td>n ≤ 5,000</td><td>O(n²)</td></tr>
+    <tr><td>n ≤ 10^6</td><td>O(n log n) or O(n)</td></tr>
+    <tr><td>n ≤ 10^8</td><td>O(n), with simple steps</td></tr>
+    <tr><td>n ≥ 10^9</td><td>O(√n), O(log n) or O(1)</td></tr>
+  </tbody>
+</table></div>
+<p>With several test cases, multiply: 10^5 tests × O(n) with n = 10^5 is 10^10 steps, which is far too slow.</p>
+
+<h2 id="space" data-key="Memory">8. Space complexity</h2>
+<p><b>Space complexity</b> measures the extra memory a program uses as <code>n</code> grows.</p>
+<ul>
+  <li>A few variables: <b>O(1)</b>. An array of n numbers: <b>O(n)</b>. An n × n grid: <b>O(n²)</b>.</li>
+  <li>Sizes: <code>int</code> 4 bytes, <code>long long</code> and <code>double</code> 8 bytes, <code>char</code> and <code>bool</code> 1 byte.</li>
+  <li>256 MB holds about 6.4 × 10^7 <code>int</code>s or 3.2 × 10^7 <code>long long</code>s. An int array of 10^6 is only 4 MB.</li>
+  <li>A 10^5 × 10^5 grid would need 10^10 cells, far too much. That limit tells you to find another way.</li>
+</ul>
+
+<h2 id="cases">9. Best, worst and average case</h2>
+<p>Searching an array for a value can finish at the first element (best case) or check all <code>n</code> (worst case). We usually quote the <b>worst case</b>, because the judge will try inputs that make your program slowest.</p>
+
+<h2 id="mistakes">10. Common mistakes</h2>
+<ol>
+  <li><b>Looking only at the code, not the limits.</b> O(n²) is fine for n = 1,000 and hopeless for n = 10^5.</li>
+  <li><b>Forgetting the number of test cases.</b> Total work = tests × work per test.</li>
+  <li><b>Thinking O(2n) is slower than O(n).</b> Constants are dropped; both are O(n).</li>
+  <li><b>Calling every nested loop O(n²).</b> If the inner loop halves, runs a fixed number of times, or its variable never resets, it is smaller.</li>
+  <li><b>Multiplying the loop counts when the inner loop depends on i.</b> Write the series and add it up instead.</li>
+  <li><b>Declaring huge arrays inside <code>main</code>.</b> Large arrays belong outside <code>main</code> (global), where there is more room.</li>
+</ol>

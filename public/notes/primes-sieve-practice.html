@@ -1,25 +1,274 @@
-<!-- Practice questions: Prime Numbers and Sieve (Level 1 · Maths). Fragment: loaded into the notes reader. -->
-<h2 id="problems">Problems</h2>
-<p>Solve these after reading the notes. The “Topic used” column says which idea from class each one needs.</p>
-<div class="nt-table"><table>
-  <thead><tr><th>#</th><th>Practice task</th><th>Topic used</th><th>Problem</th></tr></thead>
-  <tbody>
-    <tr><td>1</td><td>Find the <b>sum</b> of divisors of <code>n</code> in O(√n)</td><td>Divisors in √n</td><td><a href="https://leetcode.com/problems/perfect-number/" target="_blank" rel="noopener">LeetCode 507 – Perfect Number</a></td></tr>
-    <tr><td>2</td><td><b>Count</b> and <b>sum</b> the divisors of each number in an array</td><td>Divisors in √n (count + sum)</td><td><a href="https://leetcode.com/problems/four-divisors/" target="_blank" rel="noopener">LeetCode 1390 – Four Divisors</a></td></tr>
-    <tr><td>3</td><td>Count the primes less than <code>n</code></td><td>Basic sieve</td><td><a href="https://leetcode.com/problems/count-primes/" target="_blank" rel="noopener">LeetCode 204 – Count Primes</a></td></tr>
-    <tr><td>4</td><td>Find primes in a range <code>[L, R]</code> with <code>R ≤ 10^6</code></td><td>Sieve once, then scan the range</td><td><a href="https://leetcode.com/problems/closest-prime-numbers-in-range/" target="_blank" rel="noopener">LeetCode 2523 – Closest Prime Numbers in Range</a></td></tr>
-    <tr><td>5</td><td><b>Goldbach check:</b> find pairs of primes that add up to <code>n</code></td><td>Sieve + O(1) lookups</td><td><a href="https://leetcode.com/problems/prime-pairs-with-target-sum/" target="_blank" rel="noopener">LeetCode 2761 – Prime Pairs With Target Sum</a></td></tr>
-    <tr><td>6</td><td>Store the <b>smallest prime factor (SPF)</b> of every number and factorise quickly</td><td>Modified sieve</td><td><a href="https://www.geeksforgeeks.org/prime-factorization-using-sieve-olog-n-multiple-queries/" target="_blank" rel="noopener">GeeksforGeeks – Prime Factorization using Sieve O(log n)</a></td></tr>
-    <tr><td>7</td><td>Count the divisors for up to 10^5 queries, each <code>x ≤ 10^6</code></td><td>Why √n per query is too slow, so precompute with a sieve</td><td><a href="https://cses.fi/problemset/task/1713" target="_blank" rel="noopener">CSES 1713 – Counting Divisors</a></td></tr>
-  </tbody>
-</table></div>
+<!-- Practice questions: Prime Numbers and Sieve (Level 1 · Maths). Problems and hints from the class notes (20 Nov 2026, Rajveer).
+     Each problem: statement, samples (.nt-io), a hint and a solution. The samples are checked against the solution code. -->
+<p>The problems go from the √n divisor loop to the full sieve, each adding one idea. Try each one first, and open the hint only when you are stuck.</p>
 
-<h2 id="hints">Hints</h2>
-<p>Try each problem first. Open a hint only when you are stuck.</p>
-<details class="nt-hint"><summary>1. Perfect Number</summary><p>Loop <code>i</code> up to √n and add both <code>i</code> and <code>n / i</code>. Don't count <code>n</code> itself, and add a perfect-square divisor only once.</p></details>
-<details class="nt-hint"><summary>2. Four Divisors</summary><p>Count the divisors with the √n loop. If the count is exactly 4, add their sum.</p></details>
-<details class="nt-hint"><summary>3. Count Primes</summary><p>This is exactly the sieve from class. The only difference is that the problem asks for primes <b>strictly less than</b> <code>n</code>.</p></details>
-<details class="nt-hint"><summary>4. Closest Primes</summary><p>Sieve up to <code>right</code>, then walk from <code>left</code> to <code>right</code> and compare each prime with the previous one.</p></details>
-<details class="nt-hint"><summary>5. Prime Pairs</summary><p>Sieve up to <code>n</code>. For every <code>x</code> from 2 to <code>n/2</code>, check that <code>isPrime[x]</code> and <code>isPrime[n - x]</code> are both true.</p></details>
-<details class="nt-hint"><summary>6. SPF</summary><p>Use the same loops as the sieve. Instead of <code>false</code>, store <code>spf[j] = i</code> when <code>spf[j]</code> is not set yet.</p></details>
-<details class="nt-hint"><summary>7. Counting Divisors</summary><p>An O(√x) loop for each query is about 10^5 × 1000 = 10^8 operations, which is borderline. A faster way: for every <code>i</code>, add 1 to <code>cnt[j]</code> for each <code>j = i, 2i, 3i, …</code>. This works because of the same <code>j += i</code> idea from the sieve.</p></details>
+<h2 id="p1">1. Perfect Number</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/perfect-number/" target="_blank" rel="noopener">LeetCode 507 · Perfect Number</a></p>
+<p>A number is <b>perfect</b> if it equals the sum of its divisors other than itself: 28 = 1 + 2 + 4 + 7 + 14. Read <code>n</code> and print <code>YES</code> or <code>NO</code>.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^8 · <b>Idea:</b> divisors in √n</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>28</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Loop <code>i</code> up to √n and add both <code>i</code> and <code>n / i</code>. Don't count <code>n</code> itself, and add a perfect-square divisor only once.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Start the sum at 1 (1 divides every n &gt; 1) and loop from 2 while <code>i * i &lt;= n</code>, adding each pair. n = 1 has no proper divisors, so it is not perfect. O(√n) time.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    if (n &lt;= 1) { cout &lt;&lt; "NO\n"; return 0; }
+    long long sum = 1;                       // 1 is a proper divisor of every n &gt; 1
+    for (long long i = 2; i * i &lt;= n; i++) {
+        if (n % i == 0) {
+            sum += i;
+            if (i != n / i) sum += n / i;    // the pair, unless it is the same number
+        }
+    }
+    cout &lt;&lt; (sum == n ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Four Divisors</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/four-divisors/" target="_blank" rel="noopener">LeetCode 1390 · Four Divisors</a></p>
+<p>Read <code>n</code> numbers. For each number that has <b>exactly four</b> divisors, add up its divisors. Print the total (0 if there are none).</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^4, 1 ≤ each number ≤ 10^5 · <b>Idea:</b> count and sum divisors in √n</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+21 4 7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>32</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+1 2 3 4 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Count the divisors with the √n loop, adding them up as you go. If the count is exactly 4, add their sum. (21 has 1, 3, 7, 21 → 32.)</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>For each number, the √n loop finds every divisor pair, counting and adding them. Stop early once the count passes 4. O(n · √m) time, where m is the largest number.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    long long total = 0;
+    for (int k = 0; k &lt; n; k++) {
+        int x;
+        cin &gt;&gt; x;
+        int count = 0, sum = 0;
+        for (int d = 1; d * d &lt;= x &amp;&amp; count &lt;= 4; d++) {
+            if (x % d == 0) {
+                count++; sum += d;
+                if (d != x / d) { count++; sum += x / d; }
+            }
+        }
+        if (count == 4) total += sum;
+    }
+    cout &lt;&lt; total &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Count Primes</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/count-primes/" target="_blank" rel="noopener">LeetCode 204 · Count Primes</a></p>
+<p>Read <code>n</code>. Print how many prime numbers are <b>strictly less than</b> <code>n</code>.</p>
+<p><b>Limits:</b> 0 ≤ n ≤ 5 × 10^6 · <b>Idea:</b> the basic sieve</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>This is exactly the sieve from class. The only difference is that the problem asks for primes <b>strictly less than</b> n.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Sieve up to n − 1, then count what is still marked. n below 3 has no primes under it. O(n log log n) time, O(n) space.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    if (n &lt; 3) { cout &lt;&lt; 0 &lt;&lt; "\n"; return 0; }
+    vector&lt;bool&gt; isPrime(n, true);             // indexes 0 .. n-1
+    isPrime[0] = isPrime[1] = false;
+    for (long long i = 2; i * i &lt; n; i++)
+        if (isPrime[i])
+            for (long long j = i * i; j &lt; n; j += i) isPrime[j] = false;
+    int count = 0;
+    for (int i = 2; i &lt; n; i++) if (isPrime[i]) count++;
+    cout &lt;&lt; count &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Closest Primes in a Range</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/closest-prime-numbers-in-range/" target="_blank" rel="noopener">LeetCode 2523 · Closest Prime Numbers in Range</a></p>
+<p>Read <code>left</code> and <code>right</code>. Among the primes in [left, right], print the two neighbours with the smallest gap (the first such pair if there is a tie). If there are fewer than two primes, print <code>-1 -1</code>.</p>
+<p><b>Limits:</b> 1 ≤ left ≤ right ≤ 10^6 · <b>Idea:</b> sieve once, then scan the range</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10 19</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>11 13</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4 6</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1 -1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Sieve up to <code>right</code>, then walk from <code>left</code> to <code>right</code> and compare each prime with the previous one.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>After the sieve, remember the previous prime while scanning; each new prime makes a pair with it. Keep the pair with the smallest gap, replacing only on a strictly smaller gap so ties keep the first pair.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int left, right;
+    cin &gt;&gt; left &gt;&gt; right;
+    vector&lt;bool&gt; isPrime(right + 1, true);
+    isPrime[0] = false;
+    if (right &gt;= 1) isPrime[1] = false;
+    for (long long i = 2; i * i &lt;= right; i++)
+        if (isPrime[i])
+            for (long long j = i * i; j &lt;= right; j += i) isPrime[j] = false;
+    int prev = -1, a = -1, b = -1;
+    for (int x = left; x &lt;= right; x++) {
+        if (!isPrime[x]) continue;
+        if (prev != -1 &amp;&amp; (a == -1 || x - prev &lt; b - a)) { a = prev; b = x; }
+        prev = x;
+    }
+    cout &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. Prime Pairs With Target Sum</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/prime-pairs-with-target-sum/" target="_blank" rel="noopener">LeetCode 2761 · Prime Pairs With Target Sum</a></p>
+<p>Read <code>n</code>. Find every pair of primes x ≤ y with x + y = n. Print the number of pairs, then each pair on its own line in increasing order of x.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^6 · <b>Idea:</b> sieve + O(1) lookups</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2
+3 7
+5 5</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Sieve up to n. For every x from 2 to n/2, check that <code>isPrime[x]</code> and <code>isPrime[n - x]</code> are both true.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>The sieve turns each “is it prime?” into an O(1) lookup, so checking every x up to n/2 costs only O(n). Stopping at n/2 keeps x ≤ y and avoids listing a pair twice.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;bool&gt; isPrime(n + 1, true);
+    isPrime[0] = false;
+    if (n &gt;= 1) isPrime[1] = false;
+    for (long long i = 2; i * i &lt;= n; i++)
+        if (isPrime[i])
+            for (long long j = i * i; j &lt;= n; j += i) isPrime[j] = false;
+    vector&lt;int&gt; xs;
+    for (int x = 2; x &lt;= n / 2; x++)
+        if (isPrime[x] &amp;&amp; isPrime[n - x]) xs.push_back(x);
+    cout &lt;&lt; xs.size() &lt;&lt; "\n";
+    for (int x : xs) cout &lt;&lt; x &lt;&lt; " " &lt;&lt; n - x &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Fast Factorisation (Smallest Prime Factor)</h2>
+<p class="nt-lc"><a href="https://www.geeksforgeeks.org/prime-factorization-using-sieve-olog-n-multiple-queries/" target="_blank" rel="noopener">GeeksforGeeks · Prime Factorization using Sieve O(log n)</a></p>
+<p>Read <code>q</code>, then <code>q</code> numbers. For each one, print its prime factors in increasing order (repeated as often as they divide it), on its own line.</p>
+<p><b>Limits:</b> 1 ≤ q ≤ 10^5, 2 ≤ each number ≤ 10^6 · <b>Idea:</b> a modified sieve</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+12 97 360</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2 2 3
+97
+2 2 2 3 3 5</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Use the same loops as the sieve. Instead of <code>false</code>, store <code>spf[j] = i</code> when <code>spf[j]</code> is not set yet. Then keep dividing x by <code>spf[x]</code>.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p><code>spf[x]</code> is the smallest prime factor of x. Building it costs one sieve; after that each query divides x by <code>spf[x]</code> until it reaches 1, which takes O(log x) steps, because every step at least halves x.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+const int MAX = 1000000;
+
+int main() {
+    vector&lt;int&gt; spf(MAX + 1, 0);
+    for (long long i = 2; i &lt;= MAX; i++) {
+        if (spf[i] != 0) continue;                 // already has a smaller prime factor
+        spf[i] = i;                                // i is prime
+        for (long long j = i * i; j &lt;= MAX; j += i)
+            if (spf[j] == 0) spf[j] = i;
+    }
+    int q;
+    cin &gt;&gt; q;
+    while (q--) {
+        int x;
+        cin &gt;&gt; x;
+        bool first = true;
+        while (x &gt; 1) {
+            if (!first) cout &lt;&lt; " ";
+            cout &lt;&lt; spf[x];
+            x /= spf[x];
+            first = false;
+        }
+        cout &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p7">7. Counting Divisors</h2>
+<p class="nt-lc"><a href="https://cses.fi/problemset/task/1713" target="_blank" rel="noopener">CSES 1713 · Counting Divisors</a></p>
+<p>Read <code>n</code>, then <code>n</code> numbers. For each one, print how many divisors it has, on its own line.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, 1 ≤ each number ≤ 10^6 · <b>Idea:</b> precompute with the sieve's <code>j += i</code> loop</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+16
+17
+18</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>5
+2
+6</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>An O(√x) loop for each query is about 10^5 × 1000 = 10^8 operations, which is borderline. A faster way: for every i, add 1 to <code>cnt[j]</code> for each j = i, 2i, 3i, ….</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Every i is a divisor of exactly its multiples, so the double loop gives every number its full divisor count. It runs MAX × (1 + 1/2 + 1/3 + …) ≈ MAX × ln MAX ≈ 1.4 × 10^7 steps, once; then each query is a lookup.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+using namespace std;
+
+const int MAX = 1000000;
+
+int main() {
+    vector&lt;int&gt; cnt(MAX + 1, 0);
+    for (int i = 1; i &lt;= MAX; i++)
+        for (int j = i; j &lt;= MAX; j += i) cnt[j]++;
+    int n;
+    cin &gt;&gt; n;
+    while (n--) {
+        int x;
+        cin &gt;&gt; x;
+        cout &lt;&lt; cnt[x] &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+</details>

@@ -1,0 +1,121 @@
+<!-- Problem-solving framework: Time and Space Complexity (Level 0 · Fundamentals). Fragment: loaded into the notes reader. -->
+<h2 id="time">Analysing time complexity: 6 steps</h2>
+<ol>
+  <li><b>Decide what n is.</b> The size of the input: how many numbers, the value of the number, or the length of the string. If there are two sizes (n and m), keep both.</li>
+  <li><b>Find the line that runs most often</b>, usually the innermost statement. The question becomes: how many times does it run?</li>
+  <li><b>Count each loop's rounds, from the inside out</b>, by looking at how its variable changes:
+    <div class="nt-table"><table>
+      <thead><tr><th>The loop variable…</th><th>Rounds</th></tr></thead>
+      <tbody>
+        <tr><td>goes up or down by 1 (or any fixed step) up to n</td><td>n (or n / step) → O(n)</td></tr>
+        <tr><td>is multiplied or divided by a constant (×2, ×3, ÷2)</td><td>log n</td></tr>
+        <tr><td>is squared each round (<code>i = i * i</code>)</td><td>log log n</td></tr>
+        <tr><td>stops at <code>i * i &lt;= n</code></td><td>√n</td></tr>
+        <tr><td>runs a fixed number of times (26, 1000, 10^6)</td><td>a constant → O(1)</td></tr>
+      </tbody>
+    </table></div>
+  </li>
+  <li><b>Combine the loops.</b>
+    <ul>
+      <li>One after another: <b>add</b> (n + m).</li>
+      <li>One inside another, when the inner count doesn't depend on the outer variable: <b>multiply</b> (n × log n).</li>
+      <li>When the inner count <b>depends on the outer variable</b>: write the inner count for i = 1, 2, 3, … and <b>add the series</b> (see Notes, section 6).</li>
+    </ul>
+  </li>
+  <li><b>Check for traps.</b>
+    <ul>
+      <li>Does the inner variable <b>reset</b>? If it is set once outside the loops, it only moves forward once in total, which can make nested code linear.</li>
+      <li>Does the loop <code>break</code> early? Use the <b>worst case</b>: assume the break comes as late as possible.</li>
+      <li><b>Hidden costs:</b> a function call inside a loop costs its own complexity each time. <code>sort</code> is O(n log n); searching a whole vector is O(n); <code>s = s + c</code> copies the whole string (O(length)), while <code>s += c</code> doesn't.</li>
+    </ul>
+  </li>
+  <li><b>Simplify.</b> Keep the fastest-growing term and drop the constants: 3n² + 5n + 7 → O(n²); 5n, n/2 and 2n are all O(n).</li>
+</ol>
+
+<h2 id="time-example">Worked example: time</h2>
+<pre><code class="cpp">for (int i = 0; i &lt; n; i++) sum += a[i];               // part A
+
+for (int i = 1; i &lt;= n; i++)                            // part B
+    for (int j = 1; j &lt; n; j *= 2) cnt++;
+
+for (int i = 0; i &lt; n; i++)                             // part C
+    for (int j = i; j &lt; n; j++) cnt++;</code></pre>
+<div class="nt-steps">
+  <p><b>1. n</b> is the length of the array.</p>
+  <p><b>2–3. Part A:</b> one loop, +1 each round → n.</p>
+  <p><b>Part B:</b> the inner <code>j</code> doubles → log n rounds, the same for every <code>i</code>. Nested and independent, so multiply → n log n.</p>
+  <p><b>Part C:</b> the inner loop starts at <code>i</code>, so it depends on the outer variable. Write the series: n + (n − 1) + … + 1 = n(n + 1)/2.</p>
+  <p><b>4. Combine:</b> A, B and C run one after another, so add: n + n log n + n(n + 1)/2.</p>
+  <p><b>5. Traps:</b> no early break, no shared variable, no hidden calls.</p>
+  <p><b>6. Simplify:</b> the biggest term is n²/2 → <b>O(n²)</b>.</p>
+</div>
+
+<h2 id="space">Analysing space complexity: 5 steps</h2>
+<ol>
+  <li><b>Count only the extra memory</b> your code creates. The input itself is usually not counted (this is called <b>auxiliary space</b>). Say so if a question counts the input too.</li>
+  <li><b>List everything you create</b> and write its size in terms of n: single variables, arrays, vectors, strings, 2-D grids.</li>
+  <li><b>Separate reused memory from growing memory.</b> A variable declared inside a loop is reused every round, so it counts once: O(1). A vector you <code>push_back</code> into in a loop grows to the number of rounds.</li>
+  <li><b>Recursion</b> (later topics): every call that is still waiting sits on the call stack, so the space is the deepest chain of calls × the memory of one call.</li>
+  <li><b>Simplify, then check bytes.</b> Keep the biggest term (O(1), O(n), O(n·m), O(n²)). Then multiply by the size of one element and compare with the limit:
+    <div class="nt-table"><table>
+      <thead><tr><th>Type</th><th>Bytes</th><th>Fits in 256 MB</th></tr></thead>
+      <tbody>
+        <tr><td><code>char</code>, <code>bool</code></td><td>1</td><td>about 2.5 × 10^8</td></tr>
+        <tr><td><code>int</code></td><td>4</td><td>about 6.4 × 10^7</td></tr>
+        <tr><td><code>long long</code>, <code>double</code></td><td>8</td><td>about 3.2 × 10^7</td></tr>
+      </tbody>
+    </table></div>
+  </li>
+</ol>
+
+<h2 id="space-example">Worked example: space</h2>
+<pre><code class="cpp">int n;
+cin &gt;&gt; n;
+vector&lt;int&gt; a(n);                                   // n ints
+int freq[26] = {0};                                 // 26 ints
+vector&lt;vector&lt;int&gt;&gt; grid(n, vector&lt;int&gt;(n));      // n × n ints
+long long sum = 0;
+for (int i = 0; i &lt; n; i++) {
+    int x = a[i];                                   // reused every round
+    sum += x;
+}</code></pre>
+<div class="nt-steps">
+  <p><b>1–2. List:</b> <code>a</code> is n ints → O(n). <code>freq</code> is always 26 → O(1). <code>grid</code> is n × n → O(n²). <code>sum</code>, <code>i</code> and <code>x</code> are single variables → O(1).</p>
+  <p><b>3. Reused or growing:</b> <code>x</code> is created inside the loop but reused, so it stays O(1).</p>
+  <p><b>5. Simplify:</b> the biggest term is the grid → <b>O(n²)</b>.</p>
+  <p><b>Check bytes:</b> for n = 10^4 the grid has 10^8 ints = 400 MB, over a 256 MB limit. For n = 5,000 it is 10^8 bytes = 100 MB, which fits.</p>
+</div>
+
+<h2 id="fit">Before you code: will it fit?</h2>
+<ol>
+  <li><b>Read the limits:</b> the largest <code>n</code>, and the number of test cases <code>T</code>.</li>
+  <li><b>Budget:</b> about 10^8 simple operations per second, in total across all test cases.</li>
+  <li><b>Find the complexity allowed</b> with the limits table in the notes (n ≤ 5,000 → O(n²), n ≤ 10^6 → O(n log n), and so on).</li>
+  <li><b>Work out the complexity of your simplest correct idea</b> with the 6 steps above. If it fits, code it.</li>
+  <li><b>If it doesn't fit, remove the repeated work</b>: stop early (√n), reuse earlier results, sort first, or use a formula. Then check memory with the 5 steps.</li>
+</ol>
+<p><b>Example:</b> count the divisors of n ≤ 10^12. Trying every d from 1 to n is O(n) = 10^12 steps, far too slow. Divisors come in pairs d and n / d, and the smaller one is at most √n, so loop only while <code>d * d &lt;= n</code>: O(√n) = 10^6 steps, with O(1) memory.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    long long cnt = 0;
+    for (long long d = 1; d * d &lt;= n; d++) {
+        if (n % d == 0) {
+            cnt++;                       // d itself
+            if (d != n / d) cnt++;       // its pair n / d, unless it is the same number
+        }
+    }
+    cout &lt;&lt; cnt &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>36</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>9</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1000000000000</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>169</code></pre></div>
+</div>

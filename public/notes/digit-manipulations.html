@@ -1,0 +1,144 @@
+<!-- Notes: Digit Manipulations (Level 1 · Maths). Based on "Digit Manipulation Notes" (18 Nov 2026, Rajveer). Fragment: loaded into the notes reader. -->
+<h2 id="template" data-key="The template">1. The template</h2>
+<p>Every digit problem uses the same loop. Steps 1 and 3 never change; only step 2 does.</p>
+<pre><code class="cpp">while (n &gt; 0) {
+    int digit = n % 10;     // step 1: access the last digit
+    // step 2: process the digit (the only part that changes)
+    n = n / 10;             // step 3: drop the last digit
+}</code></pre>
+<ul>
+  <li><code>n % 10</code> gives the last digit: 1234 % 10 = 4.</li>
+  <li><code>n / 10</code> drops the last digit: 1234 / 10 = 123.</li>
+  <li>The loop runs once per digit, so it is <b>O(number of digits) = O(log₁₀ n)</b>. Even a 10^18 number has only 19 digits.</li>
+</ul>
+<p><b>Why log n:</b> each <code>n = n / 10</code> divides n by 10, the same idea as halving, with base 10. After k steps n has become n / 10^k, which reaches 0 when k ≈ log₁₀ n. (For a fixed 32-bit <code>int</code> there are at most 10 digits, so some books write O(1). Say O(log n) unless the question says n is bounded.)</p>
+
+<h2 id="toolkit">2. The toolkit</h2>
+<p>Almost every digit problem is the template with a different middle line.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Task</th><th>Middle line or formula</th><th>For n = 4721</th></tr></thead>
+  <tbody>
+    <tr><td>Last digit</td><td><code>n % 10</code></td><td>1</td></tr>
+    <tr><td>Remove the last digit</td><td><code>n / 10</code></td><td>472</td></tr>
+    <tr><td>Count digits</td><td><code>cnt++</code></td><td>4</td></tr>
+    <tr><td>Sum of digits</td><td><code>sum += d</code></td><td>14</td></tr>
+    <tr><td>Product of digits</td><td><code>prod *= d</code></td><td>56</td></tr>
+    <tr><td>Reverse</td><td><code>rev = rev * 10 + d</code></td><td>1274</td></tr>
+    <tr><td>First digit</td><td><code>n / 10^(digits − 1)</code></td><td>4</td></tr>
+    <tr><td>k-th digit from the right (k = 0 is the last)</td><td><code>(n / 10^k) % 10</code></td><td>k = 2 → 7</td></tr>
+    <tr><td>Append a digit d</td><td><code>n * 10 + d</code></td><td>47215 for d = 5</td></tr>
+    <tr><td>Count a digit x</td><td><code>if (d == x) cnt++</code></td><td>x = 7 → 1</td></tr>
+    <tr><td>Digits in base b</td><td><code>d = n % b; n = n / b</code></td><td>13 digits in base 2</td></tr>
+    <tr><td>Digital root (repeat the digit sum)</td><td><code>n == 0 ? 0 : 1 + (n − 1) % 9</code></td><td>5 (14 → 5)</td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n = 4721;
+    int cnt = 0, sum = 0, prod = 1, rev = 0, sevens = 0, bits = 0, p = 1;
+    for (int t = n; t &gt; 0; t /= 10) {
+        int d = t % 10;
+        cnt++; sum += d; prod *= d; rev = rev * 10 + d;
+        if (d == 7) sevens++;
+    }
+    for (int t = n; t &gt; 0; t /= 2) bits++;            // base 2
+    for (int i = 1; i &lt; cnt; i++) p *= 10;             // 10^(digits - 1), no pow()
+    cout &lt;&lt; n % 10 &lt;&lt; " " &lt;&lt; n / 10 &lt;&lt; " " &lt;&lt; cnt &lt;&lt; " " &lt;&lt; sum &lt;&lt; " " &lt;&lt; prod &lt;&lt; " " &lt;&lt; rev &lt;&lt; "\n";
+    cout &lt;&lt; n / p &lt;&lt; " " &lt;&lt; (n / 100) % 10 &lt;&lt; " " &lt;&lt; n * 10 + 5 &lt;&lt; " " &lt;&lt; sevens &lt;&lt; " " &lt;&lt; bits &lt;&lt; " " &lt;&lt; 1 + (n - 1) % 9 &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1 472 4 14 56 1274
+4 7 47215 1 13 5</code></pre>
+
+<h2 id="copy" data-key="Work on a copy">3. The loop destroys the number: work on a copy</h2>
+<p>After the loop, <code>n</code> is 0. If you need the original value later (to compare with, divide by, or return), save it first.</p>
+<pre><code class="cpp">int original = n;      // save BEFORE the loop
+int temp = n;          // and loop on temp, not on n</code></pre>
+
+<h2 id="direction" data-key="Left to right">4. Direction: the template reads from the back</h2>
+<p>4729 is read as 9 → 2 → 7 → 4. That doesn't matter for a sum, count, product, maximum or minimum. When the problem needs the digits <b>from the front</b>, use one of these:</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Method</th><th>How</th><th>Watch out</th></tr></thead>
+  <tbody>
+    <tr><td>Convert to a string</td><td><code>string s = to_string(n);</code> then <code>s[i] - '0'</code></td><td>Simplest and least error-prone. Uses O(digits) extra space.</td></tr>
+    <tr><td>Store the digits in a vector</td><td><code>push_back</code> each digit, then loop backwards</td><td>Also gives access to any digit.</td></tr>
+    <tr><td>Reverse the number first</td><td>Reverse n, then run the template on it</td><td>Trailing zeros are lost (1200 → 21), and it can overflow.</td></tr>
+    <tr><td>Divisor method</td><td><code>div</code> = 10^(digits − 1); digit = <code>n / div</code>; then <code>n %= div</code>, <code>div /= 10</code></td><td>Build <code>div</code> with an integer loop, not <code>pow()</code>.</td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+using namespace std;
+
+int main() {
+    int n = 4729;
+
+    int t = n;                                        // the template: back to front
+    while (t &gt; 0) { cout &lt;&lt; t % 10 &lt;&lt; " "; t /= 10; }
+    cout &lt;&lt; "\n";
+
+    string s = to_string(n);                          // string: front to back
+    for (int i = 0; i &lt; (int)s.size(); i++) cout &lt;&lt; s[i] - '0' &lt;&lt; " ";
+    cout &lt;&lt; "\n";
+
+    int div = 1;                                      // divisor method: front to back
+    while (n / div &gt;= 10) div *= 10;                  // div = 1000
+    t = n;
+    while (div &gt; 0) {
+        cout &lt;&lt; t / div &lt;&lt; " ";                       // access from the front
+        t %= div;                                     // drop from the front
+        div /= 10;
+    }
+    cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>9 2 7 4
+4 7 2 9
+4 7 2 9 </code></pre>
+
+<h2 id="negative" data-key="Negatives">5. Negative numbers</h2>
+<ul>
+  <li>In C++, <code>%</code> takes the sign of the left number and <code>/</code> cuts toward zero: <code>-123 % 10</code> is <b>−3</b> (not 7, as in Python) and <code>-123 / 10</code> is <b>−12</b>.</li>
+  <li><code>while (n &gt; 0)</code> never runs for a negative <code>n</code>. Use <code>while (n != 0)</code> if negatives must be processed.</li>
+  <li>The cleanest fix is usually to handle the sign separately: <code>bool neg = n &lt; 0; n = abs(n);</code></li>
+  <li><b>Careful:</b> <code>abs(INT_MIN)</code> overflows, because there is no +2,147,483,648 in an <code>int</code>. Convert first: <code>long long x = llabs((long long)n);</code></li>
+</ul>
+
+<h2 id="overflow" data-key="Overflow">6. Overflow</h2>
+<p><code>INT_MAX</code> is 2,147,483,647 (10 digits). These can overflow even when the input fits:</p>
+<ul>
+  <li><b>Reversing:</b> 1999999999 reversed is 9999999991, larger than <code>INT_MAX</code>.</li>
+  <li><b>Products, powers and factorials of digits</b> (Armstrong, Strong numbers), and building a number with <code>res * 10 + digit</code>.</li>
+</ul>
+<p><b>Fix:</b> use <code>long long</code> for the result. When 64-bit isn't allowed (as in LeetCode 7), check <b>before</b> multiplying:</p>
+<pre><code class="cpp">if (rev &gt; INT_MAX / 10 || (rev == INT_MAX / 10 &amp;&amp; digit &gt; 7)) return 0;   // would overflow
+rev = rev * 10 + digit;</code></pre>
+
+<h2 id="zero">7. Zeros</h2>
+<ul>
+  <li><b>n = 0:</b> <code>while (n &gt; 0)</code> never runs, so “count digits” gives 0 instead of 1. Special-case it, or use a <code>do { … } while (n &gt; 0);</code> loop, which runs at least once.</li>
+  <li><b>A digit can be 0.</b> If step 2 does <code>num / digit</code> or <code>num % digit</code>, guard it: <code>if (digit != 0 &amp;&amp; num % digit == 0)</code>. Dividing by zero is undefined behaviour: the program may crash or give garbage.</li>
+  <li><b>Leading zeros don't exist</b> in numbers: 007 is just 7. <b>Trailing zeros vanish</b> when reversed (120 → 21), which matters for palindromes: 10 is not a palindrome, so handle <code>n % 10 == 0</code> early.</li>
+  <li>In <b>string or array input</b> (“007”, or a result like [0, 1, 2]), strip the leading zeros but keep a single “0”.</li>
+</ul>
+
+<h2 id="shortcuts" data-key="Math shortcuts">8. Math shortcuts</h2>
+<p>Some questions have a formula that skips the loop, or must avoid building the number at all.</p>
+<ul>
+  <li><b>Number of digits</b> of n in base b is ⌊log_b n⌋ + 1 (for n ≥ 1). Handy for reasoning; in code, the integer loop is safer.</li>
+  <li><b>n % 9 equals (sum of digits) % 9.</b> That makes the digital root a 9-cycle: 1 + (n − 1) % 9 for n ≥ 1. The same works for 3.</li>
+  <li><b>Divisible by 11</b> exactly when the alternating digit sum is divisible by 11: 1342 → 1 − 3 + 4 − 2 = 0, and 1342 = 11 × 122.</li>
+  <li><b>Trailing zeros of n!</b> = n/5 + n/25 + n/125 + …. Each zero needs a 2 × 5, and 5s are rarer, so count factors of 5. Never compute n! itself: it overflows.</li>
+  <li><b>Other bases:</b> the same loop with <code>% b</code> and <code>/ b</code> gives the digits in base b (binary uses b = 2).</li>
+  <li><b>Numbers too big for any type</b> (digits given as an array or string) are handled digit by digit with a carry, like schoolbook addition.</li>
+</ul>
+
+<h2 id="tips">9. More tips</h2>
+<ul>
+  <li><b>Avoid floating point for digit maths.</b> <code>log10(n) + 1</code> fails for 0 and negatives and can be off near powers of 10. <code>pow(10, k)</code> returns a <code>double</code>, and converting it to <code>int</code> can give 99 instead of 100 on some compilers. Use integer loops (<code>div *= 10</code>).</li>
+  <li><b>Character ↔ digit:</b> <code>int d = s[i] - '0';</code> turns <code>'7'</code> into 7, and <code>char c = '0' + d;</code> turns 7 into <code>'7'</code>.</li>
+  <li><b>String conversion is easy but costs O(log n) extra space</b>, and is often not allowed. Say so when a question asks for O(1) space.</li>
+  <li><b>Read the constraints.</b> A range like −2^31 ≤ x ≤ 2^31 − 1 tells you whether negatives, 0 or overflow are possible.</li>
+</ul>

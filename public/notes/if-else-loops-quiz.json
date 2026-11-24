@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "What does this print?", "code": "int x = 5;\nif (x = 0) cout << \"A\";\nelse cout << \"B\";", "run": true, "o": ["A", "B", "AB", "Compile error"], "a": 1, "e": "x = 0 assigns 0 to x, and 0 counts as false, so the else runs. Use == to compare." },
+    { "q": "What does this print?", "code": "for (int i = 1; i <= 10; i += 3) cout << i << \" \";", "run": true, "o": ["1 4 7", "1 4 7 10", "1 3 6 9", "1 4 7 10 13"], "a": 1, "e": "i takes 1, 4, 7, 10. The next value, 13, fails i <= 10, so the loop stops." },
+    { "q": "What does this print?", "code": "int cnt = 0;\nfor (int i = 0; i < 3; i++)\n    for (int j = 0; j < 4; j++) cnt++;\ncout << cnt;", "run": true, "o": ["7", "12", "16", "3"], "a": 1, "e": "Nested loops multiply: the inner loop runs 4 times for each of the 3 outer rounds, so 3 × 4 = 12." },
+    { "q": "In FizzBuzz, which check has to come first?", "o": ["Divisible by 3", "Divisible by 5", "Divisible by both 3 and 5", "The order doesn't matter"], "a": 2, "e": "15 is divisible by 3 too. If “divisible by 3” comes first, 15 prints Fizz and the FizzBuzz case is never reached. The most specific case goes first." },
+    { "q": "What does this print?", "code": "int i = 0;\nwhile (i < 5) {\n    if (i == 3) break;\n    i++;\n}\ncout << i;", "run": true, "o": ["3", "4", "5", "2"], "a": 0, "e": "break leaves the loop as soon as i reaches 3, before i++ runs again." },
+    { "q": "What does this print?", "code": "int s = 0;\nfor (int i = 1; i <= 5; i++) {\n    if (i % 2 == 0) continue;\n    s += i;\n}\ncout << s;", "run": true, "o": ["15", "9", "6", "5"], "a": 1, "e": "continue skips the even numbers, so only 1 + 3 + 5 = 9 is added." },
+    { "q": "Which correctly checks that x is between 10 and 20 (inclusive)?", "o": ["10 <= x <= 20", "x >= 10 && x <= 20", "x >= 10 || x <= 20", "10 < x < 20"], "a": 1, "mono": true, "e": "Both sides must be written and joined with &&. 10 <= x <= 20 compiles but compares (10 <= x), which is 0 or 1, with 20." },
+    { "q": "What does this print?", "code": "int n = 4071, c = 0;\nwhile (n > 0) {\n    c++;\n    n /= 10;\n}\ncout << c;", "run": true, "o": ["3", "4", "5", "7"], "a": 1, "e": "Each round removes one digit (4071 → 407 → 40 → 4 → 0), so the loop counts the 4 digits." }
+  ]
+}

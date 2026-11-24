@@ -1,0 +1,167 @@
+<!-- Notes: If-Else and Loops (Level 0 · Fundamentals). Fragment: loaded into the notes reader. -->
+<h2 id="conditions" data-key="Conditions">1. Conditions</h2>
+<p>A <b>condition</b> is an expression that is either true or false. It is built with comparison operators and combined with logical operators.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Comparison</th><th>Meaning</th><th></th><th>Logical</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>==</code></td><td>equal to</td><td></td><td><code>&amp;&amp;</code></td><td>and: both must be true</td></tr>
+    <tr><td><code>!=</code></td><td>not equal to</td><td></td><td><code>||</code></td><td>or: at least one is true</td></tr>
+    <tr><td><code>&lt;</code> <code>&gt;</code></td><td>less than, greater than</td><td></td><td><code>!</code></td><td>not: flips true and false</td></tr>
+    <tr><td><code>&lt;=</code> <code>&gt;=</code></td><td>at most, at least</td><td></td><td></td><td></td></tr>
+  </tbody>
+</table></div>
+<ul>
+  <li><code>=</code> <b>assigns</b> a value; <code>==</code> <b>compares</b>. Writing <code>if (x = 5)</code> sets <code>x</code> to 5 and is always true.</li>
+  <li><b>Short-circuit:</b> in <code>a &amp;&amp; b</code>, if <code>a</code> is false then <code>b</code> is not checked. In <code>a || b</code>, if <code>a</code> is true then <code>b</code> is not checked. This makes <code>if (b != 0 &amp;&amp; a % b == 0)</code> safe.</li>
+  <li>To check a range, write both sides: <code>1 &lt;= x &amp;&amp; x &lt;= 10</code>. The maths style <code>1 &lt;= x &lt;= 10</code> compiles but does something else.</li>
+  <li>When you mix <code>&amp;&amp;</code> and <code>||</code>, add brackets so the order is clear.</li>
+</ul>
+
+<h2 id="if-else" data-key="Else-if order">2. if, else if, else</h2>
+<p>The first condition that is true runs its block; the others are skipped. <code>else</code> runs when none was true.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int marks = 82;
+    if (marks &gt;= 90) cout &lt;&lt; "A\n";
+    else if (marks &gt;= 75) cout &lt;&lt; "B\n";     // reached only if marks &lt; 90
+    else if (marks &gt;= 50) cout &lt;&lt; "C\n";
+    else cout &lt;&lt; "F\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>B</code></pre>
+<ul>
+  <li>Order matters: put the most specific check first. With <code>marks &gt;= 50</code> first, 82 would print <code>C</code>.</li>
+  <li>Use braces <code>{ }</code> when a block has more than one statement. Without them, only the next statement belongs to the <code>if</code>.</li>
+  <li>Don't put a semicolon after the condition: <code>if (x &gt; 0);</code> ends the <code>if</code> right there.</li>
+</ul>
+<p><b>Ternary operator</b> for a short either-or value: <code>cout &lt;&lt; (n % 2 == 0 ? "Even" : "Odd");</code></p>
+
+<h2 id="switch">3. switch</h2>
+<p><code>switch</code> compares one value with fixed cases. It works with <code>int</code> and <code>char</code>, not with decimals or strings.</p>
+<pre><code class="cpp">switch (op) {               // op is a char such as '+'
+    case '+': cout &lt;&lt; a + b; break;
+    case '-': cout &lt;&lt; a - b; break;
+    default:  cout &lt;&lt; "Unknown operator";
+}</code></pre>
+<p>Without <code>break</code>, execution <b>falls through</b> into the next case.</p>
+
+<h2 id="loops" data-key="Which loop">4. Loops</h2>
+<p>A <b>loop</b> repeats a block while a condition stays true.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    for (int i = 1; i &lt;= 5; i++) cout &lt;&lt; i &lt;&lt; " ";       // start; keep going while; step
+    cout &lt;&lt; "\n";
+
+    int n = 37, steps = 0;
+    while (n != 1) {                                      // repeat until a condition changes
+        n = (n % 2 == 0) ? n / 2 : n + 1;
+        steps++;
+    }
+    cout &lt;&lt; steps &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1 2 3 4 5
+10</code></pre>
+<div class="nt-table"><table>
+  <thead><tr><th>Loop</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr><td><code>for</code></td><td>You know how many times to repeat, or the range to go over.</td></tr>
+    <tr><td><code>while</code></td><td>You repeat until something happens, and don't know how many times in advance.</td></tr>
+    <tr><td><code>do { } while ( );</code></td><td>The body must run at least once, for example asking for input until it is valid.</td></tr>
+  </tbody>
+</table></div>
+<p>The parts of a <code>for</code> loop are <b>start</b> (<code>int i = 1</code>), <b>condition</b> (<code>i &lt;= 5</code>, checked before every round) and <b>update</b> (<code>i++</code>, done after every round).</p>
+
+<h2 id="break-continue">5. break and continue</h2>
+<ul>
+  <li><code>break</code> leaves the loop immediately.</li>
+  <li><code>continue</code> skips the rest of this round and goes to the next one.</li>
+</ul>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    for (int i = 1; i &lt;= 10; i++) {
+        if (i % 3 == 0) continue;    // skip multiples of 3
+        if (i &gt; 7) break;            // stop completely after 7
+        cout &lt;&lt; i &lt;&lt; " ";
+    }
+    cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1 2 4 5 7 </code></pre>
+
+<h2 id="nested" data-key="Nested loops">6. Nested loops</h2>
+<p>A loop inside a loop. The inner loop runs completely for <b>every</b> round of the outer loop, so an outer loop of <code>n</code> rounds and an inner loop of <code>m</code> rounds do <code>n × m</code> steps. Patterns are the classic example: the outer loop picks the row, the inner loop prints that row.</p>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n = 4;
+    for (int row = 1; row &lt;= n; row++) {
+        for (int col = 1; col &lt;= row; col++) cout &lt;&lt; "*";
+        cout &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>*
+**
+***
+****</code></pre>
+
+<h2 id="patterns" data-key="Loop patterns">7. Loop patterns you will use everywhere</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Goal</th><th>Before the loop</th><th>Inside the loop</th></tr></thead>
+  <tbody>
+    <tr><td>Sum</td><td><code>long long sum = 0;</code></td><td><code>sum += x;</code></td></tr>
+    <tr><td>Count</td><td><code>int cnt = 0;</code></td><td><code>if (condition) cnt++;</code></td></tr>
+    <tr><td>Maximum</td><td><code>int best = first value;</code></td><td><code>if (x &gt; best) best = x;</code></td></tr>
+    <tr><td>Product</td><td><code>long long p = 1;</code></td><td><code>p *= x;</code></td></tr>
+    <tr><td>Found or not</td><td><code>bool found = false;</code></td><td><code>if (x == target) { found = true; break; }</code></td></tr>
+    <tr><td>Every k-th number</td><td><code>int i = first;</code></td><td>jump: <code>i += k</code>, no <code>if</code> needed</td></tr>
+    <tr><td>Digits of n</td><td><code>int t = n;</code></td><td><code>d = t % 10; t /= 10;</code> while <code>t &gt; 0</code></td></tr>
+  </tbody>
+</table></div>
+<p>Start a maximum with the first value (or a very small number such as <code>INT_MIN</code>), not with 0: if every number is negative, 0 would be wrong.</p>
+
+<h2 id="tools">8. Handy tools</h2>
+<ul>
+  <li><code>max(a, b)</code> and <code>min(a, b)</code> (header <code>&lt;algorithm&gt;</code>) return the larger and smaller value, and can be nested: <code>max(a, max(b, c))</code>. Both values must have the same type.</li>
+  <li><code>abs(x)</code> gives the value without its sign: <code>abs(-7)</code> is 7.</li>
+  <li>A <code>string</code> holds text: <code>s.size()</code> is its length and <code>s[i]</code> its i-th character, counting from 0.</li>
+  <li><b>Multiply instead of dividing</b> in checks: <code>a / b &gt;= 0.4</code> is safer as <code>a * 10 &gt;= 4 * b</code>. It avoids lost fractions and rounding errors.</li>
+</ul>
+<pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;algorithm&gt;
+#include &lt;string&gt;
+using namespace std;
+
+int main() {
+    int a = 4, b = -9, c = 7;
+    cout &lt;&lt; max(a, max(b, c)) &lt;&lt; " " &lt;&lt; min(a, min(b, c)) &lt;&lt; "\n";
+    cout &lt;&lt; abs(b) &lt;&lt; "\n";
+    string s = "loop";
+    cout &lt;&lt; s.size() &lt;&lt; " " &lt;&lt; s[0] &lt;&lt; s[3] &lt;&lt; "\n";
+    int marks = 38, total = 95;
+    cout &lt;&lt; (marks * 100 &gt;= 40 * total ? "Pass" : "Fail") &lt;&lt; "\n";   // is marks / total at least 40%?
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>7 -9
+9
+4 lp
+Pass</code></pre>
+
+<h2 id="mistakes" data-key="Off-by-one">9. Common mistakes</h2>
+<ol>
+  <li><b>Off by one:</b> <code>i &lt; n</code> runs n times starting from 0; <code>i &lt;= n</code> runs n times starting from 1. Check the first and last value of <code>i</code>.</li>
+  <li><b>Infinite loop:</b> the update never makes the condition false, for example forgetting <code>i++</code> in a <code>while</code> loop.</li>
+  <li><b><code>=</code> instead of <code>==</code></b> inside a condition.</li>
+  <li><b>A stray semicolon:</b> <code>for (...);</code> or <code>if (...);</code> gives the loop or <code>if</code> an empty body.</li>
+  <li><b>Overflow in a running total:</b> a sum of many numbers can pass 2 × 10^9; use <code>long long</code>.</li>
+  <li><b>Forgetting <code>break</code></b> in a <code>switch</code> case.</li>
+  <li><b>Changing the loop variable inside a <code>for</code> body</b>, which makes the loop hard to follow and easy to break.</li>
+</ol>

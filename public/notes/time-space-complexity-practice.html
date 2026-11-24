@@ -1,0 +1,92 @@
+<!-- Practice questions: Time and Space Complexity (Level 0 · Fundamentals). Fragment: loaded into the notes reader.
+     Problems 1–5 are taken from Practice Problem Set 2 (Rajveer). -->
+<p>For each piece of code, find the time complexity in Big-O before opening the answer. Count how many times <code>count++</code> runs.</p>
+
+<h2 id="p1">1. A big fixed loop</h2>
+<pre><code class="cpp">int count = 0;
+for (int i = 1; i &lt;= 1000000; i++)
+    count++;</code></pre>
+<details class="nt-hint"><summary>Hint</summary><p>Does the number of rounds change when n changes?</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>O(1).</b> The loop runs 1,000,000 times whatever n is. A big number doesn't make a loop slow in Big-O terms; what matters is whether the count grows with n.</p>
+</details>
+
+<h2 id="p2">2. Inner loop up to i</h2>
+<pre><code class="cpp">int count = 0;
+for (int i = 1; i &lt;= n; i++)
+    for (int j = 1; j &lt;= i; j++)
+        count++;</code></pre>
+<details class="nt-hint"><summary>Hint</summary><p>The inner loop depends on i. Write how many times it runs for i = 1, 2, 3, …, n and add them.</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>O(n²).</b></p>
+<pre class="plain"><code>i = 1  =&gt;  1
+i = 2  =&gt;  2
+  ...
+i = n  =&gt;  n
+-----------------------------------------
+1 + 2 + ... + n = n(n+1)/2 = n²/2 + n/2  -&gt;  O(n²)</code></pre>
+</details>
+
+<h2 id="p3">3. i doubles, inner loop up to i</h2>
+<pre><code class="cpp">int count = 0;
+for (int i = 1; i &lt; n; i = i * 2)
+    for (int j = 0; j &lt; i; j++)
+        count++;</code></pre>
+<details class="nt-hint"><summary>Hint</summary><p>The outer loop runs only log n times, but the inner loop runs i times. List the values of i and add them.</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>O(n)</b>, not O(n log n).</p>
+<pre class="plain"><code>i = 1    =&gt;  1
+i = 2    =&gt;  2
+i = 4    =&gt;  4
+  ...
+i = n/2  =&gt;  n/2   (last value below n)
+-----------------------------------------
+1 + 2 + 4 + ... + n/2  &lt;  n   (each term is more than all earlier ones put together)  -&gt;  O(n)</code></pre>
+<p>Multiplying the loop counts (log n × n) would overestimate it: write the series instead.</p>
+</details>
+
+<h2 id="p4">4. A sum that grows</h2>
+<pre><code class="cpp">int i = 1, s = 1;
+while (s &lt;= n) {
+    i++;
+    s = s + i;
+}</code></pre>
+<details class="nt-hint"><summary>Hint</summary><p>Write the value of s after each step. Which formula is it? When does it pass n?</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>O(√n).</b></p>
+<pre class="plain"><code>after step 1:  s = 1
+after step 2:  s = 1 + 2     = 3
+after step 3:  s = 1 + 2 + 3 = 6
+  ...
+after step k:  s = 1 + 2 + ... + k = k(k+1)/2
+-----------------------------------------
+stop when s &gt; n:  k²/2 ≈ n  =&gt;  k ≈ √(2n)  -&gt;  O(√n)</code></pre>
+</details>
+
+<h2 id="p5">5. The variable that never resets</h2>
+<pre><code class="cpp">int count = 0, j = 0;
+for (int i = 0; i &lt; n; i++)
+    while (j &lt; n) {
+        j++;
+        count++;
+    }</code></pre>
+<details class="nt-hint"><summary>Hint</summary><p>Where is j set to 0? What is j when i becomes 1?</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>O(n)</b>, not O(n²).</p>
+<pre class="plain"><code>j is set to 0 once, OUTSIDE both loops. It never resets.
+
+i = 0    =&gt;  while runs n times   (j goes 0 → n)
+i = 1    =&gt;  while runs 0 times   (j is already n)
+  ...
+i = n-1  =&gt;  0
+-----------------------------------------
+inner work = n,  outer loop = n,  total = 2n  -&gt;  O(n)</code></pre>
+<p>The code looks nested, but j only moves from 0 to n once in total.</p>
+</details>
+
+<h2 id="p6">6. Will it pass?</h2>
+<p>A problem gives up to <b>n = 2 × 10^5</b> numbers and a 1-second limit. Your idea checks <b>every pair</b> of numbers with two nested loops. Will it pass? If not, what complexity should you aim for?</p>
+<details class="nt-hint"><summary>Hint</summary><p>How many pairs are there? Compare that with about 10^8 operations per second.</p></details>
+<details class="nt-hint"><summary>Answer</summary>
+<p><b>No.</b> Checking every pair is O(n²): about (2 × 10^5)² / 2 = 2 × 10^10 operations, around 200 times over the budget. With n = 2 × 10^5, aim for <b>O(n log n)</b> (about 3.5 × 10^6 steps) or O(n), for example by sorting first.</p>
+</details>

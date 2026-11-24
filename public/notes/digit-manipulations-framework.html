@@ -1,0 +1,105 @@
+<!-- Problem-solving framework: Digit Manipulations (Level 1 · Maths). Based on "Digit Manipulation Notes" (18 Nov 2026) and the
+     "Digit Manipulation Cheat Sheet" (2 Nov 2026), Rajveer. Fragment: loaded into the notes reader. -->
+<h2 id="spot">1. Spot a digit question</h2>
+<p>If the problem talks about the <b>digits</b> of a number rather than its size, it is a digit question, and your first move is the <code>% 10</code> / <code>/ 10</code> loop. Signal words:</p>
+<ul>
+  <li>“digit”, “digits of n”, “sum / product of digits”, “count digits”</li>
+  <li>“reverse the number”, “palindrome number”, “rotate the number”</li>
+  <li>Armstrong, happy, self-dividing, strong numbers</li>
+  <li>“repeatedly do X until a single digit remains”</li>
+  <li>“a number given as an array / string of digits” (Plus One, Add Strings)</li>
+  <li>“in base k”, “binary representation” (same idea, divide by k instead of 10)</li>
+</ul>
+
+<h2 id="ask">2. Ask before you code</h2>
+<ol>
+  <li><b>Which order?</b> Right to left → the template as it is. Left to right → reverse first, find the highest power of 10 (divisor method), or convert to a string.</li>
+  <li><b>All the digits at once, or one at a time?</b> One at a time (a running sum or count) needs O(1) space; storing them needs an array.</li>
+  <li><b>Can the answer overflow?</b> Reversing, multiplying, powers, factorials, building a new number → <code>long long</code>, or check before multiplying.</li>
+  <li><b>Can n be 0 or negative?</b> 0 never enters <code>while (n &gt; 0)</code>; a negative n gives negative digits in C++.</li>
+  <li><b>Is there a maths shortcut</b> (digital root, a divisibility rule, counting by position) that skips the loop?</li>
+</ol>
+<p>Then <b>save a copy</b> if you need the original after the loop, and choose step 2 from the table below.</p>
+
+<h2 id="step2">3. What changes in step 2</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Question</th><th>Step 2 (process the digit)</th><th>Starting value</th></tr></thead>
+  <tbody>
+    <tr><td>Count digits</td><td><code>count++</code></td><td><code>count = 0</code> (n = 0 has 1 digit)</td></tr>
+    <tr><td>Sum of digits</td><td><code>sum += digit</code></td><td><code>sum = 0</code></td></tr>
+    <tr><td>Product of digits</td><td><code>product *= digit</code></td><td><code>product = 1</code>, not 0</td></tr>
+    <tr><td>Reverse the number</td><td><code>rev = rev * 10 + digit</code></td><td><code>rev = 0</code></td></tr>
+    <tr><td>Palindrome</td><td>same as reverse, then compare with the copy</td><td><code>rev = 0</code></td></tr>
+    <tr><td>Even / odd count</td><td><code>if (digit % 2 == 0) even++; else odd++;</code></td><td>both 0</td></tr>
+    <tr><td>Largest digit</td><td><code>if (digit &gt; largest) largest = digit;</code></td><td><code>largest = 0</code> (smallest: start at 9, flip the check)</td></tr>
+    <tr><td>Count occurrences of d</td><td><code>if (digit == d) count++;</code></td><td><code>count = 0</code></td></tr>
+    <tr><td>Armstrong number</td><td><code>sum += digit^k</code> (k = number of digits)</td><td><code>sum = 0</code></td></tr>
+    <tr><td>Strong number</td><td><code>sum += digit!</code></td><td><code>sum = 0</code></td></tr>
+  </tbody>
+</table></div>
+<p><b>Dry run of reverse</b> (n = 472): each digit comes off the back of n and goes onto the front of rev, so the order flips.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>digit</th><th>rev = rev * 10 + digit</th><th>n after the drop</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>0 × 10 + 2 = 2</td><td>47</td></tr>
+    <tr><td>7</td><td>2 × 10 + 7 = 27</td><td>4</td></tr>
+    <tr><td>4</td><td>27 × 10 + 4 = 274</td><td>0</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="complexity">4. Know the cost</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Pattern</th><th>Time</th><th>Space</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>One pass over the digits (sum, count, reverse)</td><td>O(log n)</td><td>O(1)</td><td>one step per digit</td></tr>
+    <tr><td>Store the digits in an array or string</td><td>O(log n)</td><td>O(log n)</td><td>all d digits are kept</td></tr>
+    <tr><td>Digit loop for every number from 1 to n</td><td>O(n log n)</td><td>O(1)</td><td>n numbers × d digits</td></tr>
+    <tr><td>Repeat the digit sum until one digit is left</td><td>O(log n)</td><td>O(1)</td><td>after one pass the number is at most 9d, so it shrinks fast</td></tr>
+    <tr><td>Digital root formula</td><td>O(1)</td><td>O(1)</td><td>no loop</td></tr>
+    <tr><td>Happy number (digit-square sum + cycle check)</td><td>O(log n)</td><td>O(1)</td><td>after the first step the values stay below 243</td></tr>
+    <tr><td>Big number as an array or string (Plus One, Add Strings)</td><td>O(L)</td><td>O(L)</td><td>L = length of the input</td></tr>
+    <tr><td>Brute force: check every number up to n</td><td>O(n log n)</td><td>O(1)</td><td>often too slow; look for counting by position</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="test">5. Test before you submit</h2>
+<p>Run every digit solution on: <b>0</b>, a <b>single digit</b>, a <b>negative</b> number, a number <b>ending in 0</b>, a number <b>containing a 0 digit</b>, and <b>INT_MAX / INT_MIN</b> (or the largest allowed value).</p>
+
+<h2 id="example">Worked example</h2>
+<p><b>Problem:</b> a number is <b>self-dividing</b> if every one of its digits divides it, and it has no 0 digit. Read n and print <code>YES</code> or <code>NO</code>. <b>Limits:</b> 1 ≤ n ≤ 10^9.</p>
+<div class="nt-steps">
+  <p><b>Spot it:</b> “every one of its digits” → a digit question.</p>
+  <p><b>Order:</b> any order works, so the plain template. <b>One at a time:</b> yes, a flag is enough, O(1) space.</p>
+  <p><b>Overflow:</b> nothing grows, so <code>int</code> is enough. <b>0 or negative:</b> n ≥ 1, so no special case.</p>
+  <p><b>Step 2:</b> “is there a digit that fails?”, a flag that starts as true. A digit fails if it is 0 or doesn't divide n. Check 0 first, so we never compute <code>n % 0</code>.</p>
+  <p><b>Copy:</b> every check needs the original n, so loop on a copy.</p>
+  <p><b>Test:</b> 7 (one digit) → YES; 102 (has a 0) → NO; 128 → YES.</p>
+</div>
+<pre><code class="cpp">#include &lt;iostream&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    int temp = n;                 // work on a copy
+    bool ok = true;
+    while (temp &gt; 0) {
+        int digit = temp % 10;                                      // step 1
+        if (digit == 0 || n % digit != 0) { ok = false; break; }    // step 2
+        temp /= 10;                                                 // step 3
+    }
+    cout &lt;&lt; (ok ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>128</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>102</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>26</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>

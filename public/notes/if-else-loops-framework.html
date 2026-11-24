@@ -1,0 +1,293 @@
+<!-- Problem-solving framework: If-Else and Loops (Level 0 · Fundamentals). Based on the "Conditions · Loops · Arrays" approach guide (13 Nov, Rajveer).
+     Fragment: loaded into the notes reader. -->
+<h2 id="before">Before any question</h2>
+<ol>
+  <li><b>Read the input format and the exact output words.</b> <code>Yes</code> is not <code>YES</code>.</li>
+  <li><b>Check the limits.</b> They decide the types (<code>int</code> or <code>long long</code>) and how fast the code must be.</li>
+  <li><b>Solve 2 small examples by hand.</b></li>
+  <li><b>Only then write code.</b> Then find which pattern below the question matches.</li>
+</ol>
+
+<h2 id="conditions">Conditions (if / else)</h2>
+
+<h3 id="c1">1. Comparing a few values: largest, smallest, middle</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>The largest or smallest of 3 or 4 numbers, or both together.</li>
+  <li>The second largest or the middle value.</li>
+  <li>Picking the cheaper or better of two options.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Values can be negative or equal. Never start the answer at 0.</li>
+  <li><code>max(a, b)</code> and <code>min(a, b)</code> exist and can be nested: <code>max(a, max(b, c))</code>.</li>
+  <li>If the options are costs, turn each option into one number (its total) first, then compare.</li>
+</ul>
+<p class="nt-k">How to think: the champion method</p>
+<p>Assume the first value is the answer. Look at each other value; if it beats the current answer, it becomes the new answer. The middle of 3 values is <b>total − largest − smallest</b>.</p>
+<pre><code class="cpp">int best = a;                // the champion starts as a real input value
+if (b &gt; best) best = b;      // challenge it with each other value
+if (c &gt; best) best = c;      // (flip &gt; to &lt; for the smallest)</code></pre>
+
+<h3 id="c2">2. Divisibility labels</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Even or odd; positive, negative or zero.</li>
+  <li>A word if N is divisible by one number, another word for a second number, a combined word if both.</li>
+  <li>Leap-year rules: divisible by 4, but not by 100, unless by 400.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>“Divisible by k” is <code>n % k == 0</code>.</li>
+  <li>“Divisible by both p and q”: check both with <code>&amp;&amp;</code>, or check their LCM (both 4 and 6 means divisible by 12).</li>
+  <li>One input can match more than one rule. If the “both” case is checked last, it is never reached.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>List the cases, then ask: can one input fit two cases at once? If yes, the overlap (the most specific case) goes first, then the single cases, then the <code>else</code>. Test with an input that falls in the overlap.</p>
+<pre><code class="cpp">if (n % 3 == 0 &amp;&amp; n % 5 == 0) cout &lt;&lt; "FizzBuzz";   // most specific first
+else if (n % 3 == 0)          cout &lt;&lt; "Fizz";
+else if (n % 5 == 0)          cout &lt;&lt; "Buzz";
+else                          cout &lt;&lt; n;            // none matched</code></pre>
+
+<h3 id="c3">3. Validate first, then classify</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Can these sides or angles form a shape? If yes, what type is it?</li>
+  <li>Is this date, time, mark or age valid? If yes, which category?</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>There are two questions inside: “Is it possible?” and “What kind is it?”</li>
+  <li>The validity rule is usually in the question, or a known fact (the angles of a triangle add up to 180).</li>
+  <li>“How many are equal” is easiest by counting equal pairs.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<ol>
+  <li>Write the “impossible” conditions first. If any is true, print the invalid message and stop.</li>
+  <li>Only then classify. The data is now valid, so the classification stays simple.</li>
+  <li>For “all same / two same / all different”, count equal pairs: 3 pairs → all same, 1 → two same, 0 → all different.</li>
+</ol>
+<pre><code class="cpp">if (/* impossible input */) {
+    cout &lt;&lt; "Invalid";
+    return 0;                                     // stop here
+}
+int same = (x == y) + (y == z) + (x == z);        // true counts as 1
+if (same == 3)      cout &lt;&lt; "All same";
+else if (same == 1) cout &lt;&lt; "Two same";
+else                cout &lt;&lt; "All different";</code></pre>
+
+<h3 id="c4">4. Rule ladders: eligibility, grading, pricing</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>A list of rules with “if … otherwise if … otherwise”, taking 3–4 inputs and printing a decision.</li>
+  <li>A rule with a sub-rule inside it: “otherwise, if X then A, else B”.</li>
+  <li>Ranges such as “between 600 and 749 inclusive”.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Follow the rules in the exact order given. Each “otherwise” is an <code>else</code>; a sub-rule is an <code>if</code> inside that branch.</li>
+  <li>When you reach an <code>else if</code>, everything above it is already false, so you rarely need to re-check a range's lower bound.</li>
+  <li>“Inclusive” means the end values count: <code>x &gt;= 600 &amp;&amp; x &lt;= 749</code>.</li>
+  <li>Copy the output strings exactly, including brackets and spaces.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Draw the rules as a tree. Every leaf is one output. Make one test input per leaf, plus the boundary values (exactly 600, exactly 749, exactly 750).</p>
+<pre class="plain"><code>rule 1 true? ── yes ─&gt; A
+   │ no
+rule 2 true? ── yes ─&gt; B
+   │ no
+rule 3 true? ── yes ─&gt; sub-rule true? ── yes ─&gt; C
+   │ no                     │ no
+   └──────&gt; E               └──────&gt; D</code></pre>
+<pre><code class="cpp">if (/* rule 1 */)       cout &lt;&lt; "A";
+else if (/* rule 2 */)  cout &lt;&lt; "B";
+else if (/* rule 3 */) {
+    if (/* sub-rule */) cout &lt;&lt; "C";
+    else                cout &lt;&lt; "D";
+}
+else                    cout &lt;&lt; "E";</code></pre>
+
+<h3 id="c5">5. Formula and ratio checks</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Does a ratio equal something (width : height = p : q)?</li>
+  <li>Does a formula cross a limit (a percentage, an average, a speed)?</li>
+  <li>Does any of several results (sum, difference, product) equal a value?</li>
+  <li>Can a number be split into parts with a property (two even parts, equal teams)?</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><b>Avoid division.</b> Integer division cuts the fraction and <code>double</code> brings tiny errors. Multiply both sides instead.</li>
+  <li>Watch for unit changes (cm → m means ÷ 100, so a square means ÷ 10,000).</li>
+  <li>For “split into parts” questions, try the smallest inputs by hand (1, 2, 3, 4). Small cases often break a rule that looks right.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Write the check as maths, then move every divisor to the other side (for positive b and d).</p>
+<div class="nt-table"><table>
+  <thead><tr><th>You want</th><th>Write in code</th></tr></thead>
+  <tbody>
+    <tr><td>a / b == k</td><td><code>a == k * b</code></td></tr>
+    <tr><td>a / b ≥ c / d</td><td><code>a * d &gt;= c * b</code></td></tr>
+    <tr><td>x : y equals p : q</td><td><code>x * q == y * p</code></td></tr>
+    <tr><td>marks / total ≥ 40%</td><td><code>marks * 100 &gt;= 40 * total</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="c6">6. Character and string checks</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>A short string: do characters repeat, how often each appears, are there exactly two kinds?</li>
+  <li>Classify a character: vowel, digit, uppercase.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><code>s[0]</code> is the first character; <code>s.size()</code> is the length.</li>
+  <li>Characters compare like numbers: <code>c &gt;= 'a' &amp;&amp; c &lt;= 'z'</code>.</li>
+  <li>Counting how often each character appears often turns the question into a simple check on the counts.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Ask “what would I count by hand?”, count it in code, then check the counts.</p>
+<pre><code class="cpp">string s;
+cin &gt;&gt; s;
+int cnt = 0;
+for (int i = 0; i &lt; (int)s.size(); i++)
+    if (s[i] == s[0]) cnt++;           // how many equal the first character?</code></pre>
+
+<h2 id="loops">Loops</h2>
+
+<h3 id="l1">1. Printing ranges and sequences</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Print 1 to N, or N down to 1.</li>
+  <li>Print the first K numbers of a pattern (multiples, odd numbers, 3k + 1…).</li>
+  <li>Print the numbers of a range with a step.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Every loop answers three questions: <b>start, stop, step</b>.</li>
+  <li>The values from a to b are <b>b − a + 1</b> numbers.</li>
+  <li><code>&lt;</code> versus <code>&lt;=</code> is the most common bug. Check the first value printed, the last value printed, and the count.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Write the first 4 terms next to their position and find the formula for term i.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>i</th><th>1</th><th>2</th><th>3</th><th>4</th></tr></thead>
+  <tbody><tr><td>term</td><td>4</td><td>7</td><td>10</td><td>13</td></tr></tbody>
+</table></div>
+<p>The gap is 3, so term = 3i + something. At i = 1: 3 + 1 = 4, so term = 3i + 1.</p>
+<pre><code class="cpp">for (int i = 1; i &lt;= N; i++) cout &lt;&lt; i &lt;&lt; " ";           // up
+for (int i = N; i &gt;= 1; i--) cout &lt;&lt; i &lt;&lt; " ";           // down
+for (int i = 1; i &lt;= K; i++) cout &lt;&lt; 3 * i + 1 &lt;&lt; " ";   // first K terms by formula</code></pre>
+
+<h3 id="l2">2. Tables and formatted output</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>A multiplication table, or lines in a fixed format such as <code>7 x 3 = 21</code>.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Copy the spaces and symbols of the output format exactly.</li>
+  <li>One loop, one line per round, <code>"\n"</code> at the end of each line.</li>
+</ul>
+<pre><code class="cpp">for (int i = 1; i &lt;= 10; i++)
+    cout &lt;&lt; n &lt;&lt; " x " &lt;&lt; i &lt;&lt; " = " &lt;&lt; n * i &lt;&lt; "\n";</code></pre>
+
+<h3 id="l3">3. Picking numbers without if: jump, don't filter</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Print only the even numbers, odd numbers or multiples of k up to N, sometimes “without using if-else”.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><b>Filter:</b> visit every number and test it with <code>if</code>.</li>
+  <li><b>Jump:</b> start on the first wanted number and step by the gap. No <code>if</code> needed, and fewer steps.</li>
+  <li>Decide the first wanted value carefully: does the range start at 0 or 1?</li>
+</ul>
+<pre><code class="cpp">for (int i = START; i &lt;= N; i += GAP) cout &lt;&lt; i &lt;&lt; " ";   // jump, no if</code></pre>
+
+<h3 id="l4">4. Sums and products (accumulators)</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>The sum or product of 1 to N, or of a pattern; powers such as 2ⁿ.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Start a sum at 0 and a product at 1. A product that starts at 0 stays 0.</li>
+  <li><b>Estimate the size first.</b> Products explode: 1 × 2 × … × 12 = 479,001,600 fits in <code>int</code>, but 1 × 2 × … × 13 = 6,227,020,800 does not.</li>
+  <li><code>int</code> holds about 2.1 × 10⁹ and <code>long long</code> about 9.2 × 10¹⁸. If unsure, use <code>long long</code>.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>“What is the value of nothing yet?” That is the starting value. Each round then adds or multiplies one more term.</p>
+<pre><code class="cpp">long long sum = 0, prod = 1;
+for (int i = 1; i &lt;= N; i++) {
+    sum += i;
+    prod *= i;
+}</code></pre>
+
+<h3 id="l5">5. Divisor questions</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Print all divisors of N, count them, or add them up.</li>
+  <li>Decide whether N has a property based on its divisors (prime, perfect number).</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><code>d</code> divides <code>n</code> when <code>n % d == 0</code>.</li>
+  <li>Divisors come in pairs: for 36, (1, 36), (2, 18), (3, 12), (4, 9), (6, 6). One of each pair is ≤ √n, so “does any divisor exist in 2…n−1?” only needs <code>d * d &lt;= n</code>.</li>
+  <li>0 and 1 often behave differently. Check what the problem expects for them.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Do I need every divisor, or only to know whether one exists? Every divisor → loop d from 1 to n. Whether one exists → loop up to √n and <code>break</code> at the first one found.</p>
+<pre><code class="cpp">for (int d = 1; d &lt;= n; d++)               // every divisor
+    if (n % d == 0) cout &lt;&lt; d &lt;&lt; " ";
+
+bool found = false;                         // does one exist?
+for (int d = 2; d * d &lt;= n; d++)
+    if (n % d == 0) { found = true; break; }</code></pre>
+
+<h3 id="l6">6. Flags: “is there any…?” and “are all…?”</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Does N contain a certain digit? Are all digits odd? Is there a divisor in a range?</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><b>“Is there any?”</b> Assume false; set it to true when you find one.</li>
+  <li><b>“Are all?”</b> Assume true; set it to false at the first counterexample.</li>
+  <li>Either way, <code>break</code> as soon as the answer is known.</li>
+</ul>
+<pre><code class="cpp">bool ok = true;                              // false for "is there any?"
+for (/* each item */) {
+    if (/* counterexample */) { ok = false; break; }
+}
+cout &lt;&lt; (ok ? "Yes" : "No");</code></pre>
+
+<h3 id="l7">7. Digits of a number</h3>
+<p class="nt-k">You will see</p>
+<ul>
+  <li>Count digits, add them up, reverse a number, check digits one by one.</li>
+</ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li><code>n % 10</code> is the last digit; <code>n / 10</code> removes it.</li>
+  <li>Work on a copy if you need the original number later.</li>
+  <li>0 has 1 digit, but <code>while (t &gt; 0)</code> never runs for it. Handle it separately.</li>
+  <li>For negative numbers, take <code>abs()</code> first.</li>
+</ul>
+<p class="nt-k">How to think: dry run for 4071</p>
+<div class="nt-table"><table>
+  <thead><tr><th>t</th><th>t % 10</th><th>t / 10</th><th>count</th></tr></thead>
+  <tbody>
+    <tr><td>4071</td><td>1</td><td>407</td><td>1</td></tr>
+    <tr><td>407</td><td>7</td><td>40</td><td>2</td></tr>
+    <tr><td>40</td><td>0</td><td>4</td><td>3</td></tr>
+    <tr><td>4</td><td>4</td><td>0</td><td>4</td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">int t = n, count = 0, sum = 0;
+while (t &gt; 0) {
+    int d = t % 10;
+    count++;
+    sum += d;
+    t /= 10;
+}</code></pre>

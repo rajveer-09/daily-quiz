@@ -1,0 +1,79 @@
+<!-- Problem-solving framework: Array Traversal (Level 1 · Arrays). Based on the "Conditions · Loops · Arrays" approach guide (13 Nov, Rajveer).
+     Fragment: loaded into the notes reader. -->
+<h2 id="idea">The general idea</h2>
+<p>Walk the array once, from index 0 to n − 1, and decide <b>what to remember</b> while walking.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Goal</th><th>Remember</th></tr></thead>
+  <tbody>
+    <tr><td>Sum or average</td><td>a running total</td></tr>
+    <tr><td>Largest or smallest</td><td>the champion value (and its index)</td></tr>
+    <tr><td>Search</td><td>a found flag, or the position (−1 = not found)</td></tr>
+    <tr><td>Count with a test</td><td>a counter</td></tr>
+  </tbody>
+</table></div>
+<pre><code class="cpp">int n;
+cin &gt;&gt; n;
+vector&lt;int&gt; a(n);
+for (int i = 0; i &lt; n; i++) cin &gt;&gt; a[i];
+
+for (int i = 0; i &lt; n; i++) {
+    // look at a[i], update what you remember
+}</code></pre>
+
+<h2 id="largest">1. Largest or smallest element</h2>
+<p class="nt-k">You will see</p>
+<ul><li>The largest or smallest element, sometimes with its position.</li></ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Start the champion at <code>a[0]</code>, not 0. If all values are negative, 0 would wrongly win.</li>
+  <li>Indexes start at 0. If the problem wants positions from 1, print <code>index + 1</code>.</li>
+  <li>Ties: <code>&gt;</code> keeps the first occurrence, <code>&gt;=</code> keeps the last.</li>
+</ul>
+<pre><code class="cpp">int best = a[0], pos = 0;
+for (int i = 1; i &lt; n; i++)
+    if (a[i] &gt; best) { best = a[i]; pos = i; }    // &lt; for the smallest</code></pre>
+
+<h2 id="search">2. Search for an element</h2>
+<p class="nt-k">You will see</p>
+<ul><li>Is x in the array? At which index? How many times?</li></ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>Decide what is needed: yes or no, the first index, the last index, or a count.</li>
+  <li>First index → <code>break</code> at the first match. Count → never break.</li>
+  <li>Use −1 for “not found”, and print the exact “not found” output the problem asks for.</li>
+</ul>
+<pre><code class="cpp">int pos = -1;
+for (int i = 0; i &lt; n; i++)
+    if (a[i] == x) { pos = i; break; }
+if (pos == -1) cout &lt;&lt; "No";
+else           cout &lt;&lt; "Yes";</code></pre>
+
+<h2 id="count">3. Count elements with a property</h2>
+<p class="nt-k">You will see</p>
+<ul><li>Count the elements that are even, negative, in a range, or whose digits satisfy something (digit count, digit sum).</li></ul>
+<p class="nt-k">Keep in mind</p>
+<ul>
+  <li>This is two problems in one: (1) does <b>one number</b> pass the test? (2) count how many pass.</li>
+  <li>Solve the test for one number first (see Level 0 → If-Else and Loops → digits), try it on a few numbers, then put it inside the array loop.</li>
+  <li>Use a copy of each element for the digit loop, so the array isn't changed.</li>
+</ul>
+<p class="nt-k">How to think</p>
+<p>Outer loop = walk the array. Inner part = the one-number test. The counter goes up when the test passes.</p>
+<pre><code class="cpp">int count = 0;
+for (int i = 0; i &lt; n; i++) {
+    int t = abs(a[i]), digits = 0;
+    if (t == 0) digits = 1;
+    while (t &gt; 0) { digits++; t /= 10; }
+    if (/* test on digits */) count++;
+}
+cout &lt;&lt; count;</code></pre>
+
+<h2 id="edge">Edge cases to test</h2>
+<p>Before you submit, run your code on each of these:</p>
+<ul>
+  <li>Only one element.</li>
+  <li>All elements equal.</li>
+  <li>All elements negative.</li>
+  <li>The target is missing.</li>
+  <li>The target is at the first index, at the last index, or repeated.</li>
+</ul>

@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "Which of these numbers is prime?", "o": ["1", "9", "21", "23"], "a": 3, "e": "1 is not prime by definition, 9 = 3 × 3 and 21 = 3 × 7. 23 has no divisors other than 1 and itself." },
+    { "q": "To check whether n is prime, the loop only needs to try divisors up to:", "o": ["n / 2", "√n", "n − 1", "log n"], "a": 1, "e": "Every composite n has a divisor of at most √n, so if none is found up to √n, n is prime." },
+    { "q": "What does this print?", "code": "int n = 36, cnt = 0;\nfor (int d = 1; d * d <= n; d++)\n    if (n % d == 0) cnt += (d == n / d) ? 1 : 2;\ncout << cnt;", "run": true, "o": ["8", "9", "10", "6"], "a": 1, "e": "The pairs (1,36), (2,18), (3,12), (4,9) add 2 each, and 6 × 6 adds 1 because it is the same number: 4 × 2 + 1 = 9." },
+    { "q": "In the sieve, why does the inner loop start at i × i?", "o": ["Smaller multiples were already crossed out by smaller primes", "i × i is always prime", "It avoids overflow", "Starting at 2 × i gives a wrong answer"], "a": 0, "e": "Each multiple k × i with k < i has a smaller prime factor that already crossed it out. Starting at 2 × i still works; it just repeats work." },
+    { "q": "What is the time complexity of the Sieve of Eratosthenes up to n?", "o": ["O(n²)", "O(n √n)", "O(n log log n)", "O(log n)"], "a": 2, "e": "The prime p crosses out about n / p numbers, and the sum of n / p over the primes grows like n log log n: almost linear." },
+    { "q": "Why write i * i <= n instead of i <= sqrt(n)?", "o": ["It is shorter to type", "sqrt() works with decimals and can be off by one", "i * i can never overflow", "sqrt() needs a vector"], "a": 1, "e": "sqrt() returns a double and can give 5.99999 instead of 6. With large n, use long long for i so that i * i doesn't overflow." },
+    { "q": "There are 10^5 questions “is x prime?”, each with x ≤ 10^6. What is the best approach?", "o": ["A √x check for every question", "Sieve once, then look up each answer", "Try every number up to x for each question", "Sort the questions first"], "a": 1, "e": "The √x checks cost about 10^5 × 10^3 = 10^8 steps. One sieve up to 10^6 is about 3 × 10^6 steps, then each answer is an O(1) lookup." },
+    { "q": "Which number is perfect (equal to the sum of its divisors other than itself)?", "o": ["6", "10", "12", "15"], "a": 0, "e": "6 = 1 + 2 + 3. For 12, 1 + 2 + 3 + 4 + 6 = 16, which is more than 12." }
+  ]
+}
