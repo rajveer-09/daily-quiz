@@ -18,6 +18,8 @@ const V = {
   dayView: 'day', pick: null, pickQ: '', preview: 'all',
   lbHall: undefined, lbTest: '', importHall: '',
 };
+/** Opens the student site in a new tab as this student (read-only admin preview). */
+const viewAs = (s, cls = 'btn-ghost btn-sm') => `<a class="btn ${cls}" href="/#/preview/${encodeURIComponent(s.roll)}/${session.token}" target="_blank" rel="noopener" title="See the student site exactly as ${esc(s.name)} sees it (read-only)">${icon('user')}View as student</a>`;
 const hallName = h => h === null || h === undefined || h === '' ? 'No hall' : /^\d+$/.test(h) ? 'Hall ' + h : h;
 const loadBoard = () => api('/api/admin/leaderboard?' + new URLSearchParams({ ...(V.lbHall !== undefined ? { hall: V.lbHall ?? '' } : {}), test: V.lbTest || '' }));
 let navSeq = 0, lastHash = location.hash, skipHash = false;
@@ -78,8 +80,12 @@ function route() {
       return { day, days };
     });
   }
-  if (h === '/appearance') return load('appearance', async () => ({}));
   if (h === '/leaderboard') return load('board', loadBoard);
+  if ((m = h.match(/^\/analysis\/(t[\w]+)$/))) { const id = m[1]; return load('analysis', () => api('/api/admin/tests/' + id + '/analysis')); }
+  if ((m = Notes.parse(h))) {
+    const parts = m;
+    return load('notes', async () => { const st = await Notes.load(...parts); if (st.redirect) { location.replace(st.redirect); return null; } return st; });
+  }
   if (h === '/groups') return load('sets', () => api('/api/admin/sets'));
   if (h === '/students') return load('students', () => api('/api/admin/students'));
   if (h === '/new') return load('edit', async () => ({ isNew: true, attempts: [] }));
@@ -124,24 +130,23 @@ function newTestDraft(d) {
 const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, fullscreen: !!t.fullscreen, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
-const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students']];
+const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students'], ['notes', '#/notes', 'file', 'Notes']];
 
 function shell(head, body) {
-  const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests' }[V.page] || V.page;
-  const label = V.page === 'appearance' ? 'Appearance' : (NAV.find(n => n[0] === active) || [0, 0, 0, 'Admin'])[3];
-  return `<div class="admin${V.menu ? ' menu-open' : ''}">
+  const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests', analysis: 'tests' }[V.page] || V.page;
+  const label = (NAV.find(n => n[0] === active) || [0, 0, 0, 'Admin'])[3];
+  return `<div class="admin${V.menu ? ' menu-open' : ''}${UI.sideMini() ? ' mini' : ''}">${UI.sideEdge()}
   <header class="amtop">
-    <a class="brand" href="#/"><span class="logo">dq</span><span>${esc(label)}</span></a>
-    <button type="button" class="btn btn-sm amenu" data-act="menu" aria-expanded="${!!V.menu}" aria-controls="adminNav">${icon('menu')}Menu</button>
+    <a class="brand" href="#/"><span class="logo">qm</span><span>${esc(label)}</span></a>
+    <div class="amtop-r">${UI.modeBtn()}<button type="button" class="btn btn-sm amenu" data-act="menu" aria-expanded="${!!V.menu}" aria-controls="adminNav">${icon('menu')}Menu</button></div>
   </header>
   <div class="scrim" data-act="menuClose" aria-hidden="true"></div>
   <aside class="side card" id="adminNav" aria-label="Admin menu">
-    <div class="side-top"><a class="brand" href="#/"><span class="logo">dq</span><span>Daily Quiz <small>Admin</small></span></a><button type="button" class="btn btn-icon btn-sm side-x" data-act="menuClose" aria-label="Close menu">${icon('x')}</button></div>
-    ${NAV.map(([k, h, i, t]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}">${icon(i)}<span>${t}</span></a>`).join('')}
-    <a class="nv nv-bottom${V.page === 'appearance' ? ' on' : ''}" href="#/appearance">${icon('palette')}<span>Appearance</span></a>
+    <div class="side-top"><a class="brand" href="#/"><span class="logo">qm</span><span>QuizMe <small>Admin</small></span></a><button type="button" class="btn btn-icon btn-sm side-x" data-act="menuClose" aria-label="Close menu">${icon('x')}</button></div>
+    ${NAV.map(([k, h, i, t]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}" title="${t}">${icon(i)}<span>${t}</span></a>`).join('')}
     <div class="foot">
       <span class="em muted">Signed in as<br><b style="color:var(--ink)">${esc(session.email)}</b></span>
-      <div class="row" style="gap:6px"><a class="btn btn-ghost btn-sm em" href="/">Student site</a><button class="btn btn-ghost btn-sm" data-act="logout" title="Log out">${icon('logout')}<span class="em">Log out</span></button></div>
+      <div class="row" style="gap:6px"><a class="btn btn-ghost btn-sm em" href="/">Student site</a><button class="btn btn-ghost btn-sm" data-act="logout" title="Log out">${icon('logout')}<span class="em">Log out</span></button>${UI.modeBtn()}</div>
     </div>
   </aside>
   <main class="amain">${head}${body}</main>
@@ -175,18 +180,18 @@ function testCard(t, sets, compact) {
   return `<article class="card test-card">
     <div class="tc-date"><span>${esc(fmtDay(t.date, { weekday: 'short' }))}</span><b>${Number(t.date.slice(8))}</b><span>${esc(fmtDay(t.date, { month: 'short' }))}</span></div>
     <div class="tc-main">
-      <div class="row" style="gap:8px"><b class="tc-title">${esc(t.title || 'Test')}</b>${statusBadge(t)}</div>
+      <div class="row" style="gap:8px"><a class="tc-title" href="#/analysis/${esc(t.id)}" style="text-decoration:none;color:var(--ink)">${esc(t.title || 'Test')}</a>${statusBadge(t)}${compact ? `<a class="btn btn-ghost btn-sm" href="#/analysis/${esc(t.id)}" style="margin-left:auto">${icon('chart')}Analysis</a>` : ''}</div>
       <div class="muted" style="font-size:14px">${icon('clock')} ${esc(hm(t.start))} · ${t.duration} min · ${t.fullscreen ? 'full screen · ' : ''}${sub}/${total} submitted${t.unassigned ? ` · <span style="color:var(--warn)">${t.unassigned} without a quiz</span>` : ''}</div>
       <div class="tc-papers">${t.papers.map((p, i) => `<div class="tc-paper"><span class="paper-tag">Set ${PL[i]}</span><a href="#/quiz/${esc(p.quizId)}"><b>${esc(p.quizTitle)}</b></a>${p.shuffle ? '<span class="badge">Jumbled</span>' : ''}<span class="muted">→ ${esc(audienceText(p, sets))} · ${p.count} student${p.count === 1 ? '' : 's'}</span>${p.started ? `<span class="badge accent">${p.started} in progress</span>` : ''}${p.avgPct !== null ? `<span class="badge">avg ${p.avgPct}%</span>` : ''}</div>`).join('')}</div>
     </div>
-    ${compact ? '' : `<div class="tc-acts"><a class="btn btn-ghost btn-sm" href="#/test/${esc(t.id)}">${icon('edit')}Edit</a><a class="btn btn-ghost btn-sm" href="#/day/${esc(t.date)}">${icon('list')}Results</a>${armed('deltest:' + t.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(t.id)}" title="Delete test"`)}</div>`}
+    ${compact ? '' : `<div class="tc-acts"><a class="btn btn-ghost btn-sm" href="#/test/${esc(t.id)}">${icon('edit')}Edit</a><a class="btn btn-ghost btn-sm" href="#/analysis/${esc(t.id)}">${icon('chart')}Analysis</a>${armed('deltest:' + t.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(t.id)}" title="Delete test"`)}</div>`}
   </article>`;
 }
 
 /* ---------- Login ---------- */
 function viewLogin() {
-  return `<div class="center"><form class="card pad slide-in" id="lf" novalidate style="width:min(100%,420px);padding:32px">
-    <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">dq</span>Daily Quiz</a>
+  return `${UI.modeBtn('corner')}<div class="center"><form class="card pad slide-in" id="lf" novalidate style="width:min(100%,420px);padding:32px">
+    <a class="brand" href="#/login" style="margin-bottom:22px;padding:0"><span class="logo">qm</span>QuizMe</a>
     <div class="eyebrow">Admin</div>
     <h2 style="font-size:26px;font-weight:800;margin:4px 0 6px">Sign in</h2>
     <p class="muted" style="margin-bottom:22px">Schedule timed tests, decide which question set each student gets, and see the results.</p>
@@ -233,7 +238,7 @@ function viewTests() {
   return shell(
     head('Tests', 'Schedule a test at a time and for a duration, and choose which question set each student gets. Students see the time and topics in advance, but never the questions or which set they got.', `<a class="btn btn-primary" href="#/test/new">${icon('plus')}Schedule a test</a>`),
     `<div class="toolbar"><div class="seg"><button class="${V.testsTab === 'up' ? 'on' : ''}" data-act="testsTab" data-v="up">Upcoming & live <span class="muted">${up.length}</span></button><button class="${V.testsTab === 'past' ? 'on' : ''}" data-act="testsTab" data-v="past">Past <span class="muted">${past.length}</span></button></div></div>
-    ${list.length ? `<div class="stack">${list.map(t => testCard(t, d.sets)).join('')}</div>` : empty('calendar', V.testsTab === 'up' ? 'Nothing scheduled' : 'No past tests', V.testsTab === 'up' ? 'Schedule a test and students will see it, with a countdown, on their Upcoming page.' : 'Finished tests show up here.', V.testsTab === 'up' ? `<a class="btn btn-primary" href="#/test/new">${icon('plus')}Schedule a test</a>` : '')}`);
+    ${list.length ? `<div class="stack">${list.map(t => testCard(t, d.sets)).join('')}</div>` : empty('calendar', V.testsTab === 'up' ? 'Nothing scheduled' : 'No past tests', V.testsTab === 'up' ? 'Schedule a test and students will see it, with a countdown, on their Home page.' : 'Finished tests show up here.', V.testsTab === 'up' ? `<a class="btn btn-primary" href="#/test/new">${icon('plus')}Schedule a test</a>` : '')}`);
 }
 
 /* ---------- Test editor ---------- */
@@ -286,7 +291,7 @@ function viewTest() {
   };
   const pv = V.preview === 'none' ? none : S;
   return shell(
-    head(d.editing ? 'Edit test' : 'Schedule a test', 'Students see this test, with its time and topics, on their Upcoming page. The questions stay hidden until they press Start.', '', `<a href="#/tests">Tests</a> / ${d.editing ? 'Edit' : 'New'}`),
+    head(d.editing ? 'Edit test' : 'Schedule a test', 'Students see this test, with its time and topics, on their Home page. The questions stay hidden until they press Start.', '', `<a href="#/tests">Tests</a> / ${d.editing ? 'Edit' : 'New'}`),
     `<form class="ed" id="tf" novalidate>
       <section class="card pad">
         <div class="card-head"><h3>When</h3>${opens && !isNaN(opens) ? `<span class="badge accent">${icon('calendar')}${esc(opens.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}</div>
@@ -483,6 +488,159 @@ function notTakenBlock(list) {
   return `<div class="section-head"><h2>Not taken yet <span class="muted" style="font-size:16px">${list.length}</span></h2></div><div class="row" style="gap:8px">${list.map(s => `<a class="badge" style="padding:6px 12px;text-decoration:none" href="#/student/${encodeURIComponent(s.roll)}">${esc(s.name)} <span class="muted mono">${esc(s.roll)}</span></a>`).join('')}</div>`;
 }
 
+/* ---------- Test analysis ---------- */
+const median = xs => { if (!xs.length) return null; const s = xs.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const mmss = s => s === null || s === undefined ? '–' : UI.fmtClock(s);
+const pctTxt = f => f === null || isNaN(f) ? '–' : Math.round(f * 100) + '%';
+
+function analyse(D, qz) {
+  const Q = qz.questions, N = Q.length, ix = new Map(Q.map((q, i) => [q.id, i]));
+  const mine = D.students.filter(s => s.quizId === qz.id);
+  const done = mine.filter(s => s.state === 'done');
+  const kind = (s, q) => !Number.isInteger(s.byQ[q.id]) ? 'skip' : s.byQ[q.id] === q.a ? 'ok' : 'bad';
+  // Time spent on each question ≈ gap since the previous answer (or the start). Needs answer times (recorded from now on).
+  const spentOf = s => {
+    const ent = Object.entries(s.ansAt || {}).filter(([k]) => ix.has(k)).sort((a, b) => a[1] - b[1]);
+    const out = {}; let prev = 0;
+    for (const [k, t] of ent) { out[k] = Math.max(0, t - prev) / 1000; prev = t; }
+    return out;
+  };
+  const timed = done.filter(s => s.ansAt && Object.keys(s.ansAt).length);
+  const spent = new Map(timed.map(s => [s.roll, spentOf(s)]));
+  const qs = Q.map((q, i) => {
+    const ks = done.map(s => kind(s, q));
+    const picks = q.o.map((_, j) => done.filter(s => s.byQ[q.id] === j).length);
+    const wrongPicks = picks.map((n, j) => ({ j, n })).filter(x => x.j !== q.a && x.n).sort((a, b) => b.n - a.n);
+    const times = timed.map(s => spent.get(s.roll)[q.id]).filter(x => x !== undefined);
+    const tOk = timed.filter(s => kind(s, q) === 'ok').map(s => spent.get(s.roll)[q.id]).filter(x => x !== undefined);
+    const tBad = timed.filter(s => kind(s, q) === 'bad').map(s => spent.get(s.roll)[q.id]).filter(x => x !== undefined);
+    return {
+      q, i, n: done.length, ok: ks.filter(k => k === 'ok').length, bad: ks.filter(k => k === 'bad').length, skip: ks.filter(k => k === 'skip').length,
+      picks, top: wrongPicks[0] || null, time: median(times), tOk: median(tOk), tBad: median(tBad),
+      changed: done.filter(s => (s.chg || {})[q.id] > 1).length,
+    };
+  });
+  // Accuracy by position in each student's (possibly jumbled) paper, in blocks of 5.
+  const blocks = [];
+  for (let b = 0; b * 5 < N; b++) {
+    let ok = 0, n = 0;
+    for (const s of done) for (let p = b * 5; p < Math.min(N, b * 5 + 5); p++) {
+      const qid = (s.order && s.order.length === N ? s.order[p] : Q[p].id), q = Q[ix.get(qid)];
+      if (!q) continue; n++; if (kind(s, q) === 'ok') ok++;
+    }
+    blocks.push({ label: `Q${b * 5 + 1}–${Math.min(N, b * 5 + 5)}`, ok, n });
+  }
+  // Accuracy by minutes into the test (from answer times).
+  const dur = D.test.duration * 60, slots = 6, w = dur / slots, bySlot = Array.from({ length: slots }, (_, k) => ({ label: `${Math.round(k * w / 60)}–${Math.round((k + 1) * w / 60)} min`, ok: 0, n: 0 }));
+  for (const s of timed) for (const [qid, t] of Object.entries(s.ansAt)) {
+    const q = Q[ix.get(qid)]; if (!q || !Number.isInteger(s.byQ[qid])) continue;
+    const k = Math.min(slots - 1, Math.max(0, Math.floor(t / 1000 / w))); bySlot[k].n++; if (s.byQ[qid] === q.a) bySlot[k].ok++;
+  }
+  // Topics, weakest first.
+  const topics = [...new Set(Q.map(q => q.t).filter(Boolean))].map(t => { const xs = qs.filter(x => x.q.t === t); const ok = xs.reduce((a, x) => a + x.ok, 0), n = xs.reduce((a, x) => a + x.n, 0); return { t, ok, n, f: n ? ok / n : 0 }; }).sort((a, b) => a.f - b.f);
+  // Finishing times.
+  const secs = done.map(s => s.secs).filter(x => x !== null);
+  const hist = Array.from({ length: slots }, (_, k) => { const inB = done.filter(s => s.secs !== null && Math.min(slots - 1, Math.floor(s.secs / w)) === k); return { label: `${Math.round(k * w / 60)}–${Math.round((k + 1) * w / 60)}`, n: inB.length, avg: inB.length ? inB.reduce((a, s) => a + s.score, 0) / inB.length : null }; });
+  const medS = median(secs), fast = done.filter(s => s.secs <= medS), slow = done.filter(s => s.secs > medS);
+  const avgOf = L => L.length ? L.reduce((a, s) => a + s.score, 0) / L.length : null;
+  return { Q, N, mine, done, kind, qs, blocks, bySlot, timedCount: timed.length, topics, secs, hist, medS, fastAvg: avgOf(fast), slowAvg: avgOf(slow), fastN: fast.length, slowN: slow.length };
+}
+
+function viewAnalysis() {
+  const D = V.data, T = D.test;
+  if (!D.quizzes.length) return shell(head(esc(T.title), 'Analysis'), empty('chart', 'No question paper', 'This test has no question paper that still exists.'));
+  const qz = D.quizzes.find(z => z.id === V.anQuiz) || D.quizzes[0];
+  const R = analyse(D, qz), { Q, N, done, qs } = R;
+  const scores = done.map(s => s.score), avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  const top = done.slice().sort((a, b) => b.score - a.score || a.secs - b.secs)[0];
+  const missedN = R.mine.filter(s => s.state === 'missed').length, liveN = R.mine.filter(s => s.state === 'started').length;
+  const lf = done.filter(s => s.endReason === 'left-fullscreen').length, au = done.filter(s => s.auto).length;
+  const paperTabs = D.quizzes.length > 1 ? `<div class="seg" role="tablist" aria-label="Question paper">${D.quizzes.map(z => `<button class="${z.id === qz.id ? 'on' : ''}" data-act="anQuiz" data-id="${esc(z.id)}">${esc(z.title)}</button>`).join('')}</div>` : '';
+  const head1 = head(esc(T.title), `${esc(fmtDay(T.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(hm(T.start))} · ${T.duration} min · ${esc(qz.title)} (${N} questions)${T.status === 'live' ? ' · <span style="color:var(--ok)">live now</span>' : ''}`,
+    `<a class="btn btn-ghost" href="#/test/${esc(T.id)}">${icon('edit')}Edit test</a><button class="btn btn-ghost" data-act="anCsv">${icon('download')}CSV</button>`, `<a href="#/tests">Tests</a> / Analysis`);
+  if (!done.length) return shell(head1, `${paperTabs}${empty('chart', 'No submissions yet', liveN ? `${liveN} student${liveN === 1 ? ' is' : 's are'} taking it right now. This page fills in as they submit.` : 'Analysis appears here as soon as students submit.')}`);
+
+  const kpis = `<div class="kpis">
+    <div class="card kpi"><span class="k-label">Submitted</span><span class="k-val">${done.length}<small> / ${R.mine.length}</small></span><span class="k-sub">${missedN ? `${missedN} missed` : 'everyone given it'}${liveN ? ` · ${liveN} in progress` : ''}</span></div>
+    <div class="card kpi"><span class="k-label">Average</span><span class="k-val">${avg.toFixed(1)}<small> / ${N}</small></span><span class="k-sub">${pctTxt(avg / N)} · median ${median(scores)}</span></div>
+    <div class="card kpi"><span class="k-label">Highest</span><span class="k-val">${top.score}<small> / ${N}</small></span><span class="k-sub">${esc(top.name)}</span></div>
+    <div class="card kpi"><span class="k-label">Average time</span><span class="k-val">${mmss(R.secs.reduce((a, b) => a + b, 0) / R.secs.length)}</span><span class="k-sub">of ${T.duration}:00${au ? ` · ${au} ran out of time` : ''}${lf ? ` · ${lf} left full screen` : ''}</span></div>
+  </div>`;
+
+  const optRow = (x, j) => { const n = x.picks[j], f = x.n ? n / x.n : 0, right = j === x.q.a; return `<div class="bar" title="${n} of ${x.n} picked ${L[j]}"><span class="lab">${right ? `<b style="color:var(--ok)">${L[j]} ✓</b>` : L[j]} <span class="muted">${x.q.p ? '' : esc(x.q.o[j]).slice(0, 40)}</span></span><div class="track"><i class="${right ? '' : 'low'}" style="width:${f * 100}%;${right ? 'background:var(--ok)' : ''}"></i></div><span class="v">${n}</span></div>`; };
+  const missed = qs.filter(x => x.bad + x.skip).sort((a, b) => (b.bad + b.skip) - (a.bad + a.skip) || b.bad - a.bad).slice(0, 5);
+  const missedBlock = missed.length ? `<section class="stack" style="gap:12px">
+    <div class="section-head" style="margin:6px 0 0"><h2>Most missed questions</h2><span class="muted" style="font-size:13px">numbered as in the question bank</span></div>
+    ${missed.map(x => `<article class="card pad" style="display:grid;gap:12px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start"><div style="display:grid;gap:4px;flex:1;min-width:220px"><span class="eyebrow">Q${x.i + 1}${x.q.t ? ' · ' + esc(x.q.t) : ''}</span><b style="font-size:15px;line-height:1.4">${esc(x.q.q)}</b></div>
+        <div style="text-align:right"><div class="k-val" style="font-size:26px;color:var(--bad)">${pctTxt((x.bad + x.skip) / x.n)}</div><span class="k-sub">wrong or blank (${x.bad + x.skip} of ${x.n})</span></div></div>
+      ${x.q.c ? `<pre class="code" style="font-size:13px">${esc(x.q.c)}</pre>` : ''}
+      <div class="bars">${x.q.o.map((_, j) => optRow(x, j)).join('')}</div>
+      <p class="muted" style="font-size:13px">${x.top ? `Most common wrong answer: <b style="color:var(--ink)">${L[x.top.j]}</b> (${x.top.n} student${x.top.n === 1 ? '' : 's'})` : 'Mostly left blank'}${x.skip ? ` · ${x.skip} left it blank` : ''}${x.time !== null ? ` · median time ${fmtT(x.time)}${x.tBad !== null && x.tOk !== null ? ` (right ${fmtT(x.tOk)}, wrong ${fmtT(x.tBad)})` : ''}` : ''}${x.changed ? ` · ${x.changed} changed their answer` : ''}</p>
+      ${x.q.e ? `<p style="font-size:13.5px;color:var(--ink-2);border-top:1px solid var(--line);padding-top:10px"><span class="muted">Why:</span> ${esc(x.q.e)}</p>` : ''}
+    </article>`).join('')}
+  </section>` : '<p class="note ok">Every question was answered correctly by everyone.</p>';
+
+  const timingNote = R.timedCount ? '' : '<p class="muted" style="font-size:13px">Per-question times are recorded for tests taken from now on, so they aren\'t available for this one.</p>';
+  const qTable = `<section class="stack" style="gap:12px">
+    <div class="section-head" style="margin:6px 0 0"><h2>Every question</h2><span class="muted" style="font-size:13px">tap a row for the answer spread</span></div>
+    ${timingNote}
+    <div class="card table-wrap"><table class="table stackable"><thead><tr><th>Q</th><th>Topic</th><th style="min-width:160px">Right</th><th class="r">Wrong</th><th class="r">Blank</th><th>Most picked wrong</th><th class="r">Median time</th></tr></thead><tbody>${qs.map(x => {
+      const f = x.n ? x.ok / x.n : 0, open = V.anOpen && V.anOpen.has(x.q.id);
+      return `<tr class="click" data-act="anRow" data-id="${esc(x.q.id)}" aria-expanded="${!!open}">
+        <td data-l="Question" style="font-family:var(--mono)">Q${x.i + 1}</td>
+        <td data-l="Topic">${esc(x.q.t || '–')}</td>
+        <td data-l="Right"><div class="row" style="gap:10px;flex-wrap:nowrap"><span style="font-family:var(--mono);min-width:38px">${pctTxt(f)}</span><span class="progress" style="flex:1;min-width:60px"><i style="width:${f * 100}%;${f < .5 ? 'background:var(--bad)' : ''}"></i></span></div></td>
+        <td data-l="Wrong" class="r">${x.bad}</td>
+        <td data-l="Blank" class="r">${x.skip}</td>
+        <td data-l="Most picked wrong">${x.top ? `${L[x.top.j]} <span class="muted">(${x.top.n})</span>` : '<span class="muted">–</span>'}</td>
+        <td data-l="Median time" class="r">${x.time === null ? '–' : fmtT(x.time)}</td>
+      </tr>${open ? `<tr><td colspan="7" style="background:var(--bg)"><div style="display:grid;gap:10px;padding:6px 2px"><b style="font-size:14px">${esc(x.q.q)}</b>${x.q.c ? `<pre class="code" style="font-size:13px">${esc(x.q.c)}</pre>` : ''}<div class="bars">${x.q.o.map((_, j) => optRow(x, j)).join('')}</div>${x.changed ? `<span class="muted" style="font-size:13px">${x.changed} changed their answer</span>` : ''}</div></td></tr>` : ''}`;
+    }).join('')}</tbody></table></div>
+  </section>`;
+
+  const barList = (rows, unit) => `<div class="bars">${rows.map(r => r.n ? `<div class="bar" title="${r.ok} of ${r.n} ${unit} right"><span class="lab">${esc(r.label || r.t)}</span><div class="track"><i class="${r.ok / r.n < .5 ? 'low' : ''}" style="width:${r.ok / r.n * 100}%"></i></div><span class="v">${pctTxt(r.ok / r.n)}</span></div>` : '').join('')}</div>`;
+  const weakT = R.topics.filter(t => t.n && t.f < .6).map(t => t.t);
+  const b = R.blocks.filter(x => x.n), early = b[0], late = b[b.length - 1];
+  const posNote = early && late && b.length > 1 ? (late.ok / late.n < early.ok / early.n - 0.1 ? `Accuracy drops from ${pctTxt(early.ok / early.n)} at the start to ${pctTxt(late.ok / late.n)} at the end: fatigue or rushing.` : 'Accuracy holds up through the paper.') : '';
+  const where = `<section class="stack" style="gap:12px">
+    <div class="section-head" style="margin:6px 0 0"><h2>Where the mistakes happened</h2></div>
+    <div class="grid-2">
+      <section class="card pad"><div class="card-head"><h3>By topic</h3><span class="muted" style="font-size:12px">right answers, weakest first</span></div>${barList(R.topics.map(t => ({ ...t, label: t.t })), 'answers')}${weakT.length ? `<p class="muted" style="font-size:13px;margin-top:12px">Re-teach: <b style="color:var(--ink)">${weakT.map(esc).join(', ')}</b></p>` : ''}</section>
+      <section class="card pad"><div class="card-head"><h3>By position in the paper</h3><span class="muted" style="font-size:12px">each student's own order</span></div>${barList(R.blocks, 'answers')}${posNote ? `<p class="muted" style="font-size:13px;margin-top:12px">${posNote}</p>` : ''}</section>
+      ${R.timedCount ? `<section class="card pad"><div class="card-head"><h3>By time into the test</h3><span class="muted" style="font-size:12px">answers given in each window</span></div>${barList(R.bySlot, 'answers')}</section>` : ''}
+      <section class="card pad"><div class="card-head"><h3>Time taken</h3><span class="muted" style="font-size:12px">students per finishing time (min)</span></div>
+        <div class="hist" role="img" aria-label="Students by finishing time">${R.hist.map(h => { const mx = Math.max(...R.hist.map(x => x.n)) || 1; return `<div title="${h.n} finished in ${h.label} min${h.avg !== null ? `, average ${h.avg.toFixed(1)}/${N}` : ''}">${h.n ? `<em>${h.n}</em>` : ''}<i style="height:${h.n / mx * 100}%"></i></div>`; }).join('')}</div>
+        <div class="hx">${R.hist.map(h => `<span>${h.label}</span>`).join('')}</div>
+        ${R.fastN && R.slowN ? `<p class="muted" style="font-size:13px;margin-top:12px">Faster half (≤ ${mmss(R.medS)}) averaged <b style="color:var(--ink)">${R.fastAvg.toFixed(1)}</b>; slower half averaged <b style="color:var(--ink)">${R.slowAvg.toFixed(1)}</b>.</p>` : ''}
+      </section>
+    </div>
+  </section>`;
+
+  const ranked = done.slice().sort((a, b) => b.score - a.score || a.secs - b.secs);
+  const others = R.mine.filter(s => s.state !== 'done');
+  const studentsT = `<section class="stack" style="gap:12px">
+    <div class="section-head" style="margin:6px 0 0"><h2>Students</h2><span class="muted" style="font-size:13px">green right · red wrong · grey blank, in question-bank order</span></div>
+    <div class="card table-wrap"><table class="table stackable"><thead><tr><th>#</th><th>Student</th><th class="r">Score</th><th class="r">Time</th><th>Answers</th><th>How it ended</th></tr></thead><tbody>${ranked.map((s, i) => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
+      <td data-l="Rank" style="font-family:var(--mono)">${i + 1}</td>
+      <td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}${s.group ? ' · ' + esc(s.group) : ''}</small></div></div></td>
+      <td data-l="Score" class="r">${pctBadge(s.score, s.total)}</td>
+      <td data-l="Time" class="r">${mmss(s.secs)}</td>
+      <td data-l="Answers"><div class="strip">${Q.map((q, k) => { const kd = R.kind(s, q); return `<i class="${kd === 'ok' ? 'ok' : kd === 'bad' ? 'bad' : ''}" title="Q${k + 1}: ${kd === 'skip' ? 'blank' : L[s.byQ[q.id]] + (kd === 'ok' ? ' ✓' : ' ✗')}"></i>`; }).join('')}</div></td>
+      <td data-l="How it ended">${s.endReason === 'left-fullscreen' ? '<span class="badge bad">Left full screen</span>' : s.auto ? '<span class="badge warn">Time ran out</span>' : '<span class="badge">Submitted</span>'}${s.reloads ? ` <span class="badge warn">Reloaded ×${s.reloads}</span>` : ''}</td>
+    </tr>`).join('')}${others.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}"><td data-l="Rank" class="muted">–</td><td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}</small></div></div></td><td data-l="Score" class="r" colspan="4"><span class="badge${s.state === 'started' ? ' accent' : ''}">${s.state === 'started' ? 'Taking it now' : s.state === 'upcoming' ? 'Not started yet' : 'Did not take it'}</span></td></tr>`).join('')}</tbody></table></div>
+  </section>`;
+
+  return shell(head1, `${paperTabs}${kpis}${missedBlock}${where}${qTable}${studentsT}`);
+}
+
+function analysisCsv() {
+  const D = V.data, qz = D.quizzes.find(z => z.id === V.anQuiz) || D.quizzes[0], R = analyse(D, qz);
+  downloadCsv(`analysis-${D.test.date}-${(D.test.title || 'test').replace(/[^\w]+/g, '-')}.csv`,
+    ['Question', 'Topic', 'Question text', 'Correct option', 'Right', 'Wrong', 'Blank', 'Right %', ...[...L].slice(0, Math.max(...qz.questions.map(q => q.o.length))).map(l => `Picked ${l}`), 'Median time (s)', 'Changed answer'],
+    R.qs.map(x => [`Q${x.i + 1}`, x.q.t, x.q.q, L[x.q.a], x.ok, x.bad, x.skip, x.n ? Math.round(x.ok / x.n * 100) : '', ...[...L].slice(0, Math.max(...qz.questions.map(q => q.o.length))).map((_, j) => x.picks[j] ?? ''), x.time === null ? '' : Math.round(x.time), x.changed]));
+}
+
 /* ---------- Leaderboard (hall by hall, only students who took it) ---------- */
 function viewBoard() {
   const D = V.data, rows = D.rows, qm = !!D.test;
@@ -504,10 +662,7 @@ function viewBoard() {
     `<div class="toolbar">${halls}${pick}<span class="muted" style="font-size:13px">${rows.length} ranked</span></div>${table}`);
 }
 
-/* ---------- Appearance ---------- */
-function viewAppearance() {
-  return shell(head('Appearance', 'Choose how DailyQuiz looks on this device. Students pick their own under Profile → Appearance.'), `<section class="card pad">${UI.themePicker()}</section>`);
-}
+
 
 /* ---------- Groups ---------- */
 function viewSets() {
@@ -538,9 +693,12 @@ function viewSets() {
 /* ---------- Students ---------- */
 function viewStudents() {
   const { students: S, sets, halls = [] } = V.data;
-  const q = V.q.trim().toLowerCase(), f = V.setFilter, hf = V.hallFilter || 'all';
+  const hk = h => h ?? ''; // hall key: '' = no hall
+  const q = V.q.trim().toLowerCase(), f = V.setFilter;
+  const hf = V.hallFilter !== undefined && (V.hallFilter === 'all' || halls.some(h => hk(h) === V.hallFilter)) ? V.hallFilter : (halls.length ? hk(halls[0]) : 'all');
   const list = S.filter(s => (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) && (f === 'all' || (f === 'none' ? !s.set : s.set === f))
-    && (hf === 'all' || (hf === '' ? !s.hall : s.hall === hf)));
+    && (hf === 'all' || hk(s.hall) === hf));
+  const count = h => S.filter(s => hk(s.hall) === hk(h)).length;
   const setSel = s => `<select class="input" style="min-height:36px;width:auto;font-size:13.5px" data-act="studentSet" data-roll="${esc(s.roll)}" aria-label="Group for ${esc(s.name)}"><option value="">No group</option>${sets.map(x => `<option value="${esc(x.id)}"${x.id === s.set ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
   const imp = V.showImport ? `<section class="card pad slide-in" style="margin-bottom:18px">
       <div class="card-head"><div><h3>Import roster</h3><p class="muted" style="font-size:14px;margin-top:2px">One student per line: roll number, then name. Paste straight from a spreadsheet. Existing roll numbers get their name updated.</p></div></div>
@@ -556,26 +714,31 @@ function viewStudents() {
       </div>
       ${V.importRes ? `<p class="note ${V.importRes.skipped.length ? 'warn' : 'ok'}" style="margin-top:12px">Added ${V.importRes.added}, updated ${V.importRes.updated}, unchanged ${V.importRes.unchanged}.${V.importRes.skipped.length ? ` Skipped ${V.importRes.skipped.length} line${V.importRes.skipped.length === 1 ? '' : 's'} that didn't look like "roll name": ${esc(V.importRes.skipped.slice(0, 3).join(' | '))}` : ''}</p>` : ''}
     </section>` : '';
-  return shell(
-    head('Students', 'Everyone registered, with their group and scores. Students sign in with their roll number alone.', `<button class="btn btn-primary" data-act="toggleImport">${icon('upload')}Import roster</button>`),
-    `${imp}
-    <div class="toolbar">
-      <div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Search name or roll" value="${esc(V.q)}"></div>
-      <select class="input" id="setF" style="width:auto"><option value="all">All groups</option>${sets.map(x => `<option value="${esc(x.id)}"${f === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${f === 'none' ? ' selected' : ''}>No group</option></select>
-      <select class="input" id="hallF" style="width:auto" aria-label="Hall"><option value="all">All halls</option>${halls.map(h => `<option value="${esc(h ?? '')}"${hf === (h ?? '') ? ' selected' : ''}>${esc(hallName(h))}</option>`).join('')}</select>
-      <datalist id="hallList">${halls.filter(Boolean).map(h => `<option value="${esc(h)}">`).join('')}</datalist>
-      <span class="muted" style="font-size:14px">${list.length} of ${S.length}</span>
-    </div>
-    ${S.length ? (list.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Hall</th><th>Group</th><th class="r">Tests</th><th class="r">Points</th><th class="r">Average</th><th class="r">Last active</th></tr></thead><tbody>${list.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
+  const table = rows => `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Group</th><th class="r">Tests</th><th class="r">Points</th><th class="r">Average</th><th class="r">Last active</th><th></th></tr></thead><tbody>${rows.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
       <td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}</small></div></div></td>
-      <td data-l="Hall">${s.hall ? `<span class="badge">${esc(hallName(s.hall))}</span>` : '<span class="muted">–</span>'}</td>
       <td data-l="Group">${setSel(s)}</td>
-      <td data-l="Quizzes" class="r">${s.taken}</td>
+      <td data-l="Tests" class="r">${s.taken}</td>
       <td data-l="Points" class="r"><b>${s.points}</b></td>
       <td data-l="Average" class="r">${s.avgPct === null ? '–' : s.avgPct + '%'}</td>
       <td data-l="Last active" class="r">${esc(fmtWhen(s.lastAttempt || s.lastLoginAt))}</td>
-    </tr>`).join('')}</tbody></table></div>` : '<div class="card empty"><p>No students match.</p></div>')
-      : empty('users', 'No students yet', 'Import your class roster, or students appear here when they first sign in.', `<button class="btn btn-primary" data-act="toggleImport">${icon('upload')}Import roster</button>`)}`);
+      <td data-l="" class="r">${viewAs(s)}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+  const tabs = `<div class="seg" role="tablist" aria-label="Hall">${halls.map(h => `<button class="${hf === hk(h) ? 'on' : ''}" role="tab" aria-selected="${hf === hk(h)}" data-act="hallTab" data-h="${esc(hk(h))}">${esc(hallName(h))} <span class="n">${count(h)}</span></button>`).join('')}<button class="${hf === 'all' ? 'on' : ''}" role="tab" aria-selected="${hf === 'all'}" data-act="hallTab" data-h="all">All <span class="n">${S.length}</span></button></div>`;
+  // "All" shows one section per hall; a single hall shows just its table.
+  const body = !list.length ? '<div class="card empty"><p>No students match.</p></div>'
+    : hf !== 'all' ? table(list)
+    : halls.map(h => { const rows = list.filter(s => hk(s.hall) === hk(h)); return rows.length ? `<section class="stack" style="gap:10px"><div class="section-head" style="margin:8px 0 0"><h2>${esc(hallName(h))}</h2><span class="muted" style="font-size:13px">${rows.length} student${rows.length === 1 ? '' : 's'}</span></div>${table(rows)}</section>` : ''; }).join('');
+  return shell(
+    head('Students', 'Hall by hall, with group and scores. Students sign in with their roll number alone. Use “View as” to see the site exactly as a student does.', `<button class="btn btn-primary" data-act="toggleImport">${icon('upload')}Import roster</button>`),
+    `${imp}
+    <div class="toolbar">${tabs}</div>
+    <div class="toolbar">
+      <div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Search name or roll" value="${esc(V.q)}"></div>
+      <select class="input" id="setF" style="width:auto"><option value="all">All groups</option>${sets.map(x => `<option value="${esc(x.id)}"${f === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${f === 'none' ? ' selected' : ''}>No group</option></select>
+      <datalist id="hallList">${halls.filter(Boolean).map(h => `<option value="${esc(h)}">`).join('')}</datalist>
+      <span class="muted" style="font-size:14px">${list.length} shown</span>
+    </div>
+    ${S.length ? body : empty('users', 'No students yet', 'Import your class roster, or students appear here when they first sign in.', `<button class="btn btn-primary" data-act="toggleImport">${icon('upload')}Import roster</button>`)}`);
 }
 
 function viewStudent() {
@@ -583,7 +746,7 @@ function viewStudent() {
   const done = Q.filter(z => z.attempt);
   const pts = done.reduce((t, z) => t + z.attempt.score, 0), poss = done.reduce((t, z) => t + z.attempt.total, 0);
   return shell(
-    head(esc(s.name), `Roll <span class="mono">${esc(s.roll)}</span> · ${esc(hallName(s.hall))} · registered ${esc(fmtWhen(s.createdAt))} · last sign-in ${esc(fmtWhen(s.lastLoginAt))}`, '', `<a href="#/students">Students</a> / Profile`),
+    head(esc(s.name), `Roll <span class="mono">${esc(s.roll)}</span> · ${esc(hallName(s.hall))} · registered ${esc(fmtWhen(s.createdAt))} · last sign-in ${esc(fmtWhen(s.lastLoginAt))}`, viewAs(s, 'btn-primary'), `<a href="#/students">Students</a> / Profile`),
     `<div class="grid-2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)">
       <section class="card pad">
         <div class="row" style="gap:16px;margin-bottom:18px">${avatar(s.name, 'lg')}<div><h3 style="font-size:20px">${esc(s.name)}</h3><span class="mono muted">${esc(s.roll)}</span></div></div>
@@ -596,7 +759,7 @@ function viewStudent() {
       </section>
       <div class="stack">
         <div class="kpis">
-          <div class="card kpi"><div class="k-label">Quizzes taken</div><div class="k-val">${done.length}<small> / ${Q.length}</small></div></div>
+          <div class="card kpi"><div class="k-label">Tests taken</div><div class="k-val">${done.length}<small> / ${Q.length}</small></div></div>
           <div class="card kpi"><div class="k-label">Points</div><div class="k-val">${pts}</div></div>
           <div class="card kpi"><div class="k-label">Average</div><div class="k-val">${poss ? Math.round(pts / poss * 100) + '%' : '–'}</div></div>
         </div>
@@ -606,7 +769,7 @@ function viewStudent() {
           <td data-l="Test"><b>${esc(z.title)}</b>${z.quizTitle && z.quizTitle !== z.title ? `<br><small class="muted">${esc(z.quizTitle)}</small>` : ''}</td>
           <td data-l="Score" class="r">${z.attempt ? pctBadge(z.attempt.score, z.attempt.total) : z.state === 'started' ? '<span class="badge accent">In progress</span>' : '<span class="badge warn">Not taken</span>'}</td>
           <td data-l="Time" class="r">${z.attempt ? fmtT(z.attempt.secs) : '–'}</td>
-          <td data-l="Submitted" class="r">${z.attempt ? esc(fmtWhen(z.attempt.at)) + (z.attempt.auto ? ' <span class="badge">Auto</span>' : '') : '–'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><p>No quizzes have been given to this student yet.</p></div>'}</section>
+          <td data-l="Submitted" class="r">${z.attempt ? esc(fmtWhen(z.attempt.at)) + (z.attempt.auto ? ' <span class="badge">Auto</span>' : '') : '–'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><p>No tests have been given to this student yet.</p></div>'}</section>
       </div>
     </div>`);
 }
@@ -647,7 +810,7 @@ function viewEdit() {
       <section class="card pad stack" style="gap:14px">
         <div class="two-col" style="grid-template-columns:minmax(0,3fr) minmax(0,1fr)">
           <div class="field"><label for="ti">Title</label><input class="input input-lg" id="ti" data-f="title" maxlength="120" value="${esc(D.title)}" placeholder="e.g. C++ Functions"></div>
-          <div class="field"><label for="du">Suggested duration (min)</label><input class="input input-lg" id="du" type="number" min="1" max="600" data-f="duration" value="${esc(D.duration)}"></div>
+          <div class="field"><label for="du">Suggested duration (minutes)</label><input class="input input-lg" id="du" type="number" min="1" max="600" data-f="duration" value="${esc(D.duration)}"></div>
         </div>
         <div class="field"><label for="de">Description <span class="muted" style="font-weight:500">(optional, students see it)</span></label><textarea class="input" id="de" data-f="description" maxlength="400" style="min-height:60px">${esc(D.description)}</textarea></div>
       </section>
@@ -749,11 +912,12 @@ function render() {
   if (!session || V.page === 'login') { $app.innerHTML = viewLogin(); return; }
   let html;
   if (V.loading) html = shell('<div class="skel" style="height:56px;width:40%;margin-bottom:24px"></div>', '<div class="kpis"><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div></div><div class="skel" style="height:320px;margin-top:18px"></div>');
+  else if (V.page === 'notes' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumb(V.data)}</div>` : '', Notes.view(V.data, { sub: 'The class notes exactly as students see them. Open a level, then a topic.' }));
   else if (!V.data) html = shell('', empty('x', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
-  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, appearance: viewAppearance, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
+  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
-  document.title = `${t ? t.textContent : 'Admin'} · DailyQuiz Admin`;
+  document.title = `${V.page === 'notes' ? Notes.title(V.data) : t ? t.textContent : 'Admin'} · QuizMe Admin`;
 }
 function renderKeepFocus(id) {
   const el = document.getElementById(id), pos = el ? el.selectionStart : 0;
@@ -927,6 +1091,10 @@ $app.addEventListener('click', async e => {
     if (f) f.focus();
     return;
   }
+  if (a === 'hallTab') { V.hallFilter = b.dataset.h; render(); return; }
+  if (a === 'anQuiz') { V.anQuiz = b.dataset.id; render(); return; }
+  if (a === 'anRow') { V.anOpen = V.anOpen || new Set(); const id = b.dataset.id; if (V.anOpen.has(id)) V.anOpen.delete(id); else V.anOpen.add(id); render(); return; }
+  if (a === 'anCsv') { analysisCsv(); return; }
   if (a === 'lbHall') { V.lbHall = b.dataset.h || null; V.lbTest = V.data.test || ''; load('board', loadBoard); return; }
   if (a === 'toggleImport') { V.showImport = !V.showImport; V.importRes = null; render(); if (V.showImport) document.getElementById('imp').focus(); return; }
   if (a === 'doImport') {

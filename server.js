@@ -301,9 +301,16 @@ async function auth(req, res, next) {
     const s = roll && await getStudent(roll);
     if (!s) return res.status(401).json({ error: 'Please sign in.' });
     req.student = s;
+    // Admin "view as student": the request carries the admin's token. Read-only (see readOnly below).
+    const pv = req.get('x-preview');
+    if (pv) { if (!adminFrom(pv)) return res.status(401).json({ error: 'Your admin preview has expired. Open it again from the admin pages.' }); req.preview = true; }
     next();
   } catch (e) { next(e); }
 }
+/** Blocks anything that would change a student's attempt while an admin is only previewing their view. */
+const readOnly = (req, res, next) => req.preview
+  ? res.status(403).json({ error: "This is an admin preview, so tests can't be started, answered or submitted here." })
+  : next();
 
 /* ---------- Startup: seed and migrate ---------- */
 async function startup() {
@@ -393,15 +400,20 @@ function makeToken(email) {
   const body = Buffer.from(JSON.stringify({ email, exp: Date.now() + 12 * 3600e3 })).toString('base64url');
   return `${body}.${sign(body)}`;
 }
-function adminAuth(req, res, next) {
-  const tok = (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  const [body, sig] = tok.split('.');
+/** The admin email for a valid, unexpired admin token, else null. */
+function adminFrom(tok) {
+  const [body, sig] = String(tok || '').split('.');
   try {
     if (body && sig && safeEq(sig, sign(body))) {
       const p = JSON.parse(Buffer.from(body, 'base64url').toString());
-      if (p.exp > Date.now()) { req.admin = p.email; return next(); }
+      if (p.exp > Date.now()) return p.email;
     }
   } catch (e) {}
+  return null;
+}
+function adminAuth(req, res, next) {
+  const email = adminFrom((req.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  if (email) { req.admin = email; return next(); }
   res.status(401).json({ error: 'Admin sign-in needed.' });
 }
 const failures = new Map();
@@ -416,11 +428,11 @@ app.use(express.json({ limit: '1mb' }));
 /* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again
    only when a file actually changes. The two HTML pages are served from memory and always revalidated. */
 const PUB = path.join(ROOT, 'public');
-const ASSETS = ['styles.css', 'common.js', 'app.js', 'admin.js'];
+const ASSETS = ['styles.css', 'common.js', 'notes.js', 'app.js', 'admin.js'];
 const ASSET_V = createHash('sha1').update((await Promise.all(ASSETS.map(f => readFile(path.join(PUB, f))))).join('\n')).digest('hex').slice(0, 10);
 const HTML = {};
 for (const f of ['index.html', 'admin.html']) {
-  HTML[f] = (await readFile(path.join(PUB, f), 'utf8')).replace(/(href|src)="\/(styles\.css|common\.js|app\.js|admin\.js)"/g, `$1="/$2?v=${ASSET_V}"`);
+  HTML[f] = (await readFile(path.join(PUB, f), 'utf8')).replace(/(href|src)="\/(styles\.css|common\.js|notes\.js|app\.js|admin\.js)"/g, `$1="/$2?v=${ASSET_V}"`);
 }
 const sendHtml = f => (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(HTML[f]); };
 app.get(['/', '/index.html'], sendHtml('index.html'));
@@ -519,7 +531,7 @@ app.get('/api/tests/:id', auth, async (req, res) => {
 });
 
 // Start the clock. Questions are only sent from here on.
-app.post('/api/tests/:id/start', auth, async (req, res) => {
+app.post('/api/tests/:id/start', auth, readOnly, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
   let a = f.a;
@@ -538,7 +550,7 @@ app.post('/api/tests/:id/start', auth, async (req, res) => {
 
 // Save one answer as the student goes, so time running out never loses work.
 // The hot path during a test: normally one atomic database write per answer (the paper is worked out in memory).
-app.post('/api/tests/:id/answer', auth, async (req, res) => {
+app.post('/api/tests/:id/answer', auth, readOnly, async (req, res) => {
   const id = String(req.params.id), s = req.student, roll = s.roll;
   const [T, SETS, Z] = await Promise.all([getTests(), getSets(), getQuizzes()]);
   const test = T.find(x => x._id === id);
@@ -548,8 +560,11 @@ app.post('/api/tests/:id/answer', auth, async (req, res) => {
     const z = Z.get(quizId), q = z && z.questions.find(x => x.id === req.body?.qid);
     if (!q || !Number.isInteger(c) || c < -1 || c >= q.o.length) return null;
     // Lands only while the attempt is still running and inside its time (plus a little grace for the network).
-    const r = await attempts.updateOne({ roll, testId: id, quizId, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } },
-      c < 0 ? { $unset: { [`byQ.${q.id}`]: '' } } : { $set: { [`byQ.${q.id}`]: c } });
+    // The same write records when the answer was given and counts changes, for the admin's per-question timing.
+    const now = new Date();
+    const r = await attempts.updateOne({ roll, testId: id, quizId, status: 'started', deadline: { $gt: new Date(+now - GRACE_MS) } },
+      c < 0 ? { $unset: { [`byQ.${q.id}`]: '' }, $set: { [`ansAt.${q.id}`]: now }, $inc: { [`chg.${q.id}`]: 1 } }
+        : { $set: { [`byQ.${q.id}`]: c, [`ansAt.${q.id}`]: now }, $inc: { [`chg.${q.id}`]: 1 } });
     return r.matchedCount > 0;
   };
   let ok = p ? await write(p.quizId) : null;
@@ -565,13 +580,13 @@ app.post('/api/tests/:id/answer', auth, async (req, res) => {
 });
 
 // Full-screen tests: the page reports when a student comes back to a running test without full screen (reload/crash).
-app.post('/api/tests/:id/flag', auth, async (req, res) => {
+app.post('/api/tests/:id/flag', auth, readOnly, async (req, res) => {
   if (req.body?.type !== 'reload') return res.status(400).json({ error: 'Unknown flag.' });
   await attempts.updateOne({ roll: req.student.roll, testId: String(req.params.id), status: 'started' }, { $inc: { 'flags.reload': 1 } });
   res.json({ ok: true });
 });
 
-app.post('/api/tests/:id/submit', auth, async (req, res) => {
+app.post('/api/tests/:id/submit', auth, readOnly, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
   let a = f.a;
@@ -730,6 +745,41 @@ app.get('/api/admin/overview', async (req, res) => {
     todayTests: T.filter(x => x.date === t).map(x => testJson(st, x)),
     nextTests: T.filter(x => startsAt(x) > now && x.date !== t).slice(0, 4).map(x => testJson(st, x)),
     quizzes: quizList,
+  });
+});
+
+/* ----- One test, analysed: everything the admin's Analysis page needs (computed in the browser) ----- */
+app.get('/api/admin/tests/:id/analysis', async (req, res) => {
+  const id = String(req.params.id);
+  const st = await adminState();
+  const test = st.T.find(x => x._id === id);
+  if (!test) return res.status(404).json({ error: 'Test not found.' });
+  const ZM = await getQuizzes();
+  const given = st.who.get(id) || [];
+  const A = await attempts.find({ testId: id }).toArray();
+  const byRoll = new Map(A.map(a => [a.roll, a]));
+  const stu = new Map(st.S.map(s => [s.roll, s]));
+  const quizIds = [...new Set([...(test.papers || []).map(p => p.quizId), ...A.map(a => a.quizId)])].filter(q => ZM.has(q));
+  const ms = d => d ? +new Date(d) : null;
+  res.json({
+    now: st.now,
+    test: { id, title: test.title || 'Untitled test', date: test.date, start: test.start, duration: test.duration, startsAt: startsAt(test), status: testStatus(test, st.now), fullscreen: !!test.fullscreen },
+    quizzes: quizIds.map(qid => { const z = ZM.get(qid); return { id: qid, title: z.title, questions: z.questions.map(q => ({ id: q.id, t: q.t || '', q: q.q, c: q.c || '', o: q.o, a: q.a, e: q.e || '', p: !!q.p })) }; }),
+    students: given.map(({ s, paper }) => {
+      const a = byRoll.get(s.roll);
+      const base = { roll: s.roll, name: s.name, hall: s.hall || null, group: st.groupOf(s) ? st.setName.get(st.groupOf(s)) : null, quizId: a ? a.quizId : paper.quizId };
+      if (!a) return { ...base, state: startsAt(test) > st.now ? 'upcoming' : 'missed' };
+      const ansAt = {};
+      for (const [k, v] of Object.entries(a.ansAt || {})) ansAt[k] = ms(v) - ms(a.startedAt);
+      return { ...base, state: isDone(a) ? 'done' : 'started', byQ: a.byQ || {}, order: a.order || [], ansAt, chg: a.chg || {},
+        score: a.score ?? null, total: a.total ?? null, secs: a.secs ?? null, startedAt: ms(a.startedAt), at: ms(a.at),
+        auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0 };
+    }).concat(A.filter(a => !given.some(g => g.s.roll === a.roll)).map(a => { // took it, but no longer assigned (test edited / student removed from it)
+      const s = stu.get(a.roll) || { name: a.name };
+      const ansAt = {}; for (const [k, v] of Object.entries(a.ansAt || {})) ansAt[k] = ms(v) - ms(a.startedAt);
+      return { roll: a.roll, name: s.name, hall: s.hall || null, group: null, quizId: a.quizId, state: isDone(a) ? 'done' : 'started', byQ: a.byQ || {}, order: a.order || [], ansAt, chg: a.chg || {},
+        score: a.score ?? null, total: a.total ?? null, secs: a.secs ?? null, startedAt: ms(a.startedAt), at: ms(a.at), auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0 };
+    })),
   });
 });
 
@@ -1095,6 +1145,6 @@ app.use((err, req, res, next) => {
 await startup();
 app.listen(PORT, () => {
   console.log(`Today is ${today()} (${QUIZ_TZ})`);
-  console.log(`Daily Quiz running at http://localhost:${PORT}`);
+  console.log(`QuizMe running at http://localhost:${PORT}`);
   console.log(`Admin:               http://localhost:${PORT}/admin`);
 });

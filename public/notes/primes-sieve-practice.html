@@ -1,0 +1,25 @@
+<!-- Practice questions: Prime Numbers and Sieve (Level 1 · Maths). Fragment: loaded into the notes reader. -->
+<h2 id="problems">Problems</h2>
+<p>Solve these after reading the notes. The “Topic used” column says which idea from class each one needs.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>#</th><th>Practice task</th><th>Topic used</th><th>Problem</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Find the <b>sum</b> of divisors of <code>n</code> in O(√n)</td><td>Divisors in √n</td><td><a href="https://leetcode.com/problems/perfect-number/" target="_blank" rel="noopener">LeetCode 507 – Perfect Number</a></td></tr>
+    <tr><td>2</td><td><b>Count</b> and <b>sum</b> the divisors of each number in an array</td><td>Divisors in √n (count + sum)</td><td><a href="https://leetcode.com/problems/four-divisors/" target="_blank" rel="noopener">LeetCode 1390 – Four Divisors</a></td></tr>
+    <tr><td>3</td><td>Count the primes less than <code>n</code></td><td>Basic sieve</td><td><a href="https://leetcode.com/problems/count-primes/" target="_blank" rel="noopener">LeetCode 204 – Count Primes</a></td></tr>
+    <tr><td>4</td><td>Find primes in a range <code>[L, R]</code> with <code>R ≤ 10^6</code></td><td>Sieve once, then scan the range</td><td><a href="https://leetcode.com/problems/closest-prime-numbers-in-range/" target="_blank" rel="noopener">LeetCode 2523 – Closest Prime Numbers in Range</a></td></tr>
+    <tr><td>5</td><td><b>Goldbach check:</b> find pairs of primes that add up to <code>n</code></td><td>Sieve + O(1) lookups</td><td><a href="https://leetcode.com/problems/prime-pairs-with-target-sum/" target="_blank" rel="noopener">LeetCode 2761 – Prime Pairs With Target Sum</a></td></tr>
+    <tr><td>6</td><td>Store the <b>smallest prime factor (SPF)</b> of every number and factorise quickly</td><td>Modified sieve</td><td><a href="https://www.geeksforgeeks.org/prime-factorization-using-sieve-olog-n-multiple-queries/" target="_blank" rel="noopener">GeeksforGeeks – Prime Factorization using Sieve O(log n)</a></td></tr>
+    <tr><td>7</td><td>Count the divisors for up to 10^5 queries, each <code>x ≤ 10^6</code></td><td>Why √n per query is too slow, so precompute with a sieve</td><td><a href="https://cses.fi/problemset/task/1713" target="_blank" rel="noopener">CSES 1713 – Counting Divisors</a></td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="hints">Hints</h2>
+<p>Try each problem first. Open a hint only when you are stuck.</p>
+<details class="nt-hint"><summary>1. Perfect Number</summary><p>Loop <code>i</code> up to √n and add both <code>i</code> and <code>n / i</code>. Don't count <code>n</code> itself, and add a perfect-square divisor only once.</p></details>
+<details class="nt-hint"><summary>2. Four Divisors</summary><p>Count the divisors with the √n loop. If the count is exactly 4, add their sum.</p></details>
+<details class="nt-hint"><summary>3. Count Primes</summary><p>This is exactly the sieve from class. The only difference is that the problem asks for primes <b>strictly less than</b> <code>n</code>.</p></details>
+<details class="nt-hint"><summary>4. Closest Primes</summary><p>Sieve up to <code>right</code>, then walk from <code>left</code> to <code>right</code> and compare each prime with the previous one.</p></details>
+<details class="nt-hint"><summary>5. Prime Pairs</summary><p>Sieve up to <code>n</code>. For every <code>x</code> from 2 to <code>n/2</code>, check that <code>isPrime[x]</code> and <code>isPrime[n - x]</code> are both true.</p></details>
+<details class="nt-hint"><summary>6. SPF</summary><p>Use the same loops as the sieve. Instead of <code>false</code>, store <code>spf[j] = i</code> when <code>spf[j]</code> is not set yet.</p></details>
+<details class="nt-hint"><summary>7. Counting Divisors</summary><p>An O(√x) loop for each query is about 10^5 × 1000 = 10^8 operations, which is borderline. A faster way: for every <code>i</code>, add 1 to <code>cnt[j]</code> for each <code>j = i, 2i, 3i, …</code>. This works because of the same <code>j += i</code> idea from the sieve.</p></details>

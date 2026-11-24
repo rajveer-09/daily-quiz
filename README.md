@@ -1,9 +1,9 @@
-# DailyQuiz
+# QuizMe
 
 Timed class quizzes with a student site and an admin dashboard. Built with Node.js, Express and MongoDB, with a plain HTML/CSS/JS front end.
 
-- **Students** sign in with their roll number and take scheduled, timed tests. Afterwards they see their score, every solution and the class leaderboard.
-- **Admins** write quizzes, schedule tests, decide which question set each student gets, and see results day by day.
+- **Students** sign in with their roll number, take scheduled, timed tests, see their score and their hall's leaderboard, and read the class notes.
+- **Admins** write question papers, schedule tests, decide which paper each student gets, and analyse the results.
 
 ## Features
 
@@ -14,23 +14,27 @@ Timed class quizzes with a student site and an admin dashboard. Built with Node.
   - The timer starts on Start and the server enforces it.
   - Answers save as the student picks them.
   - The test submits automatically when time runs out, even if the tab was closed.
-- Results show the score, a breakdown by topic, and a solution for every question.
+  - A test can require full screen. Leaving full screen submits it.
+- The score and leaderboard update in real time. The answers and explanations unlock when the test window closes, so nobody can share them while others are still writing.
 - Missed tests can still be taken later. These attempts are marked late.
-- Leaderboards: overall and for each quiz. They show names only, never roll numbers.
-- Profile page with progress, rank and stats, plus Appearance settings for the theme.
+- Leaderboards are separate for each hall: overall and for each test. They show names only, never roll numbers.
+- **Notes:** class notes by level and topic, with highlighted code, copy buttons, a section list and a full-screen reading mode.
+- Profile page with progress, hall rank and stats.
 
 **Admin**
 - **Tests:**
-  - Schedule a test with a date, start time and duration.
-  - Add one or more question sets (Set A, Set B…) and choose who gets each one: groups, individual students, or "everyone else".
-  - A set can **jumble the question order**: same questions, a different fixed order for each set.
-- **Question bank:** a quiz editor with code blocks, 2–6 options, explanations and topics. Editing a quiz re-marks existing attempts.
-- **Daily results:** what every student scored on a given day, whatever their set, plus a 14-day grid. Both export to CSV.
-- **Analytics for each quiz:** right answers per question, how scores are spread, results by topic, and the hardest questions with the most common wrong answer.
+  - Schedule a test with its own name, a date, start time and duration. The same question paper can be reused in many tests.
+  - Add one or more question papers and choose who gets each one: groups, individual students, or "everyone else".
+  - A paper can **jumble the question order**: same questions, a different fixed order.
+- **Analysis for each test:** the most-missed questions with how many picked each option, accuracy by topic, by position in the paper and by time into the test, time per question, and how each student's attempt ended. Exports to CSV.
+- **Question bank:** an editor with code blocks, 2–6 options, explanations and topics. Editing a paper re-marks existing attempts.
+- **Daily results:** what every student scored on a given day, plus a 14-day grid. Both export to CSV.
+- **Leaderboards** by hall and test, showing the students who took part.
+- **Students:** grouped by hall. Import a roster, change a student's group or hall, and **view the site as any student** (read-only).
 - **Groups:** a board to drag students between groups.
-- **Students:** paste a roster to import it, and change a student's group inline.
+- **Notes:** the same notes students see.
 
-**Design:** a dark frosted-glass look that works on desktop and phone. There are four themes (Mono, Emerald, Gold and Rose), and each person picks theirs under Appearance.
+**Design:** a clean, flat look with light and dark modes (it follows the device setting until changed). Works on desktop and phone, and the left menu can be collapsed.
 
 ## Performance and reliability
 

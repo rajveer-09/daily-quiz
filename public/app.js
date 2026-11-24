@@ -5,8 +5,25 @@ const $app = document.getElementById('app');
 const L = 'ABCDEF';
 const ME_KEY = 'dq-me';
 
+/* ---------- Admin preview ("view as student") ----------
+   Opened from the admin pages as #/preview/<roll>/<admin token>. Lives in this tab only (sessionStorage), never
+   replaces the student sign-in saved on this device, and the server treats it as read-only. */
+const PV_KEY = 'dq-preview';
+const ss = {
+  get() { try { return JSON.parse(sessionStorage.getItem(PV_KEY) || 'null'); } catch (e) { return null; } },
+  set(v) { try { sessionStorage.setItem(PV_KEY, JSON.stringify(v)); } catch (e) {} },
+  del() { try { sessionStorage.removeItem(PV_KEY); } catch (e) {} },
+};
+let preview = ss.get();
+const pvm = location.hash.match(/^#\/preview\/([^/]+)\/(.+)$/);
+if (pvm) {
+  preview = { roll: decodeURIComponent(pvm[1]).toUpperCase(), token: pvm[2], name: '' };
+  ss.set(preview);
+  try { history.replaceState(null, '', location.pathname + '#/home'); } catch (e) { location.replace('#/home'); }
+}
+
 /* ---------- State ---------- */
-let me = store.get(ME_KEY);
+let me = preview ? { roll: preview.roll, name: preview.name || preview.roll } : store.get(ME_KEY);
 if (!me || !me.roll) me = null;
 
 const V = {
@@ -38,20 +55,28 @@ const needsFs = () => !!(V.quiz && V.quiz.state === 'started' && V.quiz.fullscre
 async function api(url, body) {
   const r = await fetch(url, {
     method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-Roll': me ? me.roll : '' },
+    headers: { 'Content-Type': 'application/json', 'X-Roll': me ? me.roll : '', ...(preview ? { 'X-Preview': preview.token } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   let data = {};
   try { data = await r.json(); } catch (e) {}
+  if (r.status === 401 && preview) throw Object.assign(new Error(data.error || 'This student no longer exists, or your admin preview expired.'), { status: 401 });
   if (r.status === 401 && me) { logout(); throw new Error('Please sign in again.'); }
   if (data && typeof data.now === 'number') V.skew = data.now - Date.now();
   if (!r.ok) throw Object.assign(new Error(data.error || `Something went wrong (${r.status}).`), { data, status: r.status });
   return data;
 }
 
-function setMe(s) { if (!s) return; me = { name: s.name, roll: s.roll }; store.set(ME_KEY, me); }
+function setMe(s) {
+  if (!s) return;
+  me = { name: s.name, roll: s.roll };
+  if (preview) { preview.name = s.name; ss.set(preview); } else store.set(ME_KEY, me);
+}
+
+function exitPreview() { ss.del(); location.href = '/admin#/students'; }
 
 function logout() {
+  if (preview) return exitPreview();
   me = null; store.del(ME_KEY);
   Object.assign(V, { home: null, board: null, quiz: null, welcome: '' });
   V.login = { step: 'roll', roll: '', name: '', err: '', busy: false };
@@ -93,6 +118,7 @@ function route() {
   if (h === '/leaderboard') return openBoard('');
   if ((m = h.match(/^\/leaderboard\/([\w-]+)$/))) return openBoard(m[1]);
   if ((m = h.match(/^\/(?:test|quiz)\/([\w-]+)$/))) return load('quiz', stale => openQuiz(m[1], stale));
+  if ((m = Notes.parse(h))) return openNotes(m);
   location.replace('#/home');
 }
 
@@ -119,6 +145,14 @@ const openBoard = id => load('lb', async stale => {
   const [all, one] = await Promise.all([api('/api/leaderboard'), id ? api('/api/leaderboard/' + encodeURIComponent(id)) : null]);
   if (stale()) return;
   V.lb = { all, quiz: one ? one.test : null, rows: one ? one.rows : all.rows };
+});
+
+/* ---------- Notes (shared with the admin site: notes.js) ---------- */
+const openNotes = parts => load('notes', async stale => {
+  const st = await Notes.load(...parts);
+  if (stale()) return;
+  if (st.redirect) { location.replace(st.redirect); return; }
+  V.notes = st;
 });
 
 async function openQuiz(id, stale) {
@@ -163,7 +197,7 @@ async function loadQuizBoard(id) {
 }
 
 /* ---------- Shell ---------- */
-const NAV = [['home', '#/home', 'home', 'Home', 'H'], ['past', '#/past', 'bars', 'Results', 'R'], ['lb', '#/leaderboard', 'trophy', 'Leaderboard', 'L'], ['profile', '#/profile', 'user', 'Profile', 'P']];
+const NAV = [['home', '#/home', 'home', 'Home', 'H'], ['past', '#/past', 'bars', 'Results', 'R'], ['notes', '#/notes', 'book', 'Notes', 'N'], ['lb', '#/leaderboard', 'trophy', 'Leaderboard', 'L'], ['profile', '#/profile', 'user', 'Profile', 'P']];
 
 function crumbFor(active) {
   const z = V.quiz;
@@ -171,6 +205,7 @@ function crumbFor(active) {
     const up = z.isToday && z.state !== 'done' ? ['#/home', 'Home'] : ['#/past', 'Results'];
     return `<a href="${up[0]}">${up[1]}</a><span>/</span><b>${esc(z.title)}</b>`;
   }
+  if (V.page === 'notes' && V.notes && V.notes.level) return Notes.crumb(V.notes);
   return `<b>${(NAV.find(n => n[0] === active) || NAV[0])[3]}</b>`;
 }
 
@@ -180,15 +215,15 @@ function shell(content) {
   const up = V.home ? V.home.items.filter(i => i.state === 'upcoming' || (i.state === 'open' && i.isToday) || i.state === 'started').length : 0;
   const badge = k => k === 'home' && up ? `<span class="pill" title="${up} upcoming or live">${up}</span>` : '';
   const today = V.home ? fmtDay(V.home.today, { weekday: 'short', day: 'numeric', month: 'short' }) : new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  return `<div class="shell">
+  return `<div class="shell${UI.sideMini() ? ' mini' : ''}">${UI.sideEdge()}
     <aside class="side card">
-      <a class="brand" href="#/home"><span class="logo">dq</span><span>Daily Quiz</span></a>
+      <a class="brand" href="#/home"><span class="logo">qm</span><span>QuizMe</span></a>
       <nav aria-label="Main" style="display:grid;gap:2px">${NAV.map(([k, h, i, t, key]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}" title="${t} (press G then ${key})"${active === k ? ' aria-current="page"' : ''}>${icon(i)}<span>${t}</span>${badge(k) || `<kbd>G ${key}</kbd>`}</a>`).join('')}</nav>
       <a class="side-foot" href="#/profile" title="Your profile">${avatar(me.name, 'sm')}<div class="t"><b>${esc(me.name)}</b><span>${esc(me.roll)}</span></div></a>
     </aside>
     <main class="main">
-      <header class="mtop"><a class="brand" href="#/home"><span class="logo">dq</span><span>Daily Quiz</span></a><a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></header>
-      <div class="topbar"><div class="crumb">${crumbFor(active)}</div><span class="when">${esc(today)}</span></div>
+      <header class="mtop"><a class="brand" href="#/home"><span class="logo">qm</span><span>QuizMe</span></a><div class="mtop-r">${UI.modeBtn()}<a class="who" href="#/profile" aria-label="Your profile"><span>${esc(me.roll)}</span>${avatar(me.name, 'sm')}</a></div></header>
+      <div class="topbar"><div class="crumb">${crumbFor(active)}</div><div class="tb-r"><span class="when">${esc(today)}</span>${UI.modeBtn()}</div></div>
       <div class="content">${content}</div>
     </main>
   </div>
@@ -198,8 +233,8 @@ function shell(content) {
 /* ---------- Sign in ---------- */
 function viewLogin() {
   const S = V.login, roll = S.step === 'roll';
-  return `<div class="auth-page">
-  <header class="auth-top"><span class="brand"><span class="logo">dq</span><span>Daily Quiz</span></span><a class="adm" href="/admin">Admin sign in</a></header>
+  return `${UI.modeBtn('corner')}<div class="auth-page">
+  <header class="auth-top"><span class="brand"><span class="logo">qm</span><span>QuizMe</span></span><a class="adm" href="/admin">Admin sign-in</a></header>
   <main class="auth-main">
     <form class="auth-card slide-in" id="lf" novalidate>
       ${roll ? `
@@ -340,13 +375,13 @@ function viewProfile() {
   return `<section class="profile-head">
     ${avatar(me.name, 'lg')}
     <div class="t"><h1>${esc(me.name)}</h1><span class="mono">${esc(me.roll)}</span></div>
-    <button class="btn" data-act="logout">${icon('logout')}Log out</button>
+    <button class="btn" data-act="logout">${icon('logout')}${preview ? 'Exit preview' : 'Log out'}</button>
   </section>
   <div class="kpis">
     <div class="card kpi"><span class="k-label">Tests taken</span><span class="k-val">${done.length}</span></div>
     <div class="card kpi"><span class="k-label">Average</span><span class="k-val">${avg === null ? '–' : avg + '%'}</span></div>
     <div class="card kpi"><span class="k-label">Best score</span><span class="k-val">${best ? `${best.score}<small>/${best.total}</small>` : '–'}</span></div>
-    <div class="card kpi"><span class="k-label">Class rank</span><span class="k-val">${mine ? `#${mine.rank}<small> of ${V.board.rows.length}</small>` : '–'}</span></div>
+    <div class="card kpi"><span class="k-label">Hall rank</span><span class="k-val">${mine ? `#${mine.rank}<small> of ${V.board.rows.length}</small>` : '–'}</span></div>
   </div>
   <section style="display:grid;gap:12px">
     <div class="card-head" style="margin:0"><h2 style="font-size:16px">Your results</h2><a class="btn btn-sm" href="#/past">All results</a></div>
@@ -356,10 +391,7 @@ function viewProfile() {
     <div class="card-head" style="margin:0"><h2 style="font-size:16px">Catch up</h2><span class="muted" style="font-size:13px">Missed tests you can still take. They count as late.</span></div>
     <div class="card rlist">${todo.map(resultRow).join('')}</div>
   </section>` : ''}
-  <section style="display:grid;gap:14px">
-    <div><h2 style="font-size:16px">Appearance</h2><p class="muted" style="font-size:13px;margin-top:4px">Changes the accent colour on this device only.</p></div>
-    ${UI.themePicker()}
-  </section>`;
+`;
 }
 
 /* ---------- Quiz: before start ---------- */
@@ -376,7 +408,7 @@ function viewIntro() {
       <span class="panel-label">Your clock starts when you press Start</span>
       <div class="bigclock">${z.duration}:00<small>min</small></div>
       ${z.fullscreen ? `<div class="note warn">${fsSupported() ? '<b>This test runs in full screen.</b> Pressing Esc, switching apps or leaving full screen in any way <b>submits your test immediately</b>.' : 'This test normally runs in full screen, but this device doesn\x27t support it, so it will run normally.'}</div>` : ''}
-      <div class="row"><button class="btn btn-primary btn-lg" data-act="start"${V.busy ? ' disabled' : ''}>${V.busy ? 'Starting…' : 'Start test ' + icon('right')}</button></div>
+      <div class="row"><button class="btn btn-primary btn-lg" data-act="start"${V.busy || preview ? ' disabled' : ''}>${V.busy ? 'Starting…' : 'Start test ' + icon('right')}</button>${preview ? '<span class="muted" style="font-size:13px">Disabled in admin preview</span>' : ''}</div>
       ${V.subErr ? `<p class="err" role="alert">${esc(V.subErr)}</p>` : ''}
     </div>
     <div class="card panel"><span class="panel-label">Before you start</span>${rulesList(z)}</div>
@@ -593,11 +625,11 @@ function viewBoard() {
 
 /* ---------- Render ---------- */
 function render() {
-  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · Daily Quiz'; return; }
+  if (V.page === 'login' || !me) { $app.innerHTML = viewLogin(); document.title = 'Sign in · QuizMe'; return; }
   if (!V.loading && !V.loadErr && V.quiz && V.quiz.state === 'started' && V.page === 'quiz') {
     // Focus mode: no sidebar or menus while a test is running.
     $app.innerHTML = `<div class="focus">${V.fsGate ? viewFsGate() : viewTake()}</div>`;
-    document.title = V.quiz.title + ' · Daily Quiz';
+    document.title = V.quiz.title + ' · QuizMe';
     return;
   }
   let html;
@@ -607,13 +639,15 @@ function render() {
   else if (V.page === 'profile') html = viewProfile();
   else if (V.page === 'past') html = viewPast();
   else if (V.page === 'lb') html = viewBoard();
+  else if (V.page === 'notes') html = V.notes ? Notes.view(V.notes) : '';
   else if (V.locked) html = viewLocked();
   else if (V.quiz && V.quiz.state === 'started') html = viewTake();
   else if (V.quiz && V.quiz.state === 'done') html = viewResult();
   else if (V.quiz) html = viewIntro();
   else html = '';
-  $app.innerHTML = shell(html);
-  document.title = V.quiz ? `${V.quiz.title} · Daily Quiz` : 'Daily Quiz';
+  $app.innerHTML = shell(html) + (preview ? `<div class="pv-bar" role="status">${icon('user')}<span>Viewing as <b>${esc(me.name)}</b> <span class="mono">${esc(me.roll)}</span> · read-only</span><button class="btn btn-sm" data-act="exitPreview">Exit</button></div>` : '');
+  const nt = V.page === 'notes' ? Notes.title(V.notes) : '';
+  document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · QuizMe` : nt ? `${nt} · QuizMe` : 'QuizMe');
 }
 
 /* Clocks: countdowns to start, and the time left in a running test. */
@@ -694,7 +728,7 @@ async function finish(auto = false, reason = null) {
 }
 
 async function startQuiz() {
-  if (V.busy) return;
+  if (V.busy || preview) return;
   if (V.quiz.fullscreen && fsSupported() && !fsEl()) {
     try { await enterFs(); }
     catch (e) { V.subErr = 'This test must be taken in full screen. Allow full screen when your browser asks, then press Start again.'; render(); return; }
@@ -716,7 +750,7 @@ async function signIn() {
   try {
     const d = await api('/api/login', S.step === 'name' ? { roll, name: S.name } : { roll });
     setMe(d.student);
-    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to Daily Quiz.` : '';
+    V.welcome = d.isNew ? `You're registered, ${me.name}. Welcome to QuizMe.` : '';
     V.login = { step: 'roll', roll: '', name: '', err: '', busy: false };
     toast(d.isNew ? 'Registered. Welcome aboard.' : `Welcome back, ${me.name}`);
     location.hash = '#/home';
@@ -741,6 +775,7 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.act;
   if (a === 'logout') logout();
+  else if (a === 'exitPreview') exitPreview();
   else if (a === 'retry') route();
   else if (a === 'changeRoll') { V.login.step = 'roll'; V.login.err = ''; render(); const el = document.getElementById('rl'); if (el) el.focus(); }
   else if (a === 'start') startQuiz();
@@ -786,7 +821,7 @@ document.addEventListener('keydown', e => {
   // "G then H/R/L/P" jumps between pages.
   if (k === 'g') { gAt = Date.now(); return; }
   if (Date.now() - gAt < 1200) {
-    const to = { h: '#/home', r: '#/past', l: '#/leaderboard', p: '#/profile' }[k];
+    const to = { h: '#/home', r: '#/past', n: '#/notes', l: '#/leaderboard', p: '#/profile' }[k];
     gAt = 0;
     if (to) location.hash = to;
   }

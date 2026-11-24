@@ -21,6 +21,7 @@ window.UI = (() => {
   const avatar = (name, cls = '') => `<span class="avatar ${cls}" aria-hidden="true">${esc(initials(name))}</span>`;
 
   const P = {
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
@@ -56,10 +57,14 @@ window.UI = (() => {
     palette: '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/>',
     chev: '<path d="m9 6 6 6-6 6"/>',
     chevd: '<path d="m6 9 6 6 6-6"/>',
+    chevl: '<path d="m15 6-6 6 6 6"/>',
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     flag: '<path d="M4 22V4M4 4h13l-2 4 2 4H4"/>',
     expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
     bars: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+    sidebar: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+    shrink: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   };
   const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
@@ -96,40 +101,50 @@ window.UI = (() => {
     setTimeout(() => t.remove(), bad ? 5000 : 2600);
   }
 
-  /* ---------- Themes (remembered per device, changed under Appearance) ---------- */
-  const THEMES = [
-    { id: 'mono', name: 'Mono', desc: 'White on near-black', bg: '#0B0B0D', acc: '#EDEDEF' },
-    { id: 'emerald', name: 'Emerald', desc: 'Green accent', bg: '#0B0B0D', acc: '#34D399' },
-    { id: 'gold', name: 'Gold', desc: 'Gold accent', bg: '#0B0B0D', acc: '#E5B94E' },
-    { id: 'rose', name: 'Rose', desc: 'Pink accent', bg: '#0B0B0D', acc: '#F28AB2' },
-  ];
-  const THEME_KEY = 'dq-theme';
-  const currentTheme = () => document.documentElement.dataset.accent || 'mono';
-  function applyTheme(t) {
-    if (!THEMES.some(x => x.id === t)) t = 'mono';
-    document.documentElement.dataset.accent = t;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', THEMES.find(x => x.id === t).bg);
-  }
-  applyTheme(store.get(THEME_KEY));
+  store.del('dq-theme'); // accent themes were removed; forget any saved choice
 
-  /** Theme cards with a miniature preview of the app in each theme. */
-  function themePicker() {
-    const cur = currentTheme();
-    return `<div class="tcards" role="radiogroup" aria-label="Theme">${THEMES.map(t => `<button type="button" class="tcard${cur === t.id ? ' on' : ''}" data-theme-pick="${t.id}" role="radio" aria-checked="${cur === t.id}">
-      <span class="tprev" style="--pa:${t.acc}" aria-hidden="true"><i class="tp-line"></i><i class="tp-line short"></i><i class="tp-btn"></i></span>
-      <span class="tname"><b>${t.name}${t.id === 'mono' ? ' <small class="tdef">Default</small>' : ''}</b><small>${t.desc}</small></span>
-      <span class="tcheck" aria-hidden="true">${icon('check')}</span>
-    </button>`).join('')}</div>`;
+  /* Light / dark mode. Follows the device setting until the person picks one; the choice is remembered per device.
+     The pages' <head> applies a saved choice before first paint (no flash); this keeps it in sync. */
+  const MODE_KEY = 'dq-mode';
+  const sysLight = () => !!(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+  const mode = () => { const m = store.get(MODE_KEY); return m === 'light' || m === 'dark' ? m : sysLight() ? 'light' : 'dark'; };
+  function applyMode(m) {
+    document.documentElement.dataset.theme = m;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', m === 'light' ? '#F7F7F8' : '#0B0B0D');
   }
+  applyMode(mode());
+  const modeBtn = (cls = '') => {
+    const l = mode() === 'light', label = l ? 'Switch to dark mode' : 'Switch to light mode';
+    return `<button type="button" class="mode-btn ${cls}" data-mode-toggle aria-label="${label}" title="${label}">${icon(l ? 'moon' : 'sun')}</button>`;
+  };
+  const refreshModeBtns = () => document.querySelectorAll('[data-mode-toggle]').forEach(b => { const c = b.className.replace('mode-btn', '').trim(); b.outerHTML = modeBtn(c); });
   document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('[data-theme-pick]');
-    if (!b) return;
-    const t = b.dataset.themePick;
-    store.set(THEME_KEY, t);
-    applyTheme(t);
-    document.querySelectorAll('[data-theme-pick]').forEach(x => { const on = x.dataset.themePick === t; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); });
+    if (!(e.target.closest && e.target.closest('[data-mode-toggle]'))) return;
+    const m = mode() === 'light' ? 'dark' : 'light';
+    store.set(MODE_KEY, m); applyMode(m); refreshModeBtns();
+  });
+  if (window.matchMedia) {
+    const mq = matchMedia('(prefers-color-scheme: light)'), onSys = () => { if (!store.get(MODE_KEY)) { applyMode(mode()); refreshModeBtns(); } };
+    if (mq.addEventListener) mq.addEventListener('change', onSys);
+  }
+
+  /* Collapsing the left menu (both sites): a round arrow button on the menu's right edge. Remembered per device. */
+  const SIDE_KEY = 'dq-side-mini';
+  const sideMini = () => store.get(SIDE_KEY) === true;
+  const sideEdge = () => { const m = sideMini(); return `<button type="button" class="side-edge" data-side="mini" aria-label="${m ? 'Show menu' : 'Hide menu'}" aria-pressed="${m}" title="${m ? 'Show menu' : 'Hide menu'}">${icon(m ? 'chev' : 'chevl')}</button>`; };
+  const toggleMini = () => {
+    const m = !sideMini();
+    store.set(SIDE_KEY, m);
+    document.querySelectorAll('.shell,.admin').forEach(el => el.classList.toggle('mini', m));
+    document.querySelectorAll('.side-edge').forEach(el => { el.outerHTML = sideEdge(); });
+  };
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-side="mini"]')) toggleMini(); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey || !document.querySelector('.side-edge')) return;
+    if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable]')) return;
+    toggleMini();
   });
 
-  return { esc, fmtT, fmtClock, fmtDay, short, fmtWhen, iso, addDays, store, initials, avatar, icon, tile, gauge, miniRing, toast, themePicker };
+  return { modeBtn, sideMini, sideEdge, esc, fmtT, fmtClock, fmtDay, short, fmtWhen, iso, addDays, store, initials, avatar, icon, tile, gauge, miniRing, toast };
 })();

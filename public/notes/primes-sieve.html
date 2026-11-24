@@ -1,0 +1,269 @@
+<!-- Notes: Divisors, Prime Checking and the Sieve of Eratosthenes (Level 1). Fragment: loaded into the student app. -->
+<h2 id="divisors-n">1. Finding all divisors in O(n)</h2>
+<p><b>Definition:</b> <code>d</code> is a divisor of <code>n</code> if <code>n % d == 0</code>.</p>
+<p><b>Idea:</b> Every divisor of <code>n</code> lies between <code>1</code> and <code>n</code>, so we test every number in that range.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+void printDivisorsBrute(int n) {
+    for (int i = 1; i &lt;= n; i++) {
+        if (n % i == 0) {
+            cout &lt;&lt; i &lt;&lt; " ";
+        }
+    }
+    cout &lt;&lt; "\n";
+}
+
+int main() {
+    printDivisorsBrute(36);   // 1 2 3 4 6 9 12 18 36
+    return 0;
+}</code></pre>
+<p><b>Time complexity:</b> O(n). For <code>n = 10^9</code> that is about 10^9 operations, which is too slow (roughly 1 second for every 10^8 simple operations).</p>
+
+<h2 id="divisors-sqrt">2. Finding all divisors in O(√n), optimised</h2>
+<h3>Key observation: divisors come in pairs</h3>
+<p>If <code>i</code> divides <code>n</code>, then <code>n / i</code> also divides <code>n</code>.</p>
+<p>For <code>n = 36</code>:</p>
+<div class="nt-table"><table>
+  <thead><tr><th>i</th><th>n / i</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>36</td></tr>
+    <tr><td>2</td><td>18</td></tr>
+    <tr><td>3</td><td>12</td></tr>
+    <tr><td>4</td><td>9</td></tr>
+    <tr class="hl"><td><b>6</b></td><td><b>6</b></td></tr>
+    <tr class="dim"><td>9</td><td>4 ← repeat</td></tr>
+    <tr class="dim"><td>12</td><td>3 ← repeat</td></tr>
+    <tr class="dim"><td>…</td><td>…</td></tr>
+  </tbody>
+</table></div>
+<p>After <code>i = √36 = 6</code>, the pairs repeat with the two sides swapped.</p>
+
+<h3>Why only up to √n?</h3>
+<p>Take any pair <code>(a, b)</code> with <code>a × b = n</code> and <code>a ≤ b</code>.</p>
+<ul>
+  <li>If <b>both</b> <code>a &gt; √n</code> and <code>b &gt; √n</code>, then <code>a × b &gt; √n × √n = n</code>. That is a contradiction.</li>
+  <li>So the <b>smaller element of every pair is always ≤ √n</b>.</li>
+</ul>
+<p>So if we loop <code>i</code> from <code>1</code> to <code>√n</code>, we meet the smaller element of every pair, and the larger one is simply <code>n / i</code>.</p>
+
+<h3>Special case: perfect squares</h3>
+<p>When <code>i * i == n</code> (for example <code>6 × 6 = 36</code>), <code>i</code> and <code>n / i</code> are the same number. Print it <b>only once</b>.</p>
+
+<h3>Code</h3>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+void printDivisorsOptimal(int n) {
+    vector&lt;int&gt; divs;
+    for (int i = 1; i * i &lt;= n; i++) {          // i &lt;= sqrt(n)
+        if (n % i == 0) {
+            divs.push_back(i);                  // smaller element of the pair
+            if (i != n / i) {
+                divs.push_back(n / i);          // larger element (skip if same)
+            }
+        }
+    }
+    for (int d : divs) cout &lt;&lt; d &lt;&lt; " ";
+    cout &lt;&lt; "\n";
+}
+
+int main() {
+    printDivisorsOptimal(36);   // 1 2 3 4 6 9 12 18 36
+    printDivisorsOptimal(28);   // 1 2 4 7 14 28
+    return 0;
+}</code></pre>
+<aside class="nt-call tip"><b>Tip:</b> Write the condition as <code>i * i &lt;= n</code>, not <code>i &lt;= sqrt(n)</code>. <code>sqrt()</code> works with floating point and can give answers like <code>5.99999</code> instead of <code>6</code>. If <code>n</code> is large (close to <code>INT_MAX</code>), use <code>long long</code> for <code>i</code>, or write the condition as <code>i &lt;= n / i</code>, so that <code>i * i</code> does not overflow.</aside>
+<p><b>Time complexity:</b> O(√n). For <code>n = 10^9</code>, √n ≈ 31,623 operations, which is very fast.</p>
+
+<h2 id="prime-n">3. Prime check, O(n)</h2>
+<p><b>Definition:</b> A prime number is a number <b>greater than 1</b> whose only divisors are <code>1</code> and itself. (<code>1</code> is <b>not</b> prime. <code>2</code> is the only even prime.)</p>
+<p><b>Idea:</b> Count the divisors. A prime has exactly 2.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+bool isPrimeBrute(int n) {
+    int count = 0;
+    for (int i = 1; i &lt;= n; i++) {
+        if (n % i == 0) count++;
+    }
+    return count == 2;
+}
+
+int main() {
+    cout &lt;&lt; isPrimeBrute(13) &lt;&lt; "\n";  // 1
+    cout &lt;&lt; isPrimeBrute(15) &lt;&lt; "\n";  // 0
+    cout &lt;&lt; isPrimeBrute(1)  &lt;&lt; "\n";  // 0
+    return 0;
+}</code></pre>
+<p>A slightly better version checks only <code>2</code> to <code>n - 1</code> and stops at the first divisor it finds:</p>
+<pre><code class="cpp">bool isPrimeBrute2(int n) {
+    if (n &lt; 2) return false;
+    for (int i = 2; i &lt; n; i++) {
+        if (n % i == 0) return false;   // found a divisor other than 1 and n
+    }
+    return true;
+}</code></pre>
+<p><b>Time complexity:</b> O(n).</p>
+
+<h2 id="prime-sqrt">4. Prime check, O(√n), optimised</h2>
+<h3>Why only up to √n?</h3>
+<p>If <code>n</code> is <b>not</b> prime (composite), then <code>n = a × b</code> with <code>1 &lt; a ≤ b &lt; n</code>.</p>
+<p>By the same pair argument as before, <code>a ≤ √n</code>.</p>
+<p>So <b>every composite number has a divisor (other than 1) that is ≤ √n</b>.</p>
+<p>That means:</p>
+<ul>
+  <li>If no divisor exists in <code>[2, √n]</code>, then no divisor exists at all, so <code>n</code> is <b>prime</b>.</li>
+  <li>We never need to look beyond √n.</li>
+</ul>
+<p><b>Example:</b> <code>n = 97</code>, √97 ≈ 9.8. We check 2, 3, 4, 5, 6, 7, 8, 9. None divides 97, so 97 is prime.</p>
+
+<h3>Code</h3>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+bool isPrime(int n) {
+    if (n &lt; 2) return false;                    // 0 and 1 are not prime
+    for (int i = 2; i * i &lt;= n; i++) {          // i &lt;= sqrt(n)
+        if (n % i == 0) return false;
+    }
+    return true;
+}
+
+int main() {
+    cout &lt;&lt; isPrime(97) &lt;&lt; "\n";   // 1
+    cout &lt;&lt; isPrime(91) &lt;&lt; "\n";   // 0  (7 * 13)
+    cout &lt;&lt; isPrime(2)  &lt;&lt; "\n";   // 1
+    return 0;
+}</code></pre>
+<p><b>Time complexity:</b> O(√n) per number.</p>
+
+<h3>The motivation for the sieve</h3>
+<p>To find <b>all primes from 1 to N</b> using <code>isPrime()</code>:</p>
+<pre class="plain"><code>N numbers × O(√N) each  =  O(N √N)</code></pre>
+<p>For <code>N = 10^6</code> this is about 10^9 operations, which is too slow. We need a better method, and that is the <b>Sieve</b>.</p>
+
+<h2 id="sieve">5. Sieve of Eratosthenes</h2>
+<h3>Idea</h3>
+<p>Instead of asking "is this number prime?" for every number separately, we <b>cross out the multiples</b> of each prime. Whatever is never crossed out is prime.</p>
+<ol>
+  <li>Assume every number from <code>2</code> to <code>n</code> is prime (<code>true</code>).</li>
+  <li>Take the first number that is still <code>true</code>. It is prime.</li>
+  <li>Mark all of its multiples as <code>false</code> (not prime).</li>
+  <li>Move to the next number that is still <code>true</code> and repeat.</li>
+</ol>
+
+<h3>Code</h3>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+vector&lt;bool&gt; sieve(int n) {
+    vector&lt;bool&gt; isPrime(n + 1, true);        // step 1: assume all are prime
+    isPrime[0] = isPrime[1] = false;          // 0 and 1 are not prime
+
+    for (int i = 2; (long long)i * i &lt;= n; i++) {      // outer loop up to sqrt(n)
+        if (isPrime[i]) {                               // i is prime
+            for (long long j = (long long)i * i; j &lt;= n; j += i) {  // start at i*i, step by i
+                isPrime[j] = false;                     // mark multiples as composite
+            }
+        }
+    }
+    return isPrime;
+}
+
+int main() {
+    int n = 50;
+    vector&lt;bool&gt; isPrime = sieve(n);
+
+    for (int i = 2; i &lt;= n; i++) {
+        if (isPrime[i]) cout &lt;&lt; i &lt;&lt; " ";
+    }
+    cout &lt;&lt; "\n";
+    // 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47
+    return 0;
+}</code></pre>
+<p class="nt-aside">(In competitive programming people often use a global <code>bool prime[N]</code> or <code>int prime[N]</code> with <code>1</code> / <code>0</code> instead of <code>true</code> / <code>false</code>. The logic is the same.)</p>
+
+<h2 id="dry-run">Dry run for n = 30</h2>
+<p>Start: all of 2 to 30 are <code>true</code>.</p>
+<div class="nt-steps">
+  <p><b>i = 2</b> (prime): mark 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30</p>
+  <p><b>i = 3</b> (prime): start at 3×3 = 9 and mark 9, 12, 15, 18, 21, 24, 27, 30 (6 was already marked by 2, which is why we start at 9.)</p>
+  <p><b>i = 4</b>: already <code>false</code>, skip.</p>
+  <p><b>i = 5</b> (prime): start at 5×5 = 25 and mark 25, 30</p>
+  <p><b>i = 6</b>: 6 × 6 = 36 &gt; 30, so <b>stop the outer loop</b>.</p>
+</div>
+<p>Numbers still <code>true</code>:</p>
+<pre class="plain"><code>2  3  5  7  11  13  17  19  23  29</code></pre>
+<p>These are exactly the primes up to 30.</p>
+
+<h2 id="q1">Q1. Why does the outer loop only go up to √n?</h2>
+<p>From Section 4: <b>every composite number <code>x ≤ n</code> has a prime factor <code>p ≤ √x ≤ √n</code>.</b></p>
+<p>So by the time <code>i</code> passes √n, every composite number up to <code>n</code> has already been crossed out by one of its small prime factors.</p>
+<p>Another way to see it: for any <code>i &gt; √n</code>, the first multiple we would mark is <code>i * i</code>, and <code>i * i &gt; n</code>. So the inner loop would not even run. Going further does no work.</p>
+<p><b>Example (n = 30):</b> √30 ≈ 5.47. After processing 2, 3 and 5, all composites up to 30 are marked. The prime 7 would start marking at 49, which is beyond 30.</p>
+
+<h2 id="q2">Q2. Why does <code>j</code> start from <code>i * i</code> and not <code>2 * i</code>?</h2>
+<p>Look at the multiples of <code>i</code> that are smaller than <code>i * i</code>:</p>
+<pre class="plain"><code>2·i,  3·i,  4·i,  ...,  (i−1)·i</code></pre>
+<p>Each of these is <code>k · i</code> with <code>k &lt; i</code>. The number <code>k</code> has a prime factor <code>p ≤ k &lt; i</code>, and that prime <code>p</code> was <b>already processed earlier</b>, so <code>k · i</code> was <b>already crossed out</b>.</p>
+<p><b>Example with i = 5:</b></p>
+<div class="nt-table"><table>
+  <thead><tr><th>Multiple</th><th>Already marked by</th></tr></thead>
+  <tbody>
+    <tr><td>10 = 2·5</td><td>2</td></tr>
+    <tr><td>15 = 3·5</td><td>3</td></tr>
+    <tr><td>20 = 4·5</td><td>2</td></tr>
+    <tr class="hl"><td><b>25 = 5·5</b></td><td><b>first new one</b></td></tr>
+  </tbody>
+</table></div>
+<p>So <code>i * i</code> is the <b>first multiple of <code>i</code> that might not be marked yet</b>. Starting there avoids repeating work.</p>
+<aside class="nt-call">Starting from <code>2 * i</code> still gives the <b>correct answer</b>. It just does extra work. Starting from <code>i * i</code> is an optimisation.</aside>
+
+<h2 id="q3">Q3. Why <code>j += i</code>?</h2>
+<p>We want to visit <b>only the multiples of <code>i</code></b>:</p>
+<pre class="plain"><code>i·i,  i·i + i,  i·i + 2i,  ...   =   i·i,  i·(i+1),  i·(i+2),  ...</code></pre>
+<p>Adding <code>i</code> each time jumps directly from one multiple of <code>i</code> to the next. Every number we land on is divisible by <code>i</code>, so it is composite and gets marked <code>false</code>.</p>
+<p>If we wrote <code>j++</code>, we would visit every number, including ones that are <b>not</b> multiples of <code>i</code>, and we would wrongly mark primes as composite.</p>
+
+<h2 id="q4">Q4. Why are the numbers still marked <code>true</code> the primes?</h2>
+<p><b>Composite numbers always get marked:</b> A composite number <code>x</code> has a smallest prime factor <code>p</code>, with <code>p ≤ √x</code>. When the outer loop reaches <code>p</code>, it is still <code>true</code> (it is prime), and the inner loop marks multiples of <code>p</code> starting from <code>p²</code>. Since <code>p ≤ √x</code>, we have <code>p² ≤ x</code>, and <code>x</code> is a multiple of <code>p</code>. So <code>x</code> gets marked <code>false</code>.</p>
+<p><b>Primes never get marked:</b> The inner loop only marks numbers of the form <code>i × k</code> with <code>k ≥ i ≥ 2</code>, which have a factor other than 1 and themselves. A prime has no such factor, so it can never be reached and it stays <code>true</code>.</p>
+<p>So at the end:</p>
+<pre class="plain"><code>isPrime[x] == true    ⟺    x is prime</code></pre>
+<p><b>Why is <code>isPrime[i]</code> already correct when we reach <code>i</code> in the outer loop?</b> Every number smaller than <code>i</code> has already been processed. If <code>i</code> were composite, its smallest prime factor <code>p &lt; i</code> would already have crossed it out. So if <code>isPrime[i]</code> is still true when we arrive, nothing smaller divides it, and <code>i</code> <b>must be prime</b>. That is why we only run the inner loop when <code>isPrime[i]</code> is true: marking multiples of a composite would be wasted work, because a smaller prime has already marked them.</p>
+
+<h3>Time and space complexity of the sieve</h3>
+<ul>
+  <li><b>Time:</b> <code>O(n log log n)</code>, which is almost linear. Intuition: the inner loop for prime <code>p</code> runs about <code>n / p</code> times. The total is <code>n × (1/2 + 1/3 + 1/5 + 1/7 + ...)</code>, and the sum of reciprocals of primes up to <code>n</code> grows like <code>log log n</code>.</li>
+  <li><b>Space:</b> <code>O(n)</code> for the array.</li>
+</ul>
+<p>For <code>n = 10^6</code>, log log n ≈ 3, so the sieve takes roughly 3 × 10^6 operations.</p>
+
+<h2 id="summary">6. Complexity Summary</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Task</th><th>Approach</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>All divisors of <code>n</code></td><td>loop 1 to n</td><td>O(n)</td></tr>
+    <tr><td>All divisors of <code>n</code></td><td>loop 1 to √n, use pairs</td><td><b>O(√n)</b></td></tr>
+    <tr><td>Is <code>n</code> prime?</td><td>loop 2 to n−1</td><td>O(n)</td></tr>
+    <tr><td>Is <code>n</code> prime?</td><td>loop 2 to √n</td><td><b>O(√n)</b></td></tr>
+    <tr><td>All primes ≤ N</td><td><code>isPrime()</code> on each number</td><td>O(N√N)</td></tr>
+    <tr class="hl"><td>All primes ≤ N</td><td><b>Sieve of Eratosthenes</b></td><td><b>O(N log log N)</b></td></tr>
+  </tbody>
+</table></div>
+<p><b>When to use what:</b></p>
+<ul>
+  <li>Checking <b>one</b> (or a few) numbers, even up to 10^12: use the √n check.</li>
+  <li>Checking <b>many</b> numbers, or needing all primes up to N (N ≤ about 10^7): precompute once with the sieve, then each query is an O(1) lookup.</li>
+</ul>
+
+<h2 id="mistakes">7. Common Mistakes</h2>
+<ol>
+  <li><b>Treating 1 as prime.</b> Always set <code>isPrime[0] = isPrime[1] = false</code>.</li>
+  <li><b>Using <code>sqrt()</code> in the loop condition.</b> Floating-point error can cause off-by-one bugs. Prefer <code>i * i &lt;= n</code>.</li>
+  <li><b>Overflow in <code>i * i</code>.</b> When <code>n</code> is close to <code>INT_MAX</code>, <code>i * i</code> can overflow <code>int</code>. Use <code>long long</code>, or write <code>i &lt;= n / i</code>.</li>
+  <li><b>Array size <code>n</code> instead of <code>n + 1</code>.</b> We need index <code>n</code> itself.</li>
+  <li><b>Printing a perfect-square divisor twice.</b> Check <code>i != n / i</code>.</li>
+  <li><b>Running the inner loop for composite <code>i</code>.</b> The result is still correct but slower. Always check <code>if (isPrime[i])</code> first.</li>
+</ol>
