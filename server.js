@@ -38,13 +38,14 @@ const students = db.collection('students');  // { roll, name, set }
 const quizzes = db.collection('quizzes');    // question bank: { _id, title, description, topics, duration, questions[] }
 const tests = db.collection('tests');        // scheduled tests: { _id, title, date, start, duration, papers[{ id, quizId, everyone, sets[], rolls[] }] }
 const sets = db.collection('sets');          // admin-only groups: { _id, name, order }
-const attempts = db.collection('attempts');  // { roll, quizId, testId, status: started|submitted, startedAt, deadline, byQ, ans, score, total, secs, at, auto }
+// One attempt per student per TEST (a quiz can be reused in many tests): { roll, testId, quizId, testTitle, status, startedAt, deadline, byQ, ans, score, total, secs, at, auto }
+const attempts = db.collection('attempts');
 const schedule = db.collection('schedule');  // legacy, migrated into tests
 const meta = db.collection('meta');
 await Promise.all([
   students.createIndex({ roll: 1 }, { unique: true }),
-  attempts.createIndex({ roll: 1, quizId: 1 }, { unique: true }),
   attempts.createIndex({ quizId: 1 }),
+  attempts.createIndex({ testId: 1 }),
   attempts.createIndex({ status: 1, deadline: 1 }),
   tests.createIndex({ date: 1, start: 1 }),
 ]);
@@ -106,6 +107,8 @@ const str = (v, max) => String(v ?? '').trim().slice(0, max);
 class Bad extends Error {}
 const cleanName = s => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
 const cleanRoll = s => String(s ?? '').replace(/\s+/g, '').toUpperCase().slice(0, 30);
+/** Hall a student sits in ("5"); leaderboards only rank students of the same hall. Empty = no hall. */
+const cleanHall = s => String(s ?? '').replace(/^\s*hall\s*/i, '').replace(/\s+/g, ' ').trim().slice(0, 20) || null;
 const pct = (a, b) => (b ? a / b : 0);
 const clampMin = v => Math.min(Math.max(Math.round(Number(v) || 0), 1), 600);
 
@@ -201,6 +204,9 @@ function sweepExpired(force = false) {
 }
 setInterval(() => sweepExpired(true), 15_000);
 const isDone = a => a && a.status === 'submitted';
+/** Submitted before the test window closed: the score shows at once, but the answer key, explanations and which
+    questions were right or wrong stay hidden until the window closes (so nobody can pass answers on). */
+const isLocked = a => isDone(a) && a.revealAt && Date.now() < +new Date(a.revealAt);
 
 /* ---------- Who gets which paper ----------
    In a test, a student gets the paper that names them individually, else the paper for their set, else the "everyone else" paper. */
@@ -209,28 +215,32 @@ function paperFor(test, roll, set) {
   return P.find(p => (p.rolls || []).includes(roll)) || (set && P.find(p => (p.sets || []).includes(set))) || P.find(p => p.everyone) || null;
 }
 
-/** What one student can see. open: quizId -> latest opened test item. upcoming: future items.
-    Tests and groups come from memory; the student's own attempts are the only database read. */
+/** What one student can see: every scheduled test that gives them a paper, each one separate (even when two
+    tests reuse the same quiz), titled with the test's name. items: testId -> item. byTest: testId -> attempt.
+    Tests, quizzes and groups come from memory; the student's own attempts are the only database read. */
 async function studentView(s) {
   await sweepExpired();
   const now = Date.now(), t = today();
-  const [T, mine, SETS] = await Promise.all([getTests(), attempts.find({ roll: s.roll }).toArray(), getSets()]);
+  const [T, mine, SETS, Z] = await Promise.all([getTests(), attempts.find({ roll: s.roll }).toArray(), getSets(), getQuizzes()]);
   const group = s.set && SETS.some(x => x._id === s.set) ? s.set : null;
-  const byQuiz = new Map(mine.map(a => [a.quizId, a]));
-  const open = new Map(), up = new Map();
+  const byTest = new Map(mine.map(a => [a.testId, a]));
+  const name = (title, quizId) => title || (Z.get(quizId) || {}).title || 'Test';
+  const items = new Map();
   for (const test of T) {
     const p = paperFor(test, s.roll, group);
     if (!p) continue;
-    const it = { quizId: p.quizId, testId: test._id, paperId: p.id, shuffle: !!p.shuffle, fullscreen: !!test.fullscreen, testTitle: test.title || '', date: test.date, startsAt: startsAt(test), duration: test.duration };
-    if (it.startsAt <= now) { const prev = open.get(it.quizId); if (!prev || it.startsAt > prev.startsAt) open.set(it.quizId, it); }
-    else { const prev = up.get(it.quizId); if (!prev || it.startsAt < prev.startsAt) up.set(it.quizId, it); }
+    const a = byTest.get(test._id);
+    const quizId = a ? a.quizId : p.quizId; // an attempt keeps the paper it started with
+    items.set(test._id, { testId: test._id, quizId, paperId: a ? a.paperId : p.id, shuffle: !!p.shuffle, fullscreen: !!test.fullscreen,
+      title: name(test.title, quizId), date: test.date, startsAt: startsAt(test), duration: test.duration });
   }
-  // A quiz they already started or took stays visible even if the test changes later.
+  // A test they already started or took stays visible even if it is later changed or deleted.
   for (const a of mine) {
-    if (!open.has(a.quizId)) open.set(a.quizId, { quizId: a.quizId, testId: a.testId || null, fullscreen: !!a.fullscreen, date: a.givenDate || dayOf(a.startedAt || a.at), startsAt: +new Date(a.startedAt || a.at), duration: a.duration || DEFAULT_DURATION });
+    if (!items.has(a.testId)) items.set(a.testId, { testId: a.testId, quizId: a.quizId, paperId: a.paperId || null, fullscreen: !!a.fullscreen,
+      title: name(a.testTitle, a.quizId), date: a.givenDate || dayOf(a.startedAt || a.at), startsAt: +new Date(a.startedAt || a.at), duration: a.duration || DEFAULT_DURATION });
   }
-  const upcoming = [...up.values()].filter(u => !open.has(u.quizId) && !byQuiz.has(u.quizId)).sort((a, b) => a.startsAt - b.startsAt);
-  return { now, t, open, upcoming, byQuiz };
+  for (const [id, it] of items) if (!Z.has(it.quizId)) items.delete(id);
+  return { now, t, items, byTest, Z };
 }
 
 const strip = q => ({ id: q.id, t: q.t || '', q: q.q, c: q.c || '', p: !!q.p, o: q.o });
@@ -259,6 +269,7 @@ function orderFor(z, it, a) {
 function attemptJson(a, perm) {
   if (!a) return null;
   if (!isDone(a)) return { status: 'started', startedAt: +new Date(a.startedAt), deadline: +new Date(a.deadline), byQ: a.byQ || {} };
+  if (isLocked(a)) return { status: 'submitted', locked: true, revealAt: +new Date(a.revealAt), score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
   return { status: 'submitted', ans: perm ? perm.map(i => a.ans[i]) : a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
 }
 function stateOf(it, a, now) { return a ? (isDone(a) ? 'done' : 'started') : it.startsAt > now ? 'upcoming' : 'open'; }
@@ -268,14 +279,14 @@ function quizPayload(z, it, a, v) {
   const state = stateOf(it, a, Date.now());
   const perm = orderFor(z, it, a);
   const base = {
-    id: z._id, title: z.title, description: z.description || '', topics: z.topics || {}, topicList: topicList(z),
+    id: it.testId, title: it.title, description: z.description || '', topics: z.topics || {}, topicList: topicList(z),
     count: z.questions.length, duration: it.duration, date: it.date, startsAt: it.startsAt, isToday: it.date === v.t,
     now: Date.now(), state, attempt: attemptJson(a, perm),
     // An attempt keeps the rule it started under (attempts begun before full screen was required aren't held to it).
     fullscreen: a ? !!a.fullscreen : !!it.fullscreen,
   };
   if (state === 'started') base.questions = perm.map(i => strip(z.questions[i]));
-  if (state === 'done') base.questions = perm.map(i => ({ ...strip(z.questions[i]), a: z.questions[i].a, e: z.questions[i].e || '' }));
+  if (state === 'done' && !isLocked(a)) base.questions = perm.map(i => ({ ...strip(z.questions[i]), a: z.questions[i].a, e: z.questions[i].e || '' }));
   return base;
 }
 
@@ -358,6 +369,21 @@ async function startup() {
     }
     await attempts.updateOne({ _id: a._id }, { $set: set });
   }
+
+  // Attempts belong to a test, not a quiz, so the same quiz can be given again in another test.
+  const noTest = await attempts.find({ $or: [{ testId: { $exists: false } }, { testId: null }] }).toArray();
+  if (noTest.length) {
+    const T = await tests.find({}).sort({ date: 1, start: 1 }).toArray();
+    const S = new Map((await students.find({}).toArray()).map(s => [s.roll, s]));
+    for (const a of noTest) {
+      const s = S.get(a.roll);
+      const t = T.find(x => { const p = paperFor(x, a.roll, s ? s.set : null); return p && p.quizId === a.quizId; });
+      await attempts.updateOne({ _id: a._id }, { $set: { testId: t ? t._id : 'old-' + a.quizId } });
+    }
+    console.log(`Linked ${noTest.length} older attempt(s) to their tests`);
+  }
+  if ((await attempts.indexes()).some(ix => ix.name === 'roll_1_quizId_1')) await attempts.dropIndex('roll_1_quizId_1');
+  await attempts.createIndex({ roll: 1, testId: 1 }, { unique: true });
 }
 
 /* ---------- Admin auth ---------- */
@@ -461,86 +487,91 @@ app.post('/api/login', async (req, res) => {
 
 // Everything for the student's home, upcoming and past pages. Sets and paper names are never sent.
 app.get('/api/home', auth, async (req, res) => {
-  const [v, Z] = await Promise.all([studentView(req.student), getQuizzes()]);
+  const v = await studentView(req.student);
   const item = it => {
-    const z = Z.get(it.quizId);
-    if (!z) return null;
-    const a = v.byQuiz.get(it.quizId);
-    const s = stateOf(it, a, v.now);
+    const z = v.Z.get(it.quizId), a = v.byTest.get(it.testId);
     return {
-      id: z._id, title: z.title, description: z.description || '', topics: topicList(z), count: z.questions.length,
-      date: it.date, startsAt: it.startsAt, duration: it.duration, isToday: it.date === v.t, state: s,
-      attempt: a ? (!isDone(a) ? { deadline: +new Date(a.deadline) } : { score: a.score, total: a.total, at: a.at, auto: !!a.auto }) : null,
+      id: it.testId, title: it.title, description: z.description || '', topics: topicList(z), count: z.questions.length,
+      date: it.date, startsAt: it.startsAt, duration: it.duration, fullscreen: !!it.fullscreen, isToday: it.date === v.t, state: stateOf(it, a, v.now),
+      attempt: a ? (!isDone(a) ? { deadline: +new Date(a.deadline) } : { score: a.score, total: a.total, at: a.at, auto: !!a.auto, ...(isLocked(a) ? { locked: true, revealAt: +new Date(a.revealAt) } : {}) }) : null,
     };
   };
   res.json({
     now: Date.now(), today: v.t, me: { name: req.student.name, roll: req.student.roll },
-    items: [...[...v.open.values()].map(item), ...v.upcoming.map(item)].filter(Boolean).sort((a, b) => b.startsAt - a.startsAt),
+    items: [...v.items.values()].map(item).sort((a, b) => b.startsAt - a.startsAt),
   });
 });
 
+/** The test (by test id) as this student may open it; sends the error response itself when it can't. */
 async function findForStudent(req, res) {
   const id = String(req.params.id);
   const v = await studentView(req.student);
-  const it = v.open.get(id);
-  if (!it) {
-    const u = v.upcoming.find(x => x.quizId === id);
-    if (u) res.status(403).json({ error: 'This quiz has not started yet.', startsAt: u.startsAt, now: Date.now() });
-    else res.status(404).json({ error: 'This quiz is not available to you.' });
-    return null;
-  }
-  const z = (await getQuizzes()).get(id);
-  if (!z) { res.status(404).json({ error: 'This quiz is not available to you.' }); return null; }
-  return { id, v, it, z, a: v.byQuiz.get(id) };
+  const it = v.items.get(id);
+  if (!it) { res.status(404).json({ error: 'This test is not available to you.' }); return null; }
+  const a = v.byTest.get(id);
+  if (!a && it.startsAt > v.now) { res.status(403).json({ error: 'This test has not started yet.', startsAt: it.startsAt, now: Date.now() }); return null; }
+  return { id, v, it, z: v.Z.get(it.quizId), a };
 }
 
-app.get('/api/quizzes/:id', auth, async (req, res) => {
+app.get('/api/tests/:id', auth, async (req, res) => {
   const f = await findForStudent(req, res);
   if (f) res.json(quizPayload(f.z, f.it, f.a, f.v));
 });
 
 // Start the clock. Questions are only sent from here on.
-app.post('/api/quizzes/:id/start', auth, async (req, res) => {
+app.post('/api/tests/:id/start', auth, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
   let a = f.a;
   if (!a) {
     const now = new Date();
-    a = { roll: req.student.roll, name: req.student.name, quizId: f.id, testId: f.it.testId, givenDate: f.it.date, duration: f.it.duration,
+    a = { roll: req.student.roll, name: req.student.name, testId: f.id, quizId: f.it.quizId, testTitle: f.it.title, givenDate: f.it.date, duration: f.it.duration,
       status: 'started', startedAt: now, deadline: new Date(+now + f.it.duration * 60_000), byQ: {},
+      // Results unlock when the test window (start + duration) closes; anyone starting after that sees them at once.
+      revealAt: new Date(f.it.startsAt + f.it.duration * 60_000),
       paperId: f.it.paperId || null, order: orderFor(f.z, f.it, null).map(i => f.z.questions[i].id), fullscreen: !!f.it.fullscreen, flags: {} };
     try { await attempts.insertOne(a); }
-    catch (e) { if (e.code !== 11000) throw e; a = await attempts.findOne({ roll: req.student.roll, quizId: f.id }); }
+    catch (e) { if (e.code !== 11000) throw e; a = await attempts.findOne({ roll: req.student.roll, testId: f.id }); }
   }
   res.json(quizPayload(f.z, f.it, a, f.v));
 });
 
 // Save one answer as the student goes, so time running out never loses work.
-// The hot path during a test: one atomic database write per answer.
-app.post('/api/quizzes/:id/answer', auth, async (req, res) => {
-  const id = String(req.params.id), roll = req.student.roll;
-  const z = (await getQuizzes()).get(id);
-  const q = z && z.questions.find(x => x.id === req.body?.qid);
+// The hot path during a test: normally one atomic database write per answer (the paper is worked out in memory).
+app.post('/api/tests/:id/answer', auth, async (req, res) => {
+  const id = String(req.params.id), s = req.student, roll = s.roll;
+  const [T, SETS, Z] = await Promise.all([getTests(), getSets(), getQuizzes()]);
+  const test = T.find(x => x._id === id);
+  const p = test && paperFor(test, roll, s.set && SETS.some(x => x._id === s.set) ? s.set : null);
   const c = Number(req.body?.choice);
-  if (!q || !Number.isInteger(c) || c < -1 || c >= q.o.length) return res.status(400).json({ error: 'Bad answer.' });
-  // Lands only while the attempt is still running and inside its time (plus a little grace for the network).
-  const r = await attempts.updateOne(
-    { roll, quizId: id, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } },
-    c < 0 ? { $unset: { [`byQ.${q.id}`]: '' } } : { $set: { [`byQ.${q.id}`]: c } });
-  if (r.matchedCount) return res.json({ ok: true });
-  const a = await attempts.findOne({ roll, quizId: id }, { projection: { status: 1 } });
+  const write = async quizId => {
+    const z = Z.get(quizId), q = z && z.questions.find(x => x.id === req.body?.qid);
+    if (!q || !Number.isInteger(c) || c < -1 || c >= q.o.length) return null;
+    // Lands only while the attempt is still running and inside its time (plus a little grace for the network).
+    const r = await attempts.updateOne({ roll, testId: id, quizId, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } },
+      c < 0 ? { $unset: { [`byQ.${q.id}`]: '' } } : { $set: { [`byQ.${q.id}`]: c } });
+    return r.matchedCount > 0;
+  };
+  let ok = p ? await write(p.quizId) : null;
+  if (ok) return res.json({ ok: true });
+  const a = await attempts.findOne({ roll, testId: id }, { projection: { status: 1, quizId: 1 } });
+  if (a && a.status === 'started' && (!p || a.quizId !== p.quizId)) { // the test was edited after this student started
+    ok = await write(a.quizId);
+    if (ok) return res.json({ ok: true });
+  }
+  if (ok === null && a && a.status === 'started') return res.status(400).json({ error: 'Bad answer.' });
   if (a && a.status === 'started') await finalize(a, true); // its time ran out
-  res.status(409).json({ error: a && a.status === 'started' ? "Time's up. Your answers were submitted." : 'This quiz is no longer running.', done: true });
+  res.status(409).json({ error: a && a.status === 'started' ? "Time's up. Your answers were submitted." : 'This test is no longer running.', done: true });
 });
 
 // Full-screen tests: the page reports when a student comes back to a running test without full screen (reload/crash).
-app.post('/api/quizzes/:id/flag', auth, async (req, res) => {
+app.post('/api/tests/:id/flag', auth, async (req, res) => {
   if (req.body?.type !== 'reload') return res.status(400).json({ error: 'Unknown flag.' });
-  await attempts.updateOne({ roll: req.student.roll, quizId: String(req.params.id), status: 'started' }, { $inc: { 'flags.reload': 1 } });
+  await attempts.updateOne({ roll: req.student.roll, testId: String(req.params.id), status: 'started' }, { $inc: { 'flags.reload': 1 } });
   res.json({ ok: true });
 });
 
-app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
+app.post('/api/tests/:id/submit', auth, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
   let a = f.a;
@@ -563,15 +594,16 @@ app.post('/api/quizzes/:id/submit', auth, async (req, res) => {
 });
 
 // Leaderboards show names only. Roll numbers sign students in, so they are never shown to other students.
-/** Ranked rows for the overall board (quizId null) or one quiz. Computed at most every 10 s and cleared on every submit. */
-function boardRows(quizId) {
-  return cachedGet('lb:' + (quizId || '*'), 10_000, async () => {
+/** Ranked rows for one hall: the overall board (testId null) or one test. Only students who took it appear.
+    Live: updated on every submit (computed at most every 10 s, cleared on every submit). */
+function boardRows(testId, hall) {
+  return cachedGet(`lb:${testId || '*'}:${hall ?? '-'}`, 10_000, async () => {
     const [list, S] = await Promise.all([
-      attempts.find(quizId ? { quizId, status: 'submitted' } : { status: 'submitted' }, { projection: { roll: 1, score: 1, total: 1, secs: 1 } }).toArray(),
-      students.find({}, { projection: { roll: 1, name: 1 } }).toArray(),
+      attempts.find(testId ? { testId, status: 'submitted' } : { status: 'submitted' }, { projection: { roll: 1, score: 1, total: 1, secs: 1 } }).toArray(),
+      students.find({}, { projection: { roll: 1, name: 1, hall: 1 } }).toArray(),
     ]);
-    const names = new Map(S.map(s => [s.roll, s.name]));
-    if (quizId) {
+    const names = new Map(S.filter(s => (s.hall || null) === (hall || null)).map(s => [s.roll, s.name]));
+    if (testId) {
       return rankRows(list.filter(a => names.has(a.roll)).sort((a, b) => b.score - a.score || a.secs - b.secs), (a, b) => a.score === b.score && a.secs === b.secs)
         .map(r => ({ roll: r.roll, rank: r.rank, name: names.get(r.roll), score: r.score, total: r.total, secs: r.secs }));
     }
@@ -589,23 +621,24 @@ function boardRows(quizId) {
 // Roll numbers sign students in, so they are stripped before rows leave the server.
 const forViewer = (rows, roll) => rows.map(({ roll: r, ...x }) => ({ ...x, me: r === roll }));
 
+const testBrief = (v, it) => ({ id: it.testId, title: it.title, date: it.date, startsAt: it.startsAt, total: v.Z.get(it.quizId).questions.length, isToday: it.date === v.t });
+
 app.get('/api/leaderboard', auth, async (req, res) => {
-  const [v, Z, rows] = await Promise.all([studentView(req.student), getQuizzes(), boardRows(null)]);
+  const [v, rows] = await Promise.all([studentView(req.student), boardRows(null, req.student.hall || null)]);
   res.json({
-    quizzes: [...v.open.keys()].map(id => Z.get(id)).filter(Boolean)
-      .map(z => ({ id: z._id, title: z.title, date: v.open.get(z._id).date, total: z.questions.length, isToday: v.open.get(z._id).date === v.t }))
-      .sort((a, b) => b.date.localeCompare(a.date)),
+    hall: req.student.hall || null,
+    tests: [...v.items.values()].filter(it => it.startsAt <= v.now).map(it => testBrief(v, it)).sort((a, b) => b.startsAt - a.startsAt),
     rows: forViewer(rows, req.student.roll),
   });
 });
 
 app.get('/api/leaderboard/:id', auth, async (req, res) => {
   const id = String(req.params.id);
-  const [v, Z] = await Promise.all([studentView(req.student), getQuizzes()]);
-  const it = v.open.get(id), z = it && Z.get(id);
-  if (!z) return res.status(404).json({ error: 'This quiz is not available to you.' });
-  const rows = await boardRows(id);
-  res.json({ quiz: { id, title: z.title, date: it.date, total: z.questions.length, isToday: it.date === v.t }, rows: forViewer(rows, req.student.roll) });
+  const v = await studentView(req.student);
+  const it = v.items.get(id);
+  if (!it || it.startsAt > v.now) return res.status(404).json({ error: 'This test is not available to you.' });
+  const rows = await boardRows(id, req.student.hall || null);
+  res.json({ hall: req.student.hall || null, test: testBrief(v, it), rows: forViewer(rows, req.student.roll) });
 });
 
 /* ===== Admin ===== */
@@ -640,7 +673,7 @@ async function adminState() {
   const groupOf = s => (s.set && setIds.has(s.set) ? s.set : null);
   const setName = new Map(SETS.map(s => [s._id, s.name]));
   const title = new Map(Z.map(z => [z._id, z.title]));
-  const att = new Map(A.map(a => [`${a.roll}|${a.quizId}`, a]));
+  const att = new Map(A.map(a => [`${a.roll}|${a.testId}`, a]));
   const who = new Map(); // testId -> [{ s, paper }]
   for (const test of T) who.set(test._id, S.map(s => ({ s, paper: paperFor(test, s.roll, groupOf(s)) })).filter(x => x.paper));
   const audience = new Map(); // quizId -> Set(roll) over tests that have started
@@ -656,12 +689,13 @@ function testJson(st, test) {
     id: test._id, title: test.title || '', date: test.date, start: test.start, duration: test.duration, fullscreen: !!test.fullscreen, startsAt: startsAt(test), status: testStatus(test, st.now),
     papers: (test.papers || []).map(p => {
       const mine = list.filter(x => x.paper === p);
-      const sub = mine.filter(x => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return a && a.status === 'submitted'; });
+      const att = x => st.att.get(`${x.s.roll}|${test._id}`);
+      const sub = mine.filter(x => { const a = att(x); return a && a.status === 'submitted'; });
       return {
         id: p.id, quizId: p.quizId, quizTitle: st.title.get(p.quizId) || 'Deleted quiz', everyone: !!p.everyone, shuffle: !!p.shuffle, sets: p.sets || [], rolls: p.rolls || [],
         count: mine.length, submitted: sub.length,
-        started: mine.filter(x => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return a && !isDone(a); }).length,
-        avgPct: sub.length ? Math.round(sub.reduce((n, x) => { const a = st.att.get(`${x.s.roll}|${p.quizId}`); return n + pct(a.score, a.total); }, 0) / sub.length * 100) : null,
+        started: mine.filter(x => { const a = att(x); return a && !isDone(a); }).length,
+        avgPct: sub.length ? Math.round(sub.reduce((n, x) => { const a = att(x); return n + pct(a.score, a.total); }, 0) / sub.length * 100) : null,
       };
     }),
     unassigned: st.S.length - list.length,
@@ -697,6 +731,20 @@ app.get('/api/admin/overview', async (req, res) => {
     nextTests: T.filter(x => startsAt(x) > now && x.date !== t).slice(0, 4).map(x => testJson(st, x)),
     quizzes: quizList,
   });
+});
+
+/* ----- Leaderboard (hall by hall, only students who took it) ----- */
+const hallSort = (a, b) => (a === null) - (b === null) || String(a).localeCompare(String(b), undefined, { numeric: true });
+app.get('/api/admin/leaderboard', async (req, res) => {
+  const [S, T] = await Promise.all([students.find({}, { projection: { hall: 1 } }).toArray(), getTests()]);
+  const counts = new Map();
+  for (const s of S) counts.set(s.hall || null, (counts.get(s.hall || null) || 0) + 1);
+  const halls = [...counts.keys()].sort(hallSort).map(id => ({ id, students: counts.get(id) }));
+  const hall = req.query.hall === undefined ? (halls[0] ? halls[0].id : null) : cleanHall(req.query.hall);
+  const now = Date.now();
+  const testList = T.filter(t => startsAt(t) <= now).sort((a, b) => startsAt(b) - startsAt(a)).map(t => ({ id: t._id, title: t.title || 'Untitled test', date: t.date, start: t.start }));
+  const testId = req.query.test && testList.some(t => t.id === req.query.test) ? String(req.query.test) : null;
+  res.json({ now, halls, hall, tests: testList, test: testId, rows: await boardRows(testId, hall) });
 });
 
 /* ----- Tests (scheduling) ----- */
@@ -736,6 +784,7 @@ async function normalizeTest(b) {
     return out;
   });
   if (everyone > 1) throw new Bad('Only one paper can go to "everyone else".');
+  if (!str(b.title, 80)) throw new Bad('Give the test a name. Students see it.');
   return { title: str(b.title, 80), date, start, duration, fullscreen: b.fullscreen === undefined ? true : !!b.fullscreen, papers };
 }
 
@@ -779,11 +828,13 @@ app.get('/api/admin/quizzes/:id', async (req, res) => {
   const L = st.A.filter(a => a.quizId === id);
   const done = L.filter(a => a.status === 'submitted');
   const touched = new Set(L.map(a => a.roll));
+  const testName = new Map(st.T.map(x => [x._id, x.title || '']));
+  const tName = a => testName.get(a.testId) || a.testTitle || z.title;
   res.json({
     quiz: { id, title: z.title, description: z.description || '', topics: z.topics || {}, duration: z.duration || DEFAULT_DURATION, questions: z.questions, updatedAt: z.updatedAt },
     today: st.t, sets: setList(st),
     tests: st.T.filter(x => (x.papers || []).some(p => p.quizId === id)).map(x => ({ id: x._id, title: x.title || '', date: x.date, start: x.start, status: testStatus(x, st.now) })),
-    attempts: done.map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, set: s ? st.groupOf(s) : null, ans: a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0, late: a.givenDate ? dayOf(a.at) > a.givenDate : false }; }),
+    attempts: done.map(a => { const s = student.get(a.roll); return { roll: a.roll, testId: a.testId, testTitle: tName(a), name: s ? s.name : a.name, set: s ? st.groupOf(s) : null, ans: a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0, late: a.givenDate ? dayOf(a.at) > a.givenDate : false }; }),
     inProgress: L.filter(a => !isDone(a)).map(a => { const s = student.get(a.roll); return { roll: a.roll, name: s ? s.name : a.name, deadline: a.deadline }; }),
     notTaken: [...(st.audience.get(id) || [])].filter(r => !touched.has(r) && student.has(r)).map(r => { const s = student.get(r); return { roll: r, name: s.name, set: st.groupOf(s) }; }).sort((a, b) => a.name.localeCompare(b.name)),
   });
@@ -825,8 +876,9 @@ app.delete('/api/admin/quizzes/:id', async (req, res) => {
   res.json({ deleted: true, attemptsDeleted: a.deletedCount });
 });
 
-app.delete('/api/admin/quizzes/:id/attempts/:roll', async (req, res) => {
-  const r = await attempts.deleteOne({ quizId: String(req.params.id), roll: cleanRoll(req.params.roll) });
+// Allow a retake: remove one student's attempt at one test.
+app.delete('/api/admin/tests/:id/attempts/:roll', async (req, res) => {
+  const r = await attempts.deleteOne({ testId: String(req.params.id), roll: cleanRoll(req.params.roll) });
   invalidate('lb');
   if (!r.deletedCount) return res.status(404).json({ error: 'That attempt was not found.' });
   res.json({ deleted: true });
@@ -834,7 +886,7 @@ app.delete('/api/admin/quizzes/:id/attempts/:roll', async (req, res) => {
 
 /* ----- Day-wise results: every test on a date, every student, whatever their set ----- */
 function cellFor(st, test, s, paper) {
-  const a = st.att.get(`${s.roll}|${paper.quizId}`);
+  const a = st.att.get(`${s.roll}|${test._id}`);
   const at0 = startsAt(test);
   const base = { testId: test._id, quizId: paper.quizId };
   if (a && a.status === 'submitted') return { ...base, state: 'done', score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0, late: dayOf(a.at) > test.date };
@@ -952,9 +1004,10 @@ app.get('/api/admin/students', async (req, res) => {
   }
   res.json({
     sets: setList(st),
+    halls: [...new Set(st.S.map(s => s.hall || null))].sort(hallSort),
     students: st.S.map(s => {
       const r = by.get(s.roll) || { taken: 0, points: 0, possible: 0, last: null };
-      return { name: s.name, roll: s.roll, set: st.groupOf(s), createdAt: s.createdAt, lastLoginAt: s.lastLoginAt, taken: r.taken, points: r.points, avgPct: r.possible ? Math.round(r.points / r.possible * 100) : null, lastAttempt: r.last };
+      return { name: s.name, roll: s.roll, set: st.groupOf(s), hall: s.hall || null, createdAt: s.createdAt, lastLoginAt: s.lastLoginAt, taken: r.taken, points: r.points, avgPct: r.possible ? Math.round(r.points / r.possible * 100) : null, lastAttempt: r.last };
     }).sort((a, b) => a.roll.localeCompare(b.roll)),
   });
 });
@@ -974,9 +1027,11 @@ app.post('/api/admin/import', async (req, res) => {
   }
   let added = 0, updated = 0;
   const now = new Date();
+  const hall = cleanHall(req.body?.hall);
   for (const [roll, name] of rows) {
     const $set = { name };
     if (set !== null) $set.set = set;
+    if (hall) $set.hall = hall;
     const r = await students.updateOne({ roll }, { $set, $setOnInsert: { roll, createdAt: now, ...(set === null ? { set: null } : {}) } }, { upsert: true });
     if (r.upsertedCount) added++; else if (r.modifiedCount) updated++;
   }
@@ -988,15 +1043,17 @@ app.get('/api/admin/students/:roll', async (req, res) => {
   const roll = cleanRoll(req.params.roll);
   const s = await students.findOne({ roll });
   if (!s) return res.status(404).json({ error: 'Student not found.' });
-  const [v, title, SETS] = await Promise.all([studentView(s), getQuizzes(), getSets()]);
+  const [v, SETS] = await Promise.all([studentView(s), getSets()]);
+  const all = [...v.items.values()];
   res.json({
-    student: { name: s.name, roll: s.roll, set: s.set && SETS.some(x => x._id === s.set) ? s.set : null, createdAt: s.createdAt, lastLoginAt: s.lastLoginAt },
+    student: { name: s.name, roll: s.roll, set: s.set && SETS.some(x => x._id === s.set) ? s.set : null, hall: s.hall || null, createdAt: s.createdAt, lastLoginAt: s.lastLoginAt },
     sets: SETS.map(x => ({ id: x._id, name: x.name })),
-    quizzes: [...v.open.values()].filter(it => title.has(it.quizId)).map(it => {
-      const z = title.get(it.quizId), a = v.byQuiz.get(it.quizId);
-      return { id: z._id, title: z.title, date: it.date, startsAt: it.startsAt, total: z.questions.length, state: a ? (isDone(a) ? 'done' : 'started') : 'open', attempt: isDone(a) ? { score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto } : null };
+    quizzes: all.filter(it => it.startsAt <= v.now || v.byTest.has(it.testId)).map(it => {
+      const z = v.Z.get(it.quizId), a = v.byTest.get(it.testId);
+      return { id: it.testId, quizId: it.quizId, title: it.title, quizTitle: z.title, date: it.date, startsAt: it.startsAt, total: z.questions.length, state: a ? (isDone(a) ? 'done' : 'started') : 'open', attempt: isDone(a) ? { score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto } : null };
     }).sort((a, b) => b.startsAt - a.startsAt),
-    upcoming: v.upcoming.filter(it => title.has(it.quizId)).map(it => ({ id: it.quizId, title: title.get(it.quizId).title, date: it.date, startsAt: it.startsAt, duration: it.duration })),
+    upcoming: all.filter(it => it.startsAt > v.now && !v.byTest.has(it.testId)).sort((a, b) => a.startsAt - b.startsAt)
+      .map(it => ({ id: it.testId, title: it.title, date: it.date, startsAt: it.startsAt, duration: it.duration })),
   });
 });
 
@@ -1009,6 +1066,7 @@ app.patch('/api/admin/students/:roll', async (req, res) => {
     $set.name = name;
   }
   if (req.body?.set !== undefined) { try { $set.set = await checkSet(req.body.set); } catch (e) { return res.status(400).json({ error: e.message }); } }
+  if (req.body?.hall !== undefined) $set.hall = cleanHall(req.body.hall);
   const r = await students.updateOne({ roll }, { $set });
   if (!r.matchedCount) return res.status(404).json({ error: 'Student not found.' });
   if ($set.name) await attempts.updateMany({ roll }, { $set: { name: $set.name } });

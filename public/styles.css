@@ -84,8 +84,8 @@ select.input{appearance:none;padding-right:36px;background-image:url("data:image
 select.input option{background:var(--panel);color:var(--ink)}
 input[type=date].input,input[type=time].input{color-scheme:dark}
 .err{color:var(--bad);font-size:13.5px}
-.check{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;color:var(--ink-2)}
-.check input{width:18px;height:18px;accent-color:var(--acc);margin:0}
+.check{display:inline-flex;align-items:flex-start;gap:10px;font-size:13.5px;line-height:1.5;cursor:pointer;color:var(--ink-2)}
+.check input{flex:none;width:18px;height:18px;accent-color:var(--acc);margin:1px 0 0}
 
 /* ---------- Small parts ---------- */
 .badge{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap;line-height:1.6}
@@ -185,7 +185,7 @@ table.table{width:100%;border-collapse:collapse;font-size:14px}
 @keyframes sk{to{background-position:-200% 0}}
 
 /* =================== App shell (student + admin) =================== */
-.shell,.admin{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh;min-height:100dvh}
+.shell,.admin{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);align-content:start;min-height:100vh;min-height:100dvh}
 .side,.side.card{position:sticky;top:0;height:100vh;height:100dvh;display:flex;flex-direction:column;gap:2px;padding:20px 14px;overflow-y:auto;scrollbar-width:none;background:var(--bg);border:0;border-right:1px solid var(--line);border-radius:0}
 .side::-webkit-scrollbar{display:none}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 20px;font-weight:600;font-size:14px;letter-spacing:-.01em;color:var(--ink);text-decoration:none}
@@ -215,7 +215,9 @@ table.table{width:100%;border-collapse:collapse;font-size:14px}
 .topbar .when{font-family:var(--mono);font-size:12px}
 .content{width:100%;max-width:1040px;padding:40px 32px 64px;display:grid;gap:28px;align-content:start}
 .amain{display:grid;gap:22px;align-content:start;padding:36px 32px 64px;max-width:1200px;width:100%}
-.mtop,.bnav{display:none}
+.mtop,.bnav,.amtop,.scrim,.side-x{display:none}
+.side-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+@keyframes fade{from{opacity:0}}
 .page-head{display:grid;gap:8px}
 .page-head.row,.ahead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .page-head h1,.ahead h1{font-size:clamp(26px,3vw,34px);letter-spacing:-.03em}
@@ -559,26 +561,31 @@ a.rrow:hover{background:var(--panel-2)}
   .shell .side{display:none}
   .mtop{display:flex;position:sticky;top:0;z-index:20;align-items:center;justify-content:space-between;gap:10px;min-height:56px;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));background:var(--bg);border-bottom:1px solid var(--line)}
   .mtop .brand{padding:0}
-  .mtop .who{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--mute);font-family:var(--mono);font-size:11px}
+  .mtop .who{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--mute);font-family:var(--mono);font-size:11px;min-height:44px}
+  .mtop .who>span:first-child{display:none}
   .topbar{display:none}
   .content{padding:24px max(16px,env(safe-area-inset-right,0px)) calc(96px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:22px}
   .bnav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:30;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}
-  .bnav a{display:grid;justify-items:center;gap:3px;padding:7px 0;border-radius:8px;color:var(--faint);text-decoration:none;font-size:11px;font-weight:500}
+  .bnav a{position:relative;display:grid;justify-items:center;gap:3px;min-height:48px;padding:7px 0 5px;border-radius:8px;color:var(--faint);text-decoration:none;font-size:11px;font-weight:500}
   .bnav a svg{width:20px;height:20px}
   .bnav a.on{color:var(--ink)}
+  .bnav a.on::before{content:"";position:absolute;top:-7px;left:50%;width:28px;height:2px;margin-left:-14px;border-radius:2px;background:var(--acc)}
   .bnav a.on svg{color:var(--acc)}
   .toasts{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   .panel,.pad{padding:20px}
   .hero h1{font-size:34px}
   /* admin: sticky top bar with scrolling tabs */
-  .admin .side,.admin .side.card{position:sticky;top:0;z-index:20;height:auto;flex-direction:row;align-items:center;gap:4px;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line)}
-  .admin .side .brand{padding:0 8px 0 0}
-  .admin .side .brand>span:last-child{display:none}
-  .admin .side>*{flex:none}
-  .admin .side .nv{flex:none;white-space:nowrap}
-  .admin .nv-bottom{margin:0}
-  .admin .side .foot{margin:0 0 0 auto;padding:0;border:0;flex-direction:row}
-  .admin .side .foot .em{display:none}
+  /* admin: top bar + slide-out menu */
+  .amtop{display:flex;position:sticky;top:0;z-index:30;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));background:var(--bg);border-bottom:1px solid var(--line)}
+  .amtop .brand{padding:0;font-size:15px}
+  .amenu{min-height:38px;gap:6px}
+  .admin .side,.admin .side.card{position:fixed;top:0;left:0;bottom:0;z-index:50;width:min(300px,86vw);height:100vh;height:100dvh;padding:14px 12px calc(16px + env(safe-area-inset-bottom,0px));border-right:1px solid var(--line-2);transform:translateX(-102%);visibility:hidden;transition:transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s linear .22s}
+  .admin.menu-open .side{transform:none;visibility:visible;transition:transform .22s cubic-bezier(.2,.8,.2,1);box-shadow:24px 0 60px -10px #000}
+  .admin.menu-open .scrim{display:block;position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.6);animation:fade .2s ease-out}
+  .side-x{display:inline-flex}
+  .admin .side .side-top .brand{padding:4px 8px}
+  .admin .side .side-top{padding-bottom:14px}
+  .admin .nv{min-height:44px;font-size:15px}
   .amain{padding:22px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));gap:18px}
   .g12{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .g12>*{grid-column:span 2}
@@ -609,7 +616,9 @@ a.rrow:hover{background:var(--panel-2)}
   .rvx-h{padding:14px 16px;gap:10px}
   .rvx-h .n{width:34px}
   .lb-head,.lb-row{grid-template-columns:32px minmax(0,1fr) 64px;padding:12px 16px}
-  .lb-sc .progress,.lb-head .h-sc{display:none}
+  .lb-sc .progress{display:none}
+  .lb-head .h-sc{text-align:right}
+  .lb-sc{justify-content:flex-end}
   .lb-t{display:none}
   .rrow{grid-template-columns:minmax(0,1fr) auto;padding:14px 16px;gap:8px 12px}
   .rrow .date-b{display:none}
@@ -627,6 +636,23 @@ a.rrow:hover{background:var(--panel-2)}
   .table.stackable td::before{content:attr(data-l);color:var(--mute);font-size:12px;text-align:left}
   .table.stackable td[data-l=""]::before{content:none}
   .profile-head .btn{width:100%}
+  /* segmented filters scroll sideways instead of wrapping onto a ragged second line */
+  .seg{flex-wrap:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button,.seg a{flex:none;white-space:nowrap}
+  .toolbar>.seg,.section-head .seg{align-self:stretch}
+  /* groups: columns stack (drag-and-drop is a desktop gesture; tap to select, then "Move to") */
+  .board{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:minmax(0,1fr);overflow:visible}
+  .col{min-height:0}
+  .selbar{top:64px}
+  /* sticky save bar: status on top, full-width buttons below */
+  .savebar{bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:12px;gap:8px}
+  .savebar p{flex:1 1 100%}
+  .savebar .spacer{display:none}
+  .savebar .btn{flex:1 1 auto}
+  .ahead .row{width:100%}
+  .ahead .row .btn{flex:1 1 auto}
+  .card-head{align-items:flex-start}
 }
 @media (max-width:480px){
   .pal-grid{grid-template-columns:repeat(8,minmax(0,1fr))}

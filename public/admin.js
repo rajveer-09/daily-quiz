@@ -16,7 +16,10 @@ const V = {
   sel: new Set(), renaming: null,
   showImport: false, importText: '', importSet: '', importRes: null,
   dayView: 'day', pick: null, pickQ: '', preview: 'all',
+  lbHall: undefined, lbTest: '', importHall: '',
 };
+const hallName = h => h === null || h === undefined || h === '' ? 'No hall' : /^\d+$/.test(h) ? 'Hall ' + h : h;
+const loadBoard = () => api('/api/admin/leaderboard?' + new URLSearchParams({ ...(V.lbHall !== undefined ? { hall: V.lbHall ?? '' } : {}), test: V.lbTest || '' }));
 let navSeq = 0, lastHash = location.hash, skipHash = false;
 const now = () => Date.now() + V.skew;
 
@@ -48,7 +51,7 @@ function route() {
   }
   lastHash = location.hash;
   const h = location.hash.slice(1) || '/';
-  V.confirm = ''; V.msg = '';
+  V.confirm = ''; V.msg = ''; V.menu = false; document.body.style.overflow = '';
   if (!session) {
     if (h !== '/login') { location.replace('#/login'); return; }
     navSeq++; Object.assign(V, { page: 'login', loading: false, err: '', data: null }); render(); return;
@@ -76,6 +79,7 @@ function route() {
     });
   }
   if (h === '/appearance') return load('appearance', async () => ({}));
+  if (h === '/leaderboard') return load('board', loadBoard);
   if (h === '/groups') return load('sets', () => api('/api/admin/sets'));
   if (h === '/students') return load('students', () => api('/api/admin/students'));
   if (h === '/new') return load('edit', async () => ({ isNew: true, attempts: [] }));
@@ -120,13 +124,19 @@ function newTestDraft(d) {
 const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, fullscreen: !!t.fullscreen, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
-const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students']];
+const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students']];
 
 function shell(head, body) {
   const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests' }[V.page] || V.page;
-  return `<div class="admin">
-  <aside class="side card">
-    <a class="brand" href="#/"><span class="logo">dq</span><span>Daily Quiz <small>Admin</small></span></a>
+  const label = V.page === 'appearance' ? 'Appearance' : (NAV.find(n => n[0] === active) || [0, 0, 0, 'Admin'])[3];
+  return `<div class="admin${V.menu ? ' menu-open' : ''}">
+  <header class="amtop">
+    <a class="brand" href="#/"><span class="logo">dq</span><span>${esc(label)}</span></a>
+    <button type="button" class="btn btn-sm amenu" data-act="menu" aria-expanded="${!!V.menu}" aria-controls="adminNav">${icon('menu')}Menu</button>
+  </header>
+  <div class="scrim" data-act="menuClose" aria-hidden="true"></div>
+  <aside class="side card" id="adminNav" aria-label="Admin menu">
+    <div class="side-top"><a class="brand" href="#/"><span class="logo">dq</span><span>Daily Quiz <small>Admin</small></span></a><button type="button" class="btn btn-icon btn-sm side-x" data-act="menuClose" aria-label="Close menu">${icon('x')}</button></div>
     ${NAV.map(([k, h, i, t]) => `<a class="nv${active === k ? ' on' : ''}" href="${h}">${icon(i)}<span>${t}</span></a>`).join('')}
     <a class="nv nv-bottom${V.page === 'appearance' ? ' on' : ''}" href="#/appearance">${icon('palette')}<span>Appearance</span></a>
     <div class="foot">
@@ -152,7 +162,7 @@ function rel(ms) {
   return s >= 0 ? `in ${t}` : `${t} ago`;
 }
 const quizOptions = (list, val, first) => `<option value="">${esc(first)}</option>` + list.map(z => `<option value="${esc(z.id)}"${z.id === val ? ' selected' : ''}>${esc(z.title)} (${z.count} Q)</option>`).join('');
-const audienceText = (p, sets) => [p.everyone ? 'Everyone else' : '', ...p.sets.map(id => groupName(sets, id)), p.rolls.length ? `${p.rolls.length} student${p.rolls.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' + ') || 'Nobody';
+const audienceText = (p, sets) => [p.everyone ? 'Everyone else' : '', ...p.sets.map(id => groupName(sets, id)), p.rolls.length ? `${p.rolls.length} picked student${p.rolls.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' + ') || 'Nobody';
 
 function statusBadge(t) {
   if (t.status === 'live') return '<span class="badge ok"><span class="dot"></span>Live</span>';
@@ -257,7 +267,7 @@ function viewTest() {
         ${D.papers.length > 1 ? `<button type="button" class="btn btn-ghost btn-icon" data-act="delpaper" data-pi="${i}" title="Remove set" aria-label="Remove set ${PL[i]}">${icon('trash')}</button>` : ''}
       </div>
       ${q ? `<p class="muted" style="font-size:13.5px;margin:-4px 0 0">${q.count} questions · suggested ${q.duration} min${+D.duration !== q.duration ? ` <button type="button" class="link" data-act="dur" data-v="${q.duration}">use ${q.duration} min</button>` : ''}</p>` : ''}
-      <label class="check"><input type="checkbox" data-pf="shuffle" data-pi="${i}"${p.shuffle ? ' checked' : ''}>Jumble the question order for this set <span class="muted">(same questions, a different fixed order)</span></label>
+      <label class="check"><input type="checkbox" data-pf="shuffle" data-pi="${i}"${p.shuffle ? ' checked' : ''}><span>Jumble the question order for this set <span class="muted">(same questions, a different fixed order)</span></span></label>
       <div class="field"><span class="lbl">Who gets Set ${PL[i]}</span>
         <div class="tog-row">
           <button type="button" class="tog${p.everyone ? ' on' : ''}" data-act="togAll" data-pi="${i}">${icon('users')}Everyone else</button>
@@ -281,7 +291,7 @@ function viewTest() {
       <section class="card pad">
         <div class="card-head"><h3>When</h3>${opens && !isNaN(opens) ? `<span class="badge accent">${icon('calendar')}${esc(opens.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}</div>
         <div class="when-grid">
-          <div class="field"><label for="tt">Title <span class="muted" style="font-weight:500">(optional, admin only)</span></label><input class="input" id="tt" data-tf="title" maxlength="80" value="${esc(D.title)}" placeholder="e.g. Weekly test 4"></div>
+          <div class="field"><label for="tt">Test name <span class="muted" style="font-weight:400">(students see this)</span></label><input class="input" id="tt" data-tf="title" maxlength="80" value="${esc(D.title)}" placeholder="e.g. Weekly test 4" required></div>
           <div class="field"><label for="td">Date</label><input class="input" id="td" type="date" data-tf="date" value="${esc(D.date)}"></div>
           <div class="field"><label for="ts">Starts at</label><input class="input" id="ts" type="time" data-tf="start" value="${esc(D.start)}"></div>
           <div class="field"><label for="tm">Duration (minutes)</label><input class="input" id="tm" type="number" min="1" max="600" data-tf="duration" value="${esc(D.duration)}"></div>
@@ -355,10 +365,10 @@ function viewDay() {
   if (V.rowFilter === 'missing') rows = rows.filter(r => r.state !== 'done');
   if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.roll.toLowerCase().includes(q));
   const multi = d.tests.length > 1;
-  const table = rows.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Group</th><th>Quiz</th><th class="r">Score</th><th class="r">Time</th><th class="r">Submitted</th></tr></thead><tbody>${rows.map(r => `<tr class="click" data-href="#/student/${encodeURIComponent(r.roll)}">
+  const table = rows.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Group</th><th>Test</th><th class="r">Score</th><th class="r">Time</th><th class="r">Submitted</th></tr></thead><tbody>${rows.map(r => `<tr class="click" data-href="#/student/${encodeURIComponent(r.roll)}">
       <td data-l="Student"><div class="who-cell">${avatar(r.name, 'sm')}<div><b>${esc(r.name)}</b><small class="mono">${esc(r.roll)}</small></div></div></td>
       <td data-l="Group"><span class="badge">${esc(r.setName)}</span></td>
-      <td data-l="Quiz"><a href="#/quiz/${esc(r.quizId)}">${esc(r.quizTitle)}</a>${multi ? `<br><small class="muted">${esc(hm(r.time))}</small>` : ''}</td>
+      <td data-l="Test"><b>${esc(r.testTitle || r.quizTitle)}</b>${multi ? ` <small class="muted">${esc(hm(r.time))}</small>` : ''}<br><a href="#/quiz/${esc(r.quizId)}" style="font-size:12px" class="muted">${esc(r.quizTitle)}</a></td>
       <td data-l="Score" class="r">${r.state === 'done' ? `${pctBadge(r.score, r.total)} <span class="muted" style="font-size:13px">${Math.round(r.score / r.total * 100)}%</span>` : stateBadge(r)}</td>
       <td data-l="Time" class="r">${r.state === 'done' ? fmtT(r.secs) : '–'}</td>
       <td data-l="Submitted" class="r">${r.state === 'done' ? `${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}${r.endReason === 'left-fullscreen' ? ' <span class="badge bad" title="Left full screen, so the test was submitted">Left full screen</span>' : ''}${r.reloads ? ` <span class="badge warn" title="Came back to the running test without full screen">Reloaded ×${r.reloads}</span>` : ''}` : '–'}</td>
@@ -461,9 +471,9 @@ function viewQuiz() {
     <td data-l="Group"><span class="badge">${esc(groupName(D.sets, r.set))}</span></td>
     <td data-l="Score" class="r">${pctBadge(r.score, r.total)}</td>
     <td data-l="Time" class="r">${fmtT(r.secs)}</td>
-    <td data-l="Submitted" class="r">${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}${r.endReason === 'left-fullscreen' ? ' <span class="badge bad" title="Left full screen, so the test was submitted">Left full screen</span>' : ''}${r.reloads ? ` <span class="badge warn" title="Came back to the running test without full screen">Reloaded ×${r.reloads}</span>` : ''}</td>
+    <td data-l="Submitted" class="r"><span class="muted" style="font-size:12px">${esc(r.testTitle)}</span><br>${esc(fmtWhen(r.at))}${r.auto ? ' <span class="badge" title="Time ran out">Auto</span>' : ''}${r.late ? ' <span class="badge warn">Late</span>' : ''}${r.endReason === 'left-fullscreen' ? ' <span class="badge bad" title="Left full screen, so the test was submitted">Left full screen</span>' : ''}${r.reloads ? ` <span class="badge warn" title="Came back to the running test without full screen">Reloaded ×${r.reloads}</span>` : ''}</td>
     <td data-l="Answers"><div class="strip">${Q.map((q, k) => `<i class="${r.ans[k] < 0 ? '' : r.ans[k] === q.a ? 'ok' : 'bad'}" title="Q${k + 1}: ${r.ans[k] < 0 ? 'blank' : L[r.ans[k]]}"></i>`).join('')}</div></td>
-    <td data-l="">${armed('retake:' + r.roll, 'Allow retake', 'Confirm: delete attempt', 'btn-ghost btn-sm', ` data-roll="${esc(r.roll)}"`)}</td>
+    <td data-l="">${armed('retake:' + r.roll + ':' + r.testId, 'Allow retake', 'Confirm: delete attempt', 'btn-ghost btn-sm', ` data-roll="${esc(r.roll)}" data-test="${esc(r.testId)}"`)}</td>
   </tr>`).join('')}</tbody></table></div>
   ${notTakenBlock(notTaken)}`);
 }
@@ -471,6 +481,27 @@ function viewQuiz() {
 function notTakenBlock(list) {
   if (!list.length) return '';
   return `<div class="section-head"><h2>Not taken yet <span class="muted" style="font-size:16px">${list.length}</span></h2></div><div class="row" style="gap:8px">${list.map(s => `<a class="badge" style="padding:6px 12px;text-decoration:none" href="#/student/${encodeURIComponent(s.roll)}">${esc(s.name)} <span class="muted mono">${esc(s.roll)}</span></a>`).join('')}</div>`;
+}
+
+/* ---------- Leaderboard (hall by hall, only students who took it) ---------- */
+function viewBoard() {
+  const D = V.data, rows = D.rows, qm = !!D.test;
+  const t = qm ? D.tests.find(x => x.id === D.test) : null;
+  const maxPts = Math.max(1, ...rows.map(r => r.points || 0));
+  const halls = `<div class="seg" role="tablist" aria-label="Hall">${D.halls.map(h => `<button class="${(h.id ?? null) === (D.hall ?? null) ? 'on' : ''}" role="tab" aria-selected="${(h.id ?? null) === (D.hall ?? null)}" data-act="lbHall" data-h="${esc(h.id ?? '')}">${esc(hallName(h.id))} <span class="n">${h.students}</span></button>`).join('')}</div>`;
+  const pick = `<select class="input" id="lbT" style="width:auto;min-height:38px" aria-label="Test"><option value="">Overall (all tests)</option>${D.tests.map(x => `<option value="${esc(x.id)}"${x.id === D.test ? ' selected' : ''}>${esc(short(x.date))} ${esc(hm(x.start))} · ${esc(x.title)}</option>`).join('')}</select>`;
+  const table = rows.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>#</th><th>Student</th><th>${qm ? 'Score' : 'Points'}</th><th class="r">${qm ? 'Time' : 'Tests'}</th><th class="r">${qm ? '%' : 'Average'}</th></tr></thead><tbody>${rows.map(r => {
+    const f = qm ? (r.total ? r.score / r.total : 0) : (r.points || 0) / maxPts;
+    return `<tr class="click" data-href="#/student/${encodeURIComponent(r.roll)}">
+      <td data-l="Rank" class="num" style="font-family:var(--mono)">${r.rank}</td>
+      <td data-l="Student"><div class="who-cell">${avatar(r.name, 'sm')}<div><b>${esc(r.name)}</b><small class="mono">${esc(r.roll)}</small></div></div></td>
+      <td data-l="${qm ? 'Score' : 'Points'}"><div class="row" style="gap:10px;flex-wrap:nowrap"><span style="font-family:var(--mono);min-width:48px">${qm ? `${r.score}/${r.total}` : `${r.points} pts`}</span><span class="progress" style="flex:1;min-width:60px"><i style="width:${f * 100}%"></i></span></div></td>
+      <td data-l="${qm ? 'Time' : 'Tests'}" class="r">${qm ? fmtT(r.secs) : r.taken}</td>
+      <td data-l="${qm ? '%' : 'Average'}" class="r">${qm ? Math.round(f * 100) + '%' : r.avgPct + '%'}</td>
+    </tr>`; }).join('')}</tbody></table></div>`
+    : empty('trophy', 'Nobody on this board yet', qm ? `No one in ${esc(hallName(D.hall))} has submitted this test yet.` : `No one in ${esc(hallName(D.hall))} has submitted a test yet.`);
+  return shell(head('Leaderboard', `${esc(hallName(D.hall))} · ${qm ? esc(t ? t.title : 'Test') : 'all tests'}. Only students who took it are ranked; it updates live as they submit.`),
+    `<div class="toolbar">${halls}${pick}<span class="muted" style="font-size:13px">${rows.length} ranked</span></div>${table}`);
 }
 
 /* ---------- Appearance ---------- */
@@ -497,7 +528,7 @@ function viewSets() {
   };
   const selbar = sel.size ? `<div class="selbar slide-in"><b>${sel.size} selected</b><span style="opacity:.7">Move to</span>${cols.map(c => `<button class="btn btn-sm ${c.id === null ? 'btn-ghost' : 'btn-primary'}" data-act="moveSel" data-id="${c.id === null ? '' : esc(c.id)}">${esc(c.name)}</button>`).join('')}<span class="spacer"></span><button class="btn btn-ghost btn-sm" data-act="clearSel">Clear</button></div>` : '';
   return shell(
-    head('Groups', 'Groups make it quick to hand question sets to many students at once when you schedule a test. Students never see their group. Drag students between columns, or click to select several.',
+    head('Groups', 'Groups make it quick to hand question sets to many students at once when you schedule a test. Students never see their group. Tap students to select them, then choose a group to move them to. On a computer you can also drag them.',
       `${armed('split', `${icon('shuffle')}Split evenly`, `Re-split all ${students.length} students?`, 'btn-ghost')}<button class="btn btn-primary" data-act="addset">${icon('plus')}Add group</button>`),
     `<div class="toolbar"><div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Find a student" value="${esc(V.q)}"></div><button class="btn btn-ghost btn-sm" data-act="selectAll">Select all shown</button></div>
     ${selbar}
@@ -506,9 +537,10 @@ function viewSets() {
 
 /* ---------- Students ---------- */
 function viewStudents() {
-  const { students: S, sets } = V.data;
-  const q = V.q.trim().toLowerCase(), f = V.setFilter;
-  const list = S.filter(s => (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) && (f === 'all' || (f === 'none' ? !s.set : s.set === f)));
+  const { students: S, sets, halls = [] } = V.data;
+  const q = V.q.trim().toLowerCase(), f = V.setFilter, hf = V.hallFilter || 'all';
+  const list = S.filter(s => (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) && (f === 'all' || (f === 'none' ? !s.set : s.set === f))
+    && (hf === 'all' || (hf === '' ? !s.hall : s.hall === hf)));
   const setSel = s => `<select class="input" style="min-height:36px;width:auto;font-size:13.5px" data-act="studentSet" data-roll="${esc(s.roll)}" aria-label="Group for ${esc(s.name)}"><option value="">No group</option>${sets.map(x => `<option value="${esc(x.id)}"${x.id === s.set ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
   const imp = V.showImport ? `<section class="card pad slide-in" style="margin-bottom:18px">
       <div class="card-head"><div><h3>Import roster</h3><p class="muted" style="font-size:14px;margin-top:2px">One student per line: roll number, then name. Paste straight from a spreadsheet. Existing roll numbers get their name updated.</p></div></div>
@@ -516,6 +548,8 @@ function viewStudents() {
       <div class="row" style="margin-top:12px">
         <label class="lbl" for="impSet">Put them in</label>
         <select class="input" id="impSet" style="width:auto"><option value="">No group (or keep current)</option>${sets.map(x => `<option value="${esc(x.id)}"${V.importSet === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+        <label class="lbl" for="impHall">Hall</label>
+        <input class="input" id="impHall" style="width:110px" maxlength="20" placeholder="e.g. 5" value="${esc(V.importHall)}" list="hallList">
         <span class="spacer"></span>
         <button class="btn btn-ghost" data-act="toggleImport">Cancel</button>
         <button class="btn btn-primary" data-act="doImport"${V.busy ? ' disabled' : ''}>${icon('upload')}${V.busy ? 'Importing…' : 'Import'}</button>
@@ -528,10 +562,13 @@ function viewStudents() {
     <div class="toolbar">
       <div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Search name or roll" value="${esc(V.q)}"></div>
       <select class="input" id="setF" style="width:auto"><option value="all">All groups</option>${sets.map(x => `<option value="${esc(x.id)}"${f === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${f === 'none' ? ' selected' : ''}>No group</option></select>
+      <select class="input" id="hallF" style="width:auto" aria-label="Hall"><option value="all">All halls</option>${halls.map(h => `<option value="${esc(h ?? '')}"${hf === (h ?? '') ? ' selected' : ''}>${esc(hallName(h))}</option>`).join('')}</select>
+      <datalist id="hallList">${halls.filter(Boolean).map(h => `<option value="${esc(h)}">`).join('')}</datalist>
       <span class="muted" style="font-size:14px">${list.length} of ${S.length}</span>
     </div>
-    ${S.length ? (list.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Group</th><th class="r">Quizzes</th><th class="r">Points</th><th class="r">Average</th><th class="r">Last active</th></tr></thead><tbody>${list.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
+    ${S.length ? (list.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Hall</th><th>Group</th><th class="r">Tests</th><th class="r">Points</th><th class="r">Average</th><th class="r">Last active</th></tr></thead><tbody>${list.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
       <td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}</small></div></div></td>
+      <td data-l="Hall">${s.hall ? `<span class="badge">${esc(hallName(s.hall))}</span>` : '<span class="muted">–</span>'}</td>
       <td data-l="Group">${setSel(s)}</td>
       <td data-l="Quizzes" class="r">${s.taken}</td>
       <td data-l="Points" class="r"><b>${s.points}</b></td>
@@ -546,12 +583,13 @@ function viewStudent() {
   const done = Q.filter(z => z.attempt);
   const pts = done.reduce((t, z) => t + z.attempt.score, 0), poss = done.reduce((t, z) => t + z.attempt.total, 0);
   return shell(
-    head(esc(s.name), `Roll <span class="mono">${esc(s.roll)}</span> · registered ${esc(fmtWhen(s.createdAt))} · last sign-in ${esc(fmtWhen(s.lastLoginAt))}`, '', `<a href="#/students">Students</a> / Profile`),
+    head(esc(s.name), `Roll <span class="mono">${esc(s.roll)}</span> · ${esc(hallName(s.hall))} · registered ${esc(fmtWhen(s.createdAt))} · last sign-in ${esc(fmtWhen(s.lastLoginAt))}`, '', `<a href="#/students">Students</a> / Profile`),
     `<div class="grid-2" style="grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)">
       <section class="card pad">
         <div class="row" style="gap:16px;margin-bottom:18px">${avatar(s.name, 'lg')}<div><h3 style="font-size:20px">${esc(s.name)}</h3><span class="mono muted">${esc(s.roll)}</span></div></div>
         <form id="nf" class="stack" style="gap:14px" novalidate>
           <div class="field"><label for="nn">Name</label><input class="input" id="nn" maxlength="60" value="${esc(s.name)}"></div>
+          <div class="field"><label for="nh">Hall <span class="muted" style="font-weight:400">(leaderboards are per hall)</span></label><input class="input" id="nh" maxlength="20" placeholder="e.g. 5" value="${esc(s.hall || '')}"></div>
           <div class="field"><label for="ns">Group</label><select class="input" id="ns"><option value="">No group</option>${sets.map(x => `<option value="${esc(x.id)}"${x.id === s.set ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
           <div class="row"><button class="btn btn-primary"${V.busy ? ' disabled' : ''}>Save</button><span class="spacer"></span>${armed('delstudent', `${icon('trash')}Delete student`, 'Delete student and scores?')}</div>
         </form>
@@ -563,9 +601,9 @@ function viewStudent() {
           <div class="card kpi"><div class="k-label">Average</div><div class="k-val">${poss ? Math.round(pts / poss * 100) + '%' : '–'}</div></div>
         </div>
         ${U.length ? `<section class="card pad"><div class="card-head"><h3>Upcoming for this student</h3></div><div class="topics">${U.map(u => `<div class="topic"><div><b>${esc(u.title)}</b><small>${esc(new Date(u.startsAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))} · ${u.duration} min</small></div></div>`).join('')}</div></section>` : ''}
-        <section class="card table-wrap">${Q.length ? `<table class="table stackable"><thead><tr><th>Date</th><th>Quiz</th><th class="r">Score</th><th class="r">Time</th><th class="r">Submitted</th></tr></thead><tbody>${Q.map(z => `<tr class="click" data-href="#/quiz/${esc(z.id)}">
+        <section class="card table-wrap">${Q.length ? `<table class="table stackable"><thead><tr><th>Date</th><th>Test</th><th class="r">Score</th><th class="r">Time</th><th class="r">Submitted</th></tr></thead><tbody>${Q.map(z => `<tr class="click" data-href="#/quiz/${esc(z.quizId)}">
           <td data-l="Date">${esc(short(z.date))}</td>
-          <td data-l="Quiz"><b>${esc(z.title)}</b></td>
+          <td data-l="Test"><b>${esc(z.title)}</b>${z.quizTitle && z.quizTitle !== z.title ? `<br><small class="muted">${esc(z.quizTitle)}</small>` : ''}</td>
           <td data-l="Score" class="r">${z.attempt ? pctBadge(z.attempt.score, z.attempt.total) : z.state === 'started' ? '<span class="badge accent">In progress</span>' : '<span class="badge warn">Not taken</span>'}</td>
           <td data-l="Time" class="r">${z.attempt ? fmtT(z.attempt.secs) : '–'}</td>
           <td data-l="Submitted" class="r">${z.attempt ? esc(fmtWhen(z.attempt.at)) + (z.attempt.auto ? ' <span class="badge">Auto</span>' : '') : '–'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty"><p>No quizzes have been given to this student yet.</p></div>'}</section>
@@ -597,7 +635,7 @@ function viewEdit() {
       </div>`).join('')}</div>
       <div class="row" style="margin-top:6px">
         <button type="button" class="btn btn-soft btn-sm" data-act="addo" data-qi="${i}"${q.o.length < 6 ? '' : ' disabled'}>${icon('plus')}Add option</button>
-        <label class="check"><input type="checkbox" data-qi="${i}" data-f="p"${q.p ? ' checked' : ''}>Options are code output (monospace, multi-line)</label>
+        <label class="check"><input type="checkbox" data-qi="${i}" data-f="p"${q.p ? ' checked' : ''}><span>Options are code output (monospace, multi-line)</span></label>
       </div>
     </div>
     <div class="field"><label for="e${i}">Explanation <span class="muted" style="font-weight:500">(shown after submitting)</span></label><textarea class="input" id="e${i}" data-qi="${i}" data-f="e" maxlength="1500" style="min-height:64px">${esc(q.e || '')}</textarea></div>
@@ -697,8 +735,8 @@ function quizCsv() {
 }
 function dayCsv() {
   const d = V.data.day;
-  downloadCsv(`results-${d.date}.csv`, ['Date', 'Start', 'Name', 'Roll', 'Group', 'Quiz', 'Status', 'Score', 'Total', 'Percent', 'Time (s)', 'Submitted', 'Auto', 'Late'],
-    d.rows.map(r => [d.date, r.time, r.name, r.roll, r.setName, r.quizTitle, r.state, r.state === 'done' ? r.score : '', r.state === 'done' ? r.total : '', r.state === 'done' ? Math.round(r.score / r.total * 100) : '', r.state === 'done' ? r.secs : '', r.state === 'done' ? new Date(r.at).toLocaleString() : '', r.auto ? 'yes' : '', r.late ? 'yes' : '']));
+  downloadCsv(`results-${d.date}.csv`, ['Date', 'Start', 'Test', 'Name', 'Roll', 'Group', 'Quiz', 'Status', 'Score', 'Total', 'Percent', 'Time (s)', 'Submitted', 'Auto', 'Late'],
+    d.rows.map(r => [d.date, r.time, r.testTitle || r.quizTitle, r.name, r.roll, r.setName, r.quizTitle, r.state, r.state === 'done' ? r.score : '', r.state === 'done' ? r.total : '', r.state === 'done' ? Math.round(r.score / r.total * 100) : '', r.state === 'done' ? r.secs : '', r.state === 'done' ? new Date(r.at).toLocaleString() : '', r.auto ? 'yes' : '', r.late ? 'yes' : '']));
 }
 function gridCsv() {
   const g = V.data.days;
@@ -712,7 +750,7 @@ function render() {
   let html;
   if (V.loading) html = shell('<div class="skel" style="height:56px;width:40%;margin-bottom:24px"></div>', '<div class="kpis"><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div></div><div class="skel" style="height:320px;margin-top:18px"></div>');
   else if (!V.data) html = shell('', empty('x', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
-  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, appearance: viewAppearance, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
+  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, appearance: viewAppearance, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
   document.title = `${t ? t.textContent : 'Admin'} · DailyQuiz Admin`;
@@ -755,6 +793,9 @@ $app.addEventListener('change', async e => {
   if (el.id === 'setF') { V.setFilter = el.value; render(); return; }
   if (el.id === 'testF') { V.testFilter = el.value; render(); return; }
   if (el.id === 'impSet') { V.importSet = el.value; return; }
+  if (el.id === 'impHall') { V.importHall = el.value; return; }
+  if (el.id === 'lbT') { V.lbTest = el.value; V.lbHall = V.data.hall; load('board', loadBoard); return; }
+  if (el.id === 'hallF') { V.hallFilter = el.value; render(); return; }
   if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); render(); return; }
   if (V.page === 'test' && el.dataset.pf === 'quizId') {
     const p = V.draft.papers[+el.dataset.pi];
@@ -800,13 +841,14 @@ $app.addEventListener('submit', async e => {
     const s = V.data.student;
     V.busy = true; render();
     try {
-      await api('/api/admin/students/' + encodeURIComponent(s.roll), 'PATCH', { name: document.getElementById('nn').value, set: document.getElementById('ns').value || null });
+      await api('/api/admin/students/' + encodeURIComponent(s.roll), 'PATCH', { name: document.getElementById('nn').value, hall: document.getElementById('nh').value, set: document.getElementById('ns').value || null });
       toast('Student saved'); V.busy = false; refresh();
     } catch (err) { V.busy = false; toast(err.message, true); render(); }
   }
 });
 
 $app.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && V.menu) { V.menu = false; document.body.style.overflow = ''; render(); const b = document.querySelector('.amenu'); if (b) b.focus(); return; }
   if (e.target.id === 'rename') {
     if (e.key === 'Escape') { V.renaming = null; render(); }
     if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
@@ -877,12 +919,21 @@ $app.addEventListener('click', async e => {
   if (a === 'rowfilter') { V.rowFilter = b.dataset.f; render(); return; }
   if (a === 'setfilter') { V.setFilter = b.dataset.f; render(); return; }
   if (a === 'testsTab') { V.testsTab = b.dataset.v; render(); return; }
+  if (a === 'menu' || a === 'menuClose') {
+    V.menu = a === 'menu' ? !V.menu : false;
+    document.body.style.overflow = V.menu ? 'hidden' : '';
+    render();
+    const f = document.querySelector(V.menu ? '#adminNav .nv.on, #adminNav .nv' : '.amenu');
+    if (f) f.focus();
+    return;
+  }
+  if (a === 'lbHall') { V.lbHall = b.dataset.h || null; V.lbTest = V.data.test || ''; load('board', loadBoard); return; }
   if (a === 'toggleImport') { V.showImport = !V.showImport; V.importRes = null; render(); if (V.showImport) document.getElementById('imp').focus(); return; }
   if (a === 'doImport') {
     if (!V.importText.trim()) { toast('Paste at least one line: roll number then name.', true); return; }
     V.busy = true; render();
     try {
-      V.importRes = await api('/api/admin/import', 'POST', { text: V.importText, set: V.importSet || null });
+      V.importRes = await api('/api/admin/import', 'POST', { text: V.importText, set: V.importSet || null, hall: V.importHall || null });
       toast(`Imported: ${V.importRes.added} added, ${V.importRes.updated} updated`);
       if (!V.importRes.skipped.length) V.importText = '';
     } catch (err) { toast(err.message, true); }
@@ -949,10 +1000,10 @@ $app.addEventListener('click', async e => {
     return;
   }
   if (a === 'retake') {
-    const roll = b.dataset.roll;
-    if (V.confirm !== 'retake:' + roll) { V.confirm = 'retake:' + roll; render(); return; }
+    const roll = b.dataset.roll, test = b.dataset.test, key = 'retake:' + roll + ':' + test;
+    if (V.confirm !== key) { V.confirm = key; render(); return; }
     V.confirm = '';
-    try { await api(`/api/admin/quizzes/${V.data.quiz.id}/attempts/${encodeURIComponent(roll)}`, 'DELETE'); toast('Attempt removed. They can take it again.'); refresh(); }
+    try { await api(`/api/admin/tests/${encodeURIComponent(test)}/attempts/${encodeURIComponent(roll)}`, 'DELETE'); toast('Attempt removed. They can take this test again.'); refresh(); }
     catch (err) { toast(err.message, true); }
     return;
   }

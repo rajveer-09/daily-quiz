@@ -66,6 +66,7 @@ function dayLabel(date) {
   if (t && date === addDays(t, 1)) return 'Tomorrow';
   return fmtDay(date, { weekday: 'short', day: 'numeric', month: 'short' });
 }
+const hallName = h => /^\d+$/.test(h) ? 'Hall ' + h : h;
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const mmss = s => fmtClock(Number(s) || 0);
 
@@ -91,7 +92,7 @@ function route() {
   if (h === '/past') return load('past', loadHome);
   if (h === '/leaderboard') return openBoard('');
   if ((m = h.match(/^\/leaderboard\/([\w-]+)$/))) return openBoard(m[1]);
-  if ((m = h.match(/^\/quiz\/([\w-]+)$/))) return load('quiz', stale => openQuiz(m[1], stale));
+  if ((m = h.match(/^\/(?:test|quiz)\/([\w-]+)$/))) return load('quiz', stale => openQuiz(m[1], stale));
   location.replace('#/home');
 }
 
@@ -117,12 +118,12 @@ async function loadHome(stale) {
 const openBoard = id => load('lb', async stale => {
   const [all, one] = await Promise.all([api('/api/leaderboard'), id ? api('/api/leaderboard/' + encodeURIComponent(id)) : null]);
   if (stale()) return;
-  V.lb = { all, quiz: one ? one.quiz : null, rows: one ? one.rows : all.rows };
+  V.lb = { all, quiz: one ? one.test : null, rows: one ? one.rows : all.rows };
 });
 
 async function openQuiz(id, stale) {
   try {
-    const z = await api('/api/quizzes/' + encodeURIComponent(id));
+    const z = await api('/api/tests/' + encodeURIComponent(id));
     if (stale()) return;
     setQuiz(z);
   } catch (e) {
@@ -139,13 +140,14 @@ function setQuiz(z) {
   V.fsGate = false;
   if (needsFs() && !fsEl()) {
     V.fsGate = true; // came back to a running test without full screen (reload, crash, new tab)
-    api(`/api/quizzes/${encodeURIComponent(z.id)}/flag`, { type: 'reload' }).catch(() => {});
+    api(`/api/tests/${encodeURIComponent(z.id)}/flag`, { type: 'reload' }).catch(() => {});
   }
   if (z.state === 'started') {
     V.byQ = { ...(z.attempt.byQ || {}) };
     V.cur = Math.max(0, Math.min(V.cur || 0, z.questions.length - 1));
     V.flags = new Set(store.get(flagKey(z.id)) || []);
   }
+  if (z.state === 'done' && z.attempt.locked) { store.del(flagKey(z.id)); loadQuizBoard(z.id); return; }
   if (z.state === 'done') {
     const Q = z.questions, ans = z.attempt.ans;
     const firstWrong = Q.findIndex((_, i) => kindOf(Q, ans, i) === 'bad');
@@ -236,7 +238,7 @@ const metaLine = it => [`${it.duration} min`, plural(it.count, 'question'), it.f
 
 function laterRow(it) {
   const live = it.state === 'open' || it.state === 'started';
-  return `<a class="later-row" href="#/quiz/${encodeURIComponent(it.id)}">
+  return `<a class="later-row" href="#/test/${encodeURIComponent(it.id)}">
     <div class="date-b"><span>${esc(fmtDay(it.date, { weekday: 'short' }))}</span><b>${Number(it.date.slice(8))}</b></div>
     <div class="t"><b>${esc(it.title)}</b><span>${esc(fmtTime(it.startsAt))} · ${esc(metaLine(it))}</span></div>
     ${live ? `<span class="btn btn-sm btn-primary">${it.state === 'started' ? 'Resume' : 'Start'}</span>` : countdown(it.startsAt, 'sm')}
@@ -259,7 +261,7 @@ function viewHome() {
     return `${welcome}<div class="hero"><p class="hello">${greet}, ${esc(first)}</p><h1>No tests scheduled</h1><p class="meta">When your teacher schedules a test, it shows up here with a countdown.</p></div>
     <div class="dashed"><span>Nothing coming up right now.</span><a href="#/past">Past results →</a></div>`;
   }
-  const link = `#/quiz/${encodeURIComponent(it.id)}`;
+  const link = `#/test/${encodeURIComponent(it.id)}`;
   let eyebrow, clock;
   if (it.state === 'started') {
     eyebrow = `<span class="live" style="color:var(--warn)"><span class="dot"></span>In progress</span>`;
@@ -297,13 +299,13 @@ function viewHome() {
 /* ---------- Results (history) ---------- */
 function resultRow(z) {
   const a = z.state === 'done' ? z.attempt : null, f = a ? a.score / a.total : 0;
-  return `<a class="rrow" href="#/quiz/${encodeURIComponent(z.id)}">
+  return `<a class="rrow" href="#/test/${encodeURIComponent(z.id)}">
     <div class="date-b"><span>${esc(fmtDay(z.date, { month: 'short' }))}</span><b>${Number(z.date.slice(8))}</b></div>
     <div class="t"><b>${esc(z.title)}</b><span>${esc(fmtDay(z.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(metaLine(z))}</span></div>
     <div class="sc">${a ? `<span>${a.score}/${a.total}</span><div class="progress"><i style="width:${f * 100}%"></i></div>`
       : z.state === 'started' ? '<span class="badge warn"><span class="dot"></span>In progress</span>'
       : '<span class="badge">Not taken</span>'}</div>
-    <span class="go">${a ? 'Review' : z.state === 'started' ? 'Resume' : 'Take it'}${icon('chev')}</span>
+    <span class="go">${a && a.locked ? `Answers at ${esc(fmtTime(a.revealAt))}` : a ? 'Review' : z.state === 'started' ? 'Resume' : 'Take it'}${icon('chev')}</span>
   </a>`;
 }
 
@@ -312,7 +314,8 @@ function viewPast() {
   const head = `<div class="page-head"><h1>Results</h1><p>Every test you've been given. Open one to see your answers and the explanations, or take one you missed. Late attempts still count.</p></div>`;
   if (!P.length) return head + `<div class="dashed"><span>No results yet. Tests you've been given will show up here.</span><a href="#/home">Go home →</a></div>`;
   const done = P.filter(z => z.state === 'done'), todo = P.filter(z => z.state !== 'done');
-  const avg = done.length ? Math.round(done.reduce((s, z) => s + z.attempt.score / z.attempt.total, 0) / done.length * 100) : null;
+  const scored = done;
+  const avg = scored.length ? Math.round(scored.reduce((s, z) => s + z.attempt.score / z.attempt.total, 0) / scored.length * 100) : null;
   const list = V.pastFilter === 'todo' ? todo : V.pastFilter === 'done' ? done : P;
   return `${head}
   <div class="kpis">
@@ -331,8 +334,9 @@ function viewProfile() {
   const mine = V.board && V.board.rows.find(r => r.me);
   const done = items.filter(i => i.state === 'done').sort((a, b) => b.startsAt - a.startsAt);
   const todo = items.filter(i => i.state === 'open' && !i.isToday);
-  const avg = done.length ? Math.round(done.reduce((s, i) => s + i.attempt.score / i.attempt.total, 0) / done.length * 100) : null;
-  const best = done.reduce((b, i) => !b || i.attempt.score / i.attempt.total > b.score / b.total ? i.attempt : b, null);
+  const scored = done;
+  const avg = scored.length ? Math.round(scored.reduce((s, i) => s + i.attempt.score / i.attempt.total, 0) / scored.length * 100) : null;
+  const best = scored.reduce((b, i) => !b || i.attempt.score / i.attempt.total > b.score / b.total ? i.attempt : b, null);
   return `<section class="profile-head">
     ${avatar(me.name, 'lg')}
     <div class="t"><h1>${esc(me.name)}</h1><span class="mono">${esc(me.roll)}</span></div>
@@ -464,13 +468,44 @@ function standing(rows, mine, quizMode) {
   return d > 0 ? `${plural(d, 'more point')} to pass #${above.rank}.` : `Level on points with #${above.rank}; they were faster.`;
 }
 
+const endNoteOf = A => A.endReason === 'left-fullscreen' ? `<span class="badge bad end-note">${icon('x')}Submitted because you left full screen</span>`
+  : A.auto ? `<span class="badge warn end-note">${icon('clock')}Auto-submitted when time ran out</span>` : '';
+
+/** Score, rank, time and class average: shown as soon as the student submits (the board is live). */
+function scoreTiles(z, A) {
+  const N = A.total, rows = V.qlb, mine = rows && rows.find(r => r.me);
+  const avg = rows && rows.length ? rows.reduce((s, r) => s + r.score, 0) / rows.length : null;
+  return `<div class="kpis">
+    <div class="card kpi"><span class="k-label">Score</span><span class="k-val">${A.score}<small>/${N}</small></span><span class="k-sub">${N ? Math.round(A.score / N * 100) : 0}%</span></div>
+    <a class="card kpi" href="#/leaderboard/${encodeURIComponent(z.id)}" style="text-decoration:none;color:inherit"><span class="k-label">Rank in your hall</span><span class="k-val">${mine ? `#${mine.rank}<small> of ${rows.length}</small>` : '–'}</span><span class="k-sub">${rows ? esc(standing(rows, mine, true)) || 'See the leaderboard' : 'Loading…'}</span></a>
+    <div class="card kpi"><span class="k-label">Time taken</span><span class="k-val">${mmss(A.secs)}</span><span class="k-sub">of ${z.duration}:00</span></div>
+    <div class="card kpi"><span class="k-label">Hall average</span><span class="k-val">${avg === null ? '–' : avg.toFixed(1)}</span><span class="k-sub">${rows ? plural(rows.length, 'student') + ' so far' : 'Loading…'}</span></div>
+  </div>`;
+}
+
+/** Submitted while the test window is still open: score and rank show now; the answer review waits until it closes. */
+function viewHeld() {
+  const z = V.quiz, A = z.attempt, endNote = endNoteOf(A);
+  return `<div class="hero">
+    <span class="live"><span class="dot"></span>Submitted</span>
+    <h1>${esc(z.title)}</h1>
+    <div class="meta">${esc(fmtWhen(A.at))} · you took ${mmss(A.secs)}</div>
+    ${endNote ? `<div style="margin-top:6px">${endNote}</div>` : ''}
+  </div>
+  ${scoreTiles(z, A)}
+  <div class="card panel">
+    <span class="panel-label">Correct answers and explanations unlock at ${esc(fmtTime(A.revealAt))}, when the test closes. In</span>
+    ${countdown(A.revealAt)}
+    <p class="muted" style="font-size:14px;line-height:1.55;max-width:60ch">Others may still be writing, so the answer review opens for everyone at the same time. This page updates by itself.</p>
+  </div>`;
+}
+
 function viewResult() {
+  if (V.quiz.attempt.locked) return viewHeld();
   const z = V.quiz, Q = z.questions, N = Q.length, A = z.attempt, ans = A.ans, sc = A.score;
   const kind = i => kindOf(Q, ans, i);
   const counts = { all: N, wrong: 0, right: 0, skip: 0 };
   Q.forEach((_, i) => { const k = kind(i); counts[k === 'ok' ? 'right' : k === 'bad' ? 'wrong' : 'skip']++; });
-  const rows = V.qlb, mine = rows && rows.find(r => r.me);
-  const avg = rows && rows.length ? rows.reduce((s, r) => s + r.score, 0) / rows.length : null;
   const topicStats = topicsOf(Q).map(t => {
     const ix = Q.map((q, i) => q.t === t ? i : -1).filter(i => i >= 0);
     const r = ix.filter(i => kind(i) === 'ok').length;
@@ -492,20 +527,14 @@ function viewResult() {
     </article>`;
   };
   const shown = Q.map((_, i) => i).filter(show);
-  const endNote = A.endReason === 'left-fullscreen' ? `<span class="badge bad end-note">${icon('x')}Submitted because you left full screen</span>`
-    : A.auto ? `<span class="badge warn end-note">${icon('clock')}Auto-submitted when time ran out</span>` : '';
+  const endNote = endNoteOf(A);
   return `<div class="hero">
     <span class="eyebrow">${z.isToday ? "Today's test" : 'Past test · ' + esc(short(z.date))} · submitted</span>
     <h1>${esc(z.title)}</h1>
     <div class="meta">${esc(fmtWhen(A.at))} · you took ${mmss(A.secs)}</div>
     ${endNote ? `<div style="margin-top:6px">${endNote}</div>` : ''}
   </div>
-  <div class="kpis">
-    <div class="card kpi"><span class="k-label">Score</span><span class="k-val">${sc}<small>/${N}</small></span><span class="k-sub">${N ? Math.round(sc / N * 100) : 0}%</span></div>
-    <a class="card kpi" href="#/leaderboard/${encodeURIComponent(z.id)}" style="text-decoration:none;color:inherit"><span class="k-label">Rank</span><span class="k-val">${mine ? `#${mine.rank}<small> of ${rows.length}</small>` : '–'}</span><span class="k-sub">${rows ? esc(standing(rows, mine, true)) || 'See the leaderboard' : 'Loading…'}</span></a>
-    <div class="card kpi"><span class="k-label">Time taken</span><span class="k-val">${mmss(A.secs)}</span><span class="k-sub">of ${z.duration}:00</span></div>
-    <div class="card kpi"><span class="k-label">Class average</span><span class="k-val">${avg === null ? '–' : avg.toFixed(1)}</span><span class="k-sub">${rows ? plural(rows.length, 'student') + ' took it' : 'Loading…'}</span></div>
-  </div>
+  ${scoreTiles(z, A)}
   <div class="duo">
     <section class="card panel">
       <div class="card-head" style="margin:0"><h2>Your answers</h2><span class="muted" style="font-size:12px">in the order you saw them</span></div>
@@ -530,7 +559,7 @@ function viewResult() {
 function viewBoard() {
   const { all, quiz, rows } = V.lb, qm = !!quiz;
   const mine = rows.find(r => r.me);
-  const opts = all.quizzes.map(z => `<option value="${esc(z.id)}"${quiz && quiz.id === z.id ? ' selected' : ''}>${esc(short(z.date))} · ${esc(z.title)}${z.isToday ? ' (today)' : ''}</option>`).join('');
+  const opts = all.tests.map(z => `<option value="${esc(z.id)}"${quiz && quiz.id === z.id ? ' selected' : ''}>${esc(short(z.date))} · ${esc(z.title)}${z.isToday ? ' (today)' : ''}</option>`).join('');
   const maxPts = Math.max(1, ...rows.map(r => r.points || 0));
   const shown = rows.slice(0, 50), extra = mine && !shown.includes(mine) ? mine : null;
   const row = r => {
@@ -542,7 +571,7 @@ function viewBoard() {
   };
   return `<div class="page-head row">
     <div><h1>${quiz ? esc(quiz.title) : 'Leaderboard'}</h1>
-      <p>${quiz ? `${esc(fmtDay(quiz.date))}. Higher score first; on the same score, the faster time ranks higher.` : 'One point for every right answer across every test. Ties go to the faster total time.'}</p></div>
+      <p>${all.hall ? `<span style="color:var(--ink)">${esc(hallName(all.hall))}</span> only. ` : ''}${quiz ? `${esc(fmtDay(quiz.date))}. Higher score first; on the same score, the faster time ranks higher. Updates live as people submit.` : 'One point for every right answer across every test. Ties go to the faster total time.'}</p></div>
     <label class="sr" for="lbq">Choose a leaderboard</label>
     <select class="input" id="lbq" style="width:auto;max-width:100%"><option value="">Overall</option>${opts}</select>
   </div>
@@ -555,7 +584,7 @@ function viewBoard() {
       <div class="card panel" style="gap:10px"><span class="panel-label">Your position</span>
         ${mine ? `<span class="bigrank">#${mine.rank}<small> of ${rows.length}</small></span><span style="font-size:14px;line-height:1.5;color:var(--ink-2)">${esc(standing(rows, mine, qm))}</span>`
           : `<span style="font-size:14px;color:var(--ink-2)">${quiz ? "You haven't taken this test yet." : 'Take a test to get on the board.'}</span>`}
-        ${mine && qm ? `<a href="#/quiz/${encodeURIComponent(quiz.id)}" style="font-size:13px;text-decoration:none">Review your answers →</a>` : ''}
+        ${mine && qm ? `<a href="#/test/${encodeURIComponent(quiz.id)}" style="font-size:13px;text-decoration:none">Review your answers →</a>` : ''}
       </div>
       <p class="muted" style="font-size:12px;line-height:1.5;padding:0 4px">Only names and scores are shown. Roll numbers stay private.</p>
     </aside>
@@ -632,7 +661,7 @@ async function saveAnswer(qid, choice) {
   const z = V.quiz;
   V.saving++; setSaveState();
   try {
-    await api(`/api/quizzes/${encodeURIComponent(z.id)}/answer`, { qid, choice });
+    await api(`/api/tests/${encodeURIComponent(z.id)}/answer`, { qid, choice });
     V.saveErr = false;
   } catch (e) {
     if (e.data && e.data.done) { toast(e.message, true); V.saving--; route(); return; }
@@ -654,7 +683,7 @@ async function finish(auto = false, reason = null) {
   const z = V.quiz, seq = navSeq;
   V.busy = true; V.confirm = false; V.subErr = ''; render();
   try {
-    const res = await api(`/api/quizzes/${encodeURIComponent(z.id)}/submit`, { byQ: V.byQ, auto, reason });
+    const res = await api(`/api/tests/${encodeURIComponent(z.id)}/submit`, { byQ: V.byQ, auto, reason });
     if (seq === navSeq) { V.qlb = null; setQuiz(res); window.scrollTo(0, 0); if (!reason) toast(auto ? "Time's up. Your answers were submitted." : 'Submitted'); }
     exitFs();
   } catch (e) {
@@ -671,7 +700,7 @@ async function startQuiz() {
     catch (e) { V.subErr = 'This test must be taken in full screen. Allow full screen when your browser asks, then press Start again.'; render(); return; }
   }
   V.busy = true; V.subErr = ''; render();
-  try { const z = await api(`/api/quizzes/${encodeURIComponent(V.quiz.id)}/start`, {}); V.cur = 0; setQuiz(z); window.scrollTo(0, 0); }
+  try { const z = await api(`/api/tests/${encodeURIComponent(V.quiz.id)}/start`, {}); V.cur = 0; setQuiz(z); window.scrollTo(0, 0); }
   catch (e) { V.subErr = e.message; exitFs(); }
   V.busy = false; render();
 }
