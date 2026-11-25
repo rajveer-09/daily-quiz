@@ -481,6 +481,8 @@ if (FRONTEND) {
 /* Static files. CSS/JS URLs carry a content hash (?v=…), so browsers cache them for a year and fetch again
    only when a file actually changes. The two HTML pages are served from memory and always revalidated. */
 const PUB = path.join(ROOT, 'public');
+// Browsers ask for /favicon.ico on their own; the icon is a PNG.
+app.get('/favicon.ico', (req, res) => res.redirect(301, '/favicon.png'));
 const ASSETS = ['styles.css', 'common.js', 'notes.js', 'app.js', 'admin.js'];
 const ASSET_V = createHash('sha1').update((await Promise.all(ASSETS.map(f => readFile(path.join(PUB, f))))).join('\n')).digest('hex').slice(0, 10);
 const HTML = {};
