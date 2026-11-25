@@ -44,11 +44,13 @@ const sets = db.collection('sets');          // admin-only groups: { _id, name, 
 const attempts = db.collection('attempts');
 const schedule = db.collection('schedule');  // legacy, migrated into tests
 const meta = db.collection('meta');
+const solved = db.collection('solved');      // Practice marks per student and topic: { roll, key: "<topic>-test", done: [question index], rev: [index saved to revisit], at }
 const practice = db.collection('practice');  // notes "Test yourself": { roll, key, score, total, at, best: { score, total, at } }
 await Promise.all([
   students.createIndex({ roll: 1 }, { unique: true }),
   attempts.createIndex({ quizId: 1 }),
   practice.createIndex({ roll: 1, key: 1 }, { unique: true }),
+  solved.createIndex({ roll: 1, key: 1 }, { unique: true }),
   attempts.createIndex({ testId: 1 }),
   attempts.createIndex({ status: 1, deadline: 1 }),
   tests.createIndex({ date: 1, start: 1 }),
@@ -674,6 +676,79 @@ app.post('/api/practice/:key', auth, readOnly, async (req, res) => {
   res.json({ score, total, at, best });
 });
 
+/* ===== Practice: questions per topic (public/notes/<topic>-test.json). Students mark the ones they've completed. ===== */
+let testTotals = null;   // { "<topic>-test": number of questions }, read once from the files
+async function practiceTotals() {
+  if (testTotals) return testTotals;
+  const t = {};
+  try {
+    for (const f of (await readdir(path.join(PUB, 'notes'))).filter(f => /^[a-z0-9-]+-test\.json$/.test(f))) {
+      try { const q = JSON.parse(await readFile(path.join(PUB, 'notes', f), 'utf8')); if (Array.isArray(q.questions) && q.questions.length) t[f.slice(0, -5)] = q.questions.length; } catch (e) {}
+    }
+  } catch (e) {}
+  return (testTotals = t);
+}
+/** Students in a hall ranked by practice questions completed. Same count: whoever got there first ranks higher. */
+function practiceRows(hall) {
+  return cachedGet(`plb:${hall ?? '-'}`, 5_000, async () => {
+    const [totals, list, S] = await Promise.all([
+      practiceTotals(),
+      solved.find({}, { projection: { _id: 0, roll: 1, key: 1, done: 1, at: 1 } }).toArray(),
+      students.find({}, { projection: { roll: 1, name: 1, hall: 1 } }).toArray(),
+    ]);
+    const names = new Map(S.filter(s => (s.hall || null) === (hall || null)).map(s => [s.roll, s.name]));
+    const by = new Map();
+    for (const r of list) {
+      if (!names.has(r.roll) || !totals[r.key]) continue;
+      const n = (r.done || []).filter(i => i < totals[r.key]).length;
+      if (!n) continue;
+      const x = by.get(r.roll) || { roll: r.roll, solved: 0, topics: 0, at: 0 };
+      x.solved += n; x.topics++; x.at = Math.max(x.at, r.at || 0);
+      by.set(r.roll, x);
+    }
+    return rankRows([...by.values()].sort((a, b) => b.solved - a.solved || a.at - b.at), (a, b) => a.solved === b.solved)
+      .map(r => ({ roll: r.roll, rank: r.rank, name: names.get(r.roll), solved: r.solved, topics: r.topics }));
+  });
+}
+const totalOf = totals => Object.values(totals).reduce((a, n) => a + n, 0);
+app.get('/api/solved', auth, async (req, res) => {
+  const [totals, rows, board] = await Promise.all([
+    practiceTotals(),
+    solved.find({ roll: req.student.roll }, { projection: { _id: 0, key: 1, done: 1, rev: 1 } }).toArray(),
+    practiceRows(req.student.hall || null),
+  ]);
+  const mine = board.find(r => r.roll === req.student.roll);
+  res.json({
+    totals, total: totalOf(totals), hall: req.student.hall || null,
+    rank: mine ? { rank: mine.rank, of: board.length } : null,
+    solved: Object.fromEntries(rows.filter(r => totals[r.key]).map(r => [r.key, (r.done || []).filter(i => i < totals[r.key])])),
+    revisit: Object.fromEntries(rows.filter(r => totals[r.key] && r.rev && r.rev.length).map(r => [r.key, r.rev.filter(i => i < totals[r.key]).sort((a, b) => a - b)])),
+  });
+});
+app.post('/api/revisit/:key', auth, readOnly, async (req, res) => {
+  const key = String(req.params.key), n = (await practiceTotals())[key], i = req.body?.i;
+  if (!n) return res.status(404).json({ error: 'That practice set was not found.' });
+  if (!Number.isInteger(i) || i < 0 || i >= n) return res.status(400).json({ error: 'That question was not found.' });
+  const roll = req.student.roll;
+  await solved.updateOne({ roll, key }, { ...(req.body.on === false ? { $pull: { rev: i } } : { $addToSet: { rev: i } }), $set: { at2: Date.now() } }, { upsert: true });
+  const r = await solved.findOne({ roll, key }, { projection: { rev: 1 } });
+  res.json({ rev: (r && r.rev || []).sort((a, b) => a - b) });
+});
+app.get('/api/practice-board', auth, async (req, res) => {
+  const [totals, rows] = await Promise.all([practiceTotals(), practiceRows(req.student.hall || null)]);
+  res.json({ hall: req.student.hall || null, total: totalOf(totals), rows: forViewer(rows, req.student.roll) });
+});
+app.post('/api/solved/:key', auth, readOnly, async (req, res) => {
+  const key = String(req.params.key), n = (await practiceTotals())[key], i = req.body?.i;
+  if (!n) return res.status(404).json({ error: 'That practice set was not found.' });
+  if (!Number.isInteger(i) || i < 0 || i >= n) return res.status(400).json({ error: 'That question was not found.' });
+  const roll = req.student.roll;
+  await solved.updateOne({ roll, key }, { ...(req.body.done === false ? { $pull: { done: i } } : { $addToSet: { done: i } }), $set: { at: Date.now() } }, { upsert: true });
+  memo.delete(`plb:${req.student.hall || '-'}`);
+  const r = await solved.findOne({ roll, key }, { projection: { done: 1 } });
+  res.json({ done: (r && r.done || []).sort((a, b) => a - b) });
+});
+
 app.post('/api/tests/:id/submit', auth, readOnly, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
@@ -1218,6 +1293,7 @@ app.delete('/api/admin/students/:roll', async (req, res) => {
   if (!r.deletedCount) return res.status(404).json({ error: 'Student not found.' });
   const a = await attempts.deleteMany({ roll });
   await practice.deleteMany({ roll });
+  await solved.deleteMany({ roll });
   await tests.updateMany({}, { $pull: { 'papers.$[].rolls': roll } });
   invalidate('stu', 'tests', 'lb');
   res.json({ deleted: true, attemptsDeleted: a.deletedCount });

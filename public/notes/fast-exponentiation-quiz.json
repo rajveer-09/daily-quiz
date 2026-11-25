@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "About how many steps does fast exponentiation need for an exponent of 10^18?", "o": ["About 10^18", "About 10^9", "About 60", "About 1000"], "a": 2, "e": "Each step halves the exponent, so it takes about log₂(10^18) ≈ 60 steps." },
+    { "q": "What does this print?", "code": "long long r = 1, a = 3, b = 5;\nwhile (b > 0) {\n    if (b & 1) r *= a;\n    a *= a;\n    b >>= 1;\n}\ncout << r;", "run": true, "o": ["15", "125", "243", "81"], "a": 2, "e": "5 = 101 in binary, so r = 3¹ × 3⁴ = 3 × 81 = 243 = 3⁵." },
+    { "q": "13 = 1101 in binary. Which product equals a¹³?", "o": ["a⁸ × a⁴ × a¹", "a⁸ × a⁴ × a²", "a⁶ × a⁶ × a", "a¹⁰ × a³"], "a": 0, "e": "The 1-bits of 1101 are worth 8, 4 and 1, so a¹³ = a⁸ × a⁴ × a¹. The loop multiplies in exactly those squared powers." },
+    { "q": "Why reduce the base with a %= m before the loop?", "o": ["It makes the loop run fewer times", "So that a × a can't overflow", "It is needed only for negative numbers", "It changes the answer"], "a": 1, "e": "After a %= m, every product is below m², which fits in a long long. A huge base like 10^18 would overflow on the first squaring." },
+    { "q": "What does this print?", "code": "long long r = 1, a = 2, b = 10, m = 10;\nwhile (b > 0) {\n    if (b & 1) r = r * a % m;\n    a = a * a % m;\n    b >>= 1;\n}\ncout << r;", "run": true, "o": ["2", "4", "6", "8"], "a": 1, "e": "It computes 2¹⁰ mod 10: 2¹⁰ = 1024, whose last digit is 4." },
+    { "q": "p is prime and b isn't a multiple of p. The inverse of b mod p is:", "o": ["b^(p−1) mod p", "b^(p−2) mod p", "p − b", "1 / b"], "a": 1, "e": "Fermat's little theorem says b^(p−1) ≡ 1, so b × b^(p−2) ≡ 1. That makes b^(p−2) the inverse." },
+    { "q": "What is the time complexity of fast exponentiation for exponent b?", "o": ["O(b)", "O(√b)", "O(log b)", "O(1)"], "a": 2, "e": "The exponent is halved every step, so the loop runs about log₂ b times." },
+    { "q": "Why not use pow() from <cmath> to compute aᵇ mod 10⁹ + 7?", "o": ["pow() is too slow for small numbers", "pow() works with double: it loses digits and can't take a modulus", "pow() only works on int", "pow() needs C++17"], "a": 1, "e": "pow() returns a double. Big results lose their exact digits, and there's no way to take a modulus in the middle." }
+  ]
+}

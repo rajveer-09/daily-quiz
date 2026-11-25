@@ -121,6 +121,8 @@ function route() {
   if ((m = h.match(/^\/leaderboard\/([\w-]+)$/))) return openBoard(m[1]);
   if ((m = h.match(/^\/(?:test|quiz)\/([\w-]+)$/))) return load('quiz', stale => openQuiz(m[1], stale));
   if ((m = Notes.parse(h))) return openNotes(m);
+  if ((m = Notes.parseTests(h))) return openTests(m);
+  if (h === '/revisit') return load('revisit', async stale => { const st = await Notes.loadRevisit(); if (!stale()) V.revisit = st; });
   location.replace('#/home');
 }
 
@@ -138,16 +140,24 @@ async function load(page, fn) {
 }
 
 async function loadHome(stale) {
-  const [d, b] = await Promise.all([api('/api/home'), V.page === 'profile' ? api('/api/leaderboard').catch(() => null) : null]);
+  const prof = V.page === 'profile';
+  const [d, b, s] = await Promise.all([api('/api/home'), prof ? api('/api/leaderboard').catch(() => null) : null, prof ? api('/api/solved').catch(() => null) : null]);
   if (stale()) return;
-  V.home = d; V.board = b; setMe(d.me);
+  V.home = d; V.board = b; V.solved = s; setMe(d.me);
 }
 
-const openBoard = id => load('lb', async stale => {
-  const [all, one] = await Promise.all([api('/api/leaderboard'), id ? api('/api/leaderboard/' + encodeURIComponent(id)) : null]);
+async function fetchBoard(id, stale, keep) {
+  const pm = id === 'practice';
+  const [all, one] = await Promise.all([keep && id ? keep : api('/api/leaderboard'), pm ? api('/api/practice-board') : id ? api('/api/leaderboard/' + encodeURIComponent(id)) : null]);
   if (stale()) return;
-  V.lb = { all, quiz: one ? one.test : null, rows: one ? one.rows : all.rows };
-});
+  V.lb = pm ? { all, practice: one, quiz: null, rows: one.rows } : { all, quiz: one ? one.test : null, rows: one ? one.rows : all.rows };
+}
+async function openBoard(id) {
+  if (V.page !== 'lb' || !V.lb || V.loading) return load('lb', stale => fetchBoard(id, stale));
+  const seq = ++navSeq, stale = () => seq !== navSeq;
+  try { await fetchBoard(id, stale, V.lb.all); } catch (e) { if (!stale()) toast(e.message, true); return; }
+  if (!stale()) render();
+}
 
 /* ---------- Notes (shared with the admin site: notes.js) ---------- */
 const openNotes = parts => load('notes', async stale => {
@@ -155,6 +165,12 @@ const openNotes = parts => load('notes', async stale => {
   if (stale()) return;
   if (st.redirect) { location.replace(st.redirect); return; }
   V.notes = st;
+});
+const openTests = parts => load('stests', async stale => {
+  const st = await Notes.loadTests(...parts);
+  if (stale()) return;
+  if (st.redirect) { location.replace(st.redirect); return; }
+  V.stests = st;
 });
 
 async function openQuiz(id, stale) {
@@ -199,7 +215,7 @@ async function loadQuizBoard(id) {
 }
 
 /* ---------- Shell ---------- */
-const NAV = [['home', '#/home', 'home', 'Home', 'H'], ['past', '#/past', 'bars', 'Results', 'R'], ['notes', '#/notes', 'book', 'Notes', 'N'], ['lb', '#/leaderboard', 'trophy', 'Leaderboard', 'L'], ['profile', '#/profile', 'user', 'Profile', 'P']];
+const NAV = [['home', '#/home', 'home', 'Home', 'H'], ['past', '#/past', 'bars', 'Results', 'R'], ['notes', '#/notes', 'book', 'Notes', 'N'], ['stests', '#/practice', 'target', 'Practice', 'T'], ['revisit', '#/revisit', 'bookmark', 'Revisit', 'V'], ['lb', '#/leaderboard', 'trophy', 'Leaderboard', 'L'], ['profile', '#/profile', 'user', 'Profile', 'P']];
 
 function crumbFor(active) {
   const z = V.quiz;
@@ -208,6 +224,7 @@ function crumbFor(active) {
     return `<a href="${up[0]}">${up[1]}</a><span>/</span><b>${esc(z.title)}</b>`;
   }
   if (V.page === 'notes' && V.notes && V.notes.level) return Notes.crumb(V.notes);
+  if (V.page === 'stests' && V.stests && V.stests.level) return Notes.crumbTests(V.stests);
   return `<b>${(NAV.find(n => n[0] === active) || NAV[0])[3]}</b>`;
 }
 
@@ -232,7 +249,7 @@ function shell(content) {
       <div class="content">${content}</div>
     </main>
   </div>
-  <nav class="bnav" aria-label="Main">${NAV.map(([k, h, i, t]) => `<a href="${h}" class="${active === k ? 'on' : ''}"${active === k ? ' aria-current="page"' : ''}>${icon(i)}${t}</a>`).join('')}</nav>
+  <nav class="bnav" aria-label="Main">${NAV.filter(n => n[0] !== 'revisit').map(([k, h, i, t]) => `<a href="${h}" class="${active === k ? 'on' : ''}"${active === k ? ' aria-current="page"' : ''}>${icon(i)}${t}</a>`).join('')}</nav>
   ${V.askOut ? `<div class="overlay" data-act="noLogout"><div class="dialog slide-in" role="dialog" aria-modal="true" aria-labelledby="loh">
     <h2 id="loh">${preview ? 'Exit preview?' : 'Log out?'}</h2>
     <p>${preview ? 'You will go back to the admin dashboard.' : `You're signed in as <b>${esc(me.name)}</b> (${esc(me.roll)}). Sign in again with your roll number any time.`}</p>
@@ -401,15 +418,67 @@ function viewProfile() {
     <div class="card kpi"><span class="k-label">Best score</span><span class="k-val">${best ? `${best.score}<small>/${best.total}</small>` : '–'}</span></div>
     <div class="card kpi"><span class="k-label">Hall rank</span><span class="k-val">${mine ? `#${mine.rank}<small> of ${V.board.rows.length}</small>` : '–'}</span></div>
   </div>
+  ${scoreChart(done)}
   <section style="display:grid;gap:12px">
     <div class="card-head" style="margin:0"><h2 style="font-size:16px">Your results</h2><a class="btn btn-sm" href="#/past">All results</a></div>
     ${done.length ? `<div class="card rlist">${done.slice(0, 5).map(resultRow).join('')}</div>` : '<div class="dashed"><span>Your scores show up here after your first test.</span></div>'}
   </section>
+  ${practiceCard()}
   ${todo.length ? `<section style="display:grid;gap:12px">
     <div class="card-head" style="margin:0"><h2 style="font-size:16px">Catch up</h2><span class="muted" style="font-size:13px">Missed tests you can still take. They count as late.</span></div>
     <div class="card rlist">${todo.map(resultRow).join('')}</div>
   </section>` : ''}
 `;
+}
+
+// Profile: every test's score in date order, as a line (the latest score is called out above it).
+function scoreChart(done) {
+  const pts = done.slice().sort((a, b) => a.startsAt - b.startsAt).map(i => ({ t: i.title, d: i.date, s: i.attempt.score, n: i.attempt.total, p: i.attempt.score / i.attempt.total * 100 }));
+  if (!pts.length) return '';
+  const W = 600, H = 170, n = pts.length;
+  const x = i => n === 1 ? W / 2 : 14 + i * (W - 28) / (n - 1), y = p => 8 + (100 - p) / 100 * (H - 16);
+  const line = pts.map((q, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(q.p).toFixed(1)}`).join(' ');
+  const area = n > 1 ? `${line} L${x(n - 1).toFixed(1)} ${y(0).toFixed(1)} L${x(0).toFixed(1)} ${y(0).toFixed(1)} Z` : '';
+  const last = pts[n - 1], prev = pts[n - 2];
+  const diff = prev ? Math.round(last.p - prev.p) : null;
+  return `<section style="display:grid;gap:12px">
+    <div class="card-head" style="margin:0"><h2 style="font-size:16px">Test scores</h2></div>
+    <div class="card sc-card">
+      <div class="sc-top"><div><span class="panel-label">Latest</span><span class="sc-big">${Math.round(last.p)}%<small>${last.s}/${last.n}</small></span></div>
+        ${diff !== null ? `<span class="sc-diff ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff > 0 ? '▲ ' + diff : diff < 0 ? '▼ ' + -diff : '±0'}% vs previous test</span>` : ''}</div>
+      <div class="sc-plot">
+        <div class="sc-grid"><span style="top:0%">100%</span><span style="top:50%">50%</span><span style="top:100%">0%</span></div>
+        <div class="sc-area">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${area ? `<path class="sc-fill" d="${area}"/>` : ''}<path class="sc-line" d="${line}" vector-effect="non-scaling-stroke"/></svg>
+          ${pts.map((q, i) => `<button type="button" class="sc-pt${i === n - 1 ? ' last' : ''}" style="left:${x(i) / W * 100}%;top:${y(q.p) / H * 100}%" aria-label="${esc(q.t)}, ${esc(short(q.d))}: ${q.s} of ${q.n}"><i></i><span class="sc-tip"><span><b>${q.s}/${q.n}</b> · ${Math.round(q.p)}%</span><small>${esc(q.t)}</small><small>${esc(short(q.d))}</small></span></button>`).join('')}
+        </div>
+      </div>
+      ${n > 1 ? `<div class="sc-x"><span>${esc(short(pts[0].d))}</span><span>${esc(short(last.d))}</span></div>` : ''}
+    </div>
+  </section>`;
+}
+
+// Profile: Practice questions completed, per topic (only topics that have practice questions).
+function practiceCard() {
+  const s = V.solved;
+  if (!s) return '';
+  const rows = [];
+  for (const l of Notes.CATALOG) for (const sub of l.subjects) for (const t of sub.topics) {
+    const key = t.files && t.files.test, n = key && s.totals[key];
+    if (n) rows.push({ l, sub, t, n, k: (s.solved[key] || []).length });
+  }
+  if (!rows.length) return '';
+
+  return `<section style="display:grid;gap:12px">
+    <div class="card-head" style="margin:0"><h2 style="font-size:16px">Practice</h2><a class="btn btn-sm" href="#/practice">Open practice</a></div>
+    ${Notes.progressCard(s, '#/leaderboard/practice')}
+    <div class="card pr-card">
+      <div class="pr-list">${rows.map(r => `<a class="pr-row" href="#/practice/${r.l.id}/${r.sub.id}/${r.t.id}">
+        <span class="pr-t"><b>${esc(r.t.title)}</b><small>${esc(r.l.name)} · ${esc(r.sub.title)}</small></span>
+        <span class="pr-bar"><i style="width:${r.k / r.n * 100}%"></i></span>
+        <span class="pr-v${r.k === r.n ? ' all' : ''}">${r.k}/${r.n}</span></a>`).join('')}</div>
+    </div>
+  </section>`;
 }
 
 /* ---------- Quiz: before start ---------- */
@@ -606,7 +675,41 @@ function viewResult() {
 }
 
 /* ---------- Leaderboard ---------- */
+const boardTabs = pm => `<div class="seg lb-tabs" role="tablist"><a href="#/leaderboard" role="tab" aria-selected="${!pm}" class="${pm ? '' : 'on'}">Tests</a><a href="#/leaderboard/practice" role="tab" aria-selected="${pm}" class="${pm ? 'on' : ''}">Practice</a></div>`;
+const boardHead = (hall, line, ctl, raw) => `<div class="page-head lb-headx"><h1>Leaderboard</h1>
+    <div class="lb-ctl">${ctl}</div>
+    <p>${hall ? `<span style="color:var(--ink)">${esc(hallName(hall))}</span> only. ` : ''}${raw ? line : esc(line)}</p></div>`;
+function viewPracticeBoard() {
+  const { all, practice: p, rows } = V.lb, mine = rows.find(r => r.me);
+  const top = Math.max(1, ...rows.map(r => r.solved));
+  const shown = rows.slice(0, 50), extra = mine && !shown.includes(mine) ? mine : null;
+  const row = r => `<div class="lb-row${r.me ? ' me' : ''}"><span class="lb-rank">${r.rank}</span>
+      <span class="lb-name">${avatar(r.name, 'sm' + (r.me ? ' me' : ''))}<span>${esc(r.name)}</span>${r.me ? '<span class="you">you</span>' : ''}</span>
+      <span class="lb-sc"><span>${r.solved}</span><span class="progress" style="flex:1"><i style="width:${r.solved / top * 100}%"></i></span></span>
+      <span class="lb-t">${plural(r.topics, 'topic')}</span></div>`;
+  let line = '';
+  if (mine) {
+    const above = rows.find(r => r.rank === mine.rank - 1) || rows.filter(r => r.rank < mine.rank).pop();
+    line = mine.rank === 1 ? (rows.length > 1 ? 'Top of the hall.' : 'Only one on the board so far.')
+      : above ? `${plural(above.solved - mine.solved + 1, 'more problem')} to pass #${above.rank}.` : '';
+  }
+  return `${boardHead(p.hall, 'Ranked by practice problems solved.', boardTabs(true))}
+  ${rows.length ? `<div class="lb-wrap">
+    <div class="card lb-main">
+      <div class="lb-head"><span>#</span><span>Student</span><span class="h-sc">Solved</span><span class="lb-t">Topics</span></div>
+      ${shown.map(row).join('')}${extra ? `<div class="lb-gap">⋯</div>${row(extra)}` : ''}
+    </div>
+    <aside class="lb-side">
+      <div class="card panel" style="gap:10px"><span class="panel-label">Your position</span>
+        ${mine ? `<span class="bigrank">#${mine.rank}<small> of ${rows.length}</small></span><span style="font-size:14px;line-height:1.5;color:var(--ink-2)">${esc(line)}</span>`
+          : '<span style="font-size:14px;color:var(--ink-2)">Solve a practice problem to get on the board.</span>'}
+        <a href="#/practice" style="font-size:13px;text-decoration:none">Go to practice →</a>
+      </div>
+    </aside>
+  </div>` : '<div class="dashed"><span>No one has solved a practice problem yet. Be the first on the board.</span></div>'}`;
+}
 function viewBoard() {
+  if (V.lb.practice) return viewPracticeBoard();
   const { all, quiz, rows } = V.lb, qm = !!quiz;
   const mine = rows.find(r => r.me);
   const opts = all.tests.map(z => `<option value="${esc(z.id)}"${quiz && quiz.id === z.id ? ' selected' : ''}>${esc(short(z.date))} · ${esc(z.title)}${z.isToday ? ' (today)' : ''}</option>`).join('');
@@ -619,12 +722,8 @@ function viewBoard() {
       <span class="lb-sc"><span>${qm ? `${r.score}/${r.total}` : `${r.points} pts`}</span><span class="progress" style="flex:1"><i style="width:${f * 100}%"></i></span></span>
       <span class="lb-t">${qm ? mmss(r.secs) : `${r.avgPct}%`}</span></div>`;
   };
-  return `<div class="page-head row">
-    <div><h1>${quiz ? esc(quiz.title) : 'Leaderboard'}</h1>
-      <p>${all.hall ? `<span style="color:var(--ink)">${esc(hallName(all.hall))}</span> only. ` : ''}${quiz ? `${esc(fmtDay(quiz.date))}. Higher score first; on the same score, the faster time ranks higher. Updates live as people submit.` : 'One point for every right answer across every test. Ties go to the faster total time.'}</p></div>
-    <label class="sr" for="lbq">Choose a leaderboard</label>
-    <select class="input" id="lbq" style="width:auto;max-width:100%"><option value="">Overall</option>${opts}</select>
-  </div>
+  return `${boardHead(all.hall, quiz ? `<b>${esc(quiz.title)}</b> · ${esc(fmtDay(quiz.date))}. Higher score first; on the same score, the faster time ranks higher.` : 'One point for every right answer across every test. Ties go to the faster total time.',
+    `${boardTabs(false)}<label class="sr" for="lbq">Choose a leaderboard</label><select class="input lb-pick" id="lbq"><option value="">Overall</option>${opts}</select>`, true)}
   ${rows.length ? `<div class="lb-wrap">
     <div class="card lb-main">
       <div class="lb-head"><span>#</span><span>Student</span><span class="h-sc">${qm ? 'Score' : 'Points'}</span><span class="lb-t">${qm ? 'Time' : 'Average'}</span></div>
@@ -658,13 +757,15 @@ function render() {
   else if (V.page === 'past') html = viewPast();
   else if (V.page === 'lb') html = viewBoard();
   else if (V.page === 'notes') html = V.notes ? Notes.view(V.notes) : '';
+  else if (V.page === 'stests') html = V.stests ? Notes.viewTests(V.stests) : '';
+  else if (V.page === 'revisit') html = V.revisit ? Notes.viewRevisit(V.revisit) : '';
   else if (V.locked) html = viewLocked();
   else if (V.quiz && V.quiz.state === 'started') html = viewTake();
   else if (V.quiz && V.quiz.state === 'done') html = viewResult();
   else if (V.quiz) html = viewIntro();
   else html = '';
   $app.innerHTML = shell(html) + (preview ? `<div class="pv-bar" role="status">${icon('user')}<span>Viewing as <b>${esc(me.name)}</b> <span class="mono">${esc(me.roll)}</span> · read-only</span><button class="btn btn-sm" data-act="exitPreview">Exit</button></div>` : '');
-  const nt = V.page === 'notes' ? Notes.title(V.notes) : '';
+  const nt = V.page === 'notes' ? Notes.title(V.notes) : V.page === 'stests' ? Notes.titleTests(V.stests) : V.page === 'revisit' ? 'Revisit' : '';
   document.title = (preview ? 'Preview · ' : '') + (V.quiz ? `${V.quiz.title} · BigONotebook` : nt ? `${nt} · BigONotebook` : 'BigONotebook');
 }
 
@@ -855,7 +956,7 @@ document.addEventListener('keydown', e => {
   // "G then H/R/L/P" jumps between pages.
   if (k === 'g') { gAt = Date.now(); return; }
   if (Date.now() - gAt < 1200) {
-    const to = { h: '#/home', r: '#/past', n: '#/notes', l: '#/leaderboard', p: '#/profile' }[k];
+    const to = { h: '#/home', r: '#/past', n: '#/notes', t: '#/practice', v: '#/revisit', l: '#/leaderboard', p: '#/profile' }[k];
     gAt = 0;
     if (to) location.hash = to;
   }
@@ -878,6 +979,9 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
 Notes.init({
   scores: () => (me ? api('/api/practice').then(d => d.scores) : Promise.resolve({})),
   save: preview ? null : (key, answers) => api('/api/practice/' + encodeURIComponent(key), { answers }),
+  solved: () => (me ? api('/api/solved') : Promise.resolve(null)),
+  mark: preview ? null : (key, i, done) => api('/api/solved/' + encodeURIComponent(key), { i, done }),
+  revisit: preview ? null : (key, i, on) => api('/api/revisit/' + encodeURIComponent(key), { i, on }),
 });
 window.addEventListener('hashchange', route);
 route();

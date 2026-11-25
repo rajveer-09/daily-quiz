@@ -1,0 +1,256 @@
+<!-- Practice questions: GCD and LCM (Level 1 · Maths). Problems from "GCD & LCM Notes C++" (25 Nov 2026, Rajveer).
+     Each problem: statement, samples (.nt-io), a hint and a solution. The samples are checked against the solution code. -->
+<p>The problems go from a direct GCD to subarray GCDs, each adding one idea. Try each one first, and open the hint only when you are stuck.</p>
+
+<h2 id="p1">1. GCD of an Array</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/find-greatest-common-divisor-of-array/" target="_blank" rel="noopener">LeetCode 1979 · Find Greatest Common Divisor of Array</a></p>
+<p>Read <code>n</code> numbers. Print the GCD of the smallest and the largest of them.</p>
+<p><b>Limits:</b> 2 ≤ n ≤ 1000, 1 ≤ each number ≤ 1000 · <b>Idea:</b> direct GCD</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+2 5 6 9 10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+7 5 6 8 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Find the smallest and largest values in one pass, then call <code>gcd</code> once.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>One pass for the minimum and maximum, then gcd(2, 10) = 2. O(n + log max).</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;int&gt; a(n);
+    for (auto &amp;x : a) cin &gt;&gt; x;
+    int lo = *min_element(a.begin(), a.end());
+    int hi = *max_element(a.begin(), a.end());
+    cout &lt;&lt; gcd(lo, hi) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Smallest Even Multiple</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/smallest-even-multiple/" target="_blank" rel="noopener">LeetCode 2413 · Smallest Even Multiple</a></p>
+<p>Read <code>n</code>. Print the smallest positive number that is a multiple of both 2 and n.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 150 · <b>Idea:</b> direct LCM</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>10</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>6</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>“Smallest multiple of both” is the definition of the LCM.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>The answer is lcm(2, n): n itself if n is even, otherwise 2n.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    cout &lt;&lt; 2 / gcd(2LL, n) * n &lt;&lt; "\n";      // lcm(2, n), dividing first
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Count Multiples of a or b</h2>
+<p>Read <code>N</code>, <code>a</code> and <code>b</code>. Print how many numbers from 1 to N are divisible by a or by b.</p>
+<p><b>Limits:</b> 1 ≤ N, a, b ≤ 10^18 · <b>Idea:</b> LCM + inclusion–exclusion</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>100 6 10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>23</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10 2 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>7</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>N/a + N/b counts some numbers twice. Which ones? They are exactly the multiples of one number.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Numbers divisible by both are exactly the multiples of lcm(a, b), so subtract them once: N/a + N/b − N/lcm. For N = 100: 16 + 10 − 3 = 23. The LCM can pass 10^18 (and overflow); when a / gcd is already bigger than N / b, the LCM is bigger than N and there is nothing to subtract.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    long long N, a, b;
+    cin &gt;&gt; N &gt;&gt; a &gt;&gt; b;
+    long long both = 0, step = a / gcd(a, b);       // lcm = step * b
+    if (step &lt;= N / b) both = N / (step * b);       // only if the lcm fits under N
+    cout &lt;&lt; N / a + N / b - both &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Fox and Number Game</h2>
+<p class="nt-lc"><a href="https://codeforces.com/problemset/problem/389/A" target="_blank" rel="noopener">Codeforces 389A · Fox and Number Game</a></p>
+<p>Read <code>n</code> numbers. Any number of times, you may pick xᵢ &gt; xⱼ and set xᵢ = xᵢ − xⱼ. Print the smallest possible sum.</p>
+<p><b>Limits:</b> 2 ≤ n ≤ 100, 1 ≤ each number ≤ 100 · <b>Idea:</b> the GCD never changes</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+2 4 6</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>6</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>5
+45 12 27 30 18</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>15</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>x − y is one step of Euclid's algorithm. What stays the same no matter which moves you make?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Subtracting never changes the GCD of the array, and every number can be driven down to that GCD. So the answer is n × gcd: 5 × 3 = 15.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    long long g = 0;
+    for (int i = 0; i &lt; n; i++) {
+        long long x;
+        cin &gt;&gt; x;
+        g = gcd(g, x);
+    }
+    cout &lt;&lt; g * n &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. All Are Same</h2>
+<p class="nt-lc"><a href="https://codeforces.com/problemset/problem/1593/D1" target="_blank" rel="noopener">Codeforces 1593D1 · All are Same</a></p>
+<p>Read <code>n</code> numbers. You choose a positive k and may subtract k from any number, any number of times. Print the largest k that can make all the numbers equal, or −1 if every k works.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 40, −10^6 ≤ each number ≤ 10^6 · <b>Idea:</b> GCD of differences</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6
+1 5 3 1 1 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4
+100 -1000 -1000 -1000</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1100</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Subtracting only makes numbers smaller, so they can all meet at the minimum. What must k divide?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Every number must come down to the minimum, so k must divide every aᵢ − min. The largest such k is the gcd of those differences. If they are all 0, every k works: −1.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (auto &amp;x : a) cin &gt;&gt; x;
+    long long mn = *min_element(a.begin(), a.end()), g = 0;
+    for (long long x : a) g = gcd(g, x - mn);
+    cout &lt;&lt; (g == 0 ? -1 : g) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Water and Jug</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/water-and-jug-problem/" target="_blank" rel="noopener">LeetCode 365 · Water and Jug Problem</a></p>
+<p>You have jugs of x and y litres and unlimited water. In one move you can fill a jug completely, empty a jug completely, or pour from one jug into the other until the first is empty or the second is full. Read x, y and t, and print <code>YES</code> if the total water in both jugs can become exactly t litres, otherwise <code>NO</code>.</p>
+<p><b>Limits:</b> 1 ≤ x, y, t ≤ 10^3 · <b>Idea:</b> Bézout's identity</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3 5 4</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>YES</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2 6 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>NO</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Let g = gcd(x, y). Filling gives x or y, emptying gives 0, and pouring moves an amount that is a multiple of g. What does that say about every total you can reach? What is the most water both jugs can hold?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Every jug always holds a multiple of g, so the total is a multiple of g, and it can't be more than x + y. Bézout's identity says every such amount can actually be reached. So the answer is yes exactly when t ≤ x + y and t % g == 0. For 3, 5, 4: fill 5, pour into 3 (5 → 2), empty 3, pour 2 across, fill 5, pour 1 across: 4 is left.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    long long x, y, t;
+    cin &gt;&gt; x &gt;&gt; y &gt;&gt; t;
+    bool ok = t &lt;= x + y &amp;&amp; t % gcd(x, y) == 0;
+    cout &lt;&lt; (ok ? "YES" : "NO") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p7">7. GCD on Blackboard</h2>
+<p class="nt-lc"><a href="https://atcoder.jp/contests/abc125/tasks/abc125_c" target="_blank" rel="noopener">AtCoder ABC125 C · GCD on Blackboard</a></p>
+<p>Read <code>n</code> numbers. You may replace <b>one</b> of them with any number you like. Print the largest possible GCD of all the numbers.</p>
+<p><b>Limits:</b> 2 ≤ n ≤ 10^5, 1 ≤ each number ≤ 10^9 · <b>Idea:</b> prefix + suffix GCD</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+7 6 8</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+12 15 18</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>6</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Replacing one number with a copy of the others' GCD is the same as removing it. Can you find the GCD of “everything except index i” for every i without starting over each time?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>pre[i] is the GCD of the first i numbers and suf[i] of the numbers from i to the end. The GCD without index i is gcd(pre[i − 1], suf[i + 1]). Two passes build them, one pass tries every i: O(n log max) instead of O(n²).</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (auto &amp;x : a) cin &gt;&gt; x;
+    vector&lt;long long&gt; pre(n + 1, 0), suf(n + 2, 0);
+    for (int i = 1; i &lt;= n; i++) pre[i] = gcd(pre[i - 1], a[i - 1]);
+    for (int i = n; i &gt;= 1; i--) suf[i] = gcd(suf[i + 1], a[i - 1]);
+    long long best = 0;
+    for (int i = 1; i &lt;= n; i++) best = max(best, gcd(pre[i - 1], suf[i + 1]));
+    cout &lt;&lt; best &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p8">8. Subarrays With GCD Equal to K</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/number-of-subarrays-with-gcd-equal-to-k/" target="_blank" rel="noopener">LeetCode 2447 · Number of Subarrays With GCD Equal to K</a></p>
+<p>Read <code>n</code> and <code>k</code>, then <code>n</code> numbers. Print how many subarrays (contiguous parts) have a GCD equal to k.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 1000, 1 ≤ k, each number ≤ 10^9 · <b>Idea:</b> subarray GCD</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>6 3
+9 3 1 2 6 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1 7
+4</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Fix a start and extend to the right, keeping a running GCD. The GCD can only go down. When can you stop extending?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>For each start i, extend j and keep g = gcd(g, a[j]). Count every time g == k. As soon as k no longer divides g, g can never come back to k, so stop. O(n² log max) in the worst case, and much faster in practice.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    long long k;
+    cin &gt;&gt; n &gt;&gt; k;
+    vector&lt;long long&gt; a(n);
+    for (auto &amp;x : a) cin &gt;&gt; x;
+    long long count = 0;
+    for (int i = 0; i &lt; n; i++) {
+        long long g = 0;
+        for (int j = i; j &lt; n; j++) {
+            g = gcd(g, a[j]);
+            if (g % k != 0) break;         // g only shrinks: it can never become k again
+            if (g == k) count++;
+        }
+    }
+    cout &lt;&lt; count &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>

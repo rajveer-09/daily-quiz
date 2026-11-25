@@ -1,0 +1,140 @@
+{
+  "questions": [
+    {
+      "q": "What does this print?",
+      "code": "int a = 7, b = 2;\ndouble c = a / b;\ncout << c;",
+      "run": true,
+      "o": [
+        "3.5",
+        "3",
+        "4",
+        "3.0"
+      ],
+      "a": 1,
+      "h": "What type is a / b when both are int, before the result is stored?",
+      "e": "a / b is integer division (3) before it is stored in the double, so c is 3.0, which cout prints as 3."
+    },
+    {
+      "q": "Which of these is a char literal?",
+      "o": [
+        "'A'",
+        "\"A\"",
+        "A",
+        "'AB'"
+      ],
+      "a": 0,
+      "mono": true,
+      "h": "Single quotes hold exactly one character.",
+      "e": "Single quotes make one character. \"A\" is a string, A is a variable name, and 'AB' is not a single character."
+    },
+    {
+      "q": "What does this print?",
+      "code": "cout << sizeof(long long);",
+      "run": true,
+      "o": [
+        "4",
+        "8",
+        "16",
+        "2"
+      ],
+      "a": 1,
+      "h": "A long long is 64 bits. How many bytes is that?",
+      "e": "A long long takes 8 bytes (64 bits)."
+    },
+    {
+      "q": "What does this print?",
+      "code": "unsigned int x = 0;\nx = x - 1;\ncout << x;",
+      "run": true,
+      "o": [
+        "-1",
+        "0",
+        "4294967295",
+        "2147483647"
+      ],
+      "a": 2,
+      "h": "An unsigned int can't be negative. What happens when it goes below 0?",
+      "e": "unsigned int can't be negative. Going below 0 wraps around to the largest value, 4,294,967,295."
+    },
+    {
+      "q": "What does this print?",
+      "code": "cout << 'a' - 'A';",
+      "run": true,
+      "o": [
+        "32",
+        "-32",
+        "0",
+        "1"
+      ],
+      "a": 0,
+      "h": "Look up the ASCII codes of 'a' and 'A'.",
+      "e": "'a' is 97 and 'A' is 65, so the difference is 32: lowercase = uppercase + 32."
+    },
+    {
+      "q": "Which reads a whole line, spaces included, into string s?",
+      "o": [
+        "cin >> s;",
+        "getline(cin, s);",
+        "cin.get(s);",
+        "cin << s;"
+      ],
+      "a": 1,
+      "mono": true,
+      "h": "cin >> stops at the first space.",
+      "e": "cin >> stops at the first space. getline reads up to the end of the line."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int x = 10;\nx += 5;\nx *= 2;\nx %= 7;\ncout << x;",
+      "run": true,
+      "o": [
+        "2",
+        "30",
+        "4",
+        "1"
+      ],
+      "a": 0,
+      "h": "Do the steps in order: +=, then *=, then %=.",
+      "e": "10 + 5 = 15, × 2 = 30, and 30 % 7 = 2."
+    },
+    {
+      "q": "What does this print?",
+      "code": "cout << fixed << setprecision(2) << 2.0 / 3;",
+      "run": true,
+      "o": [
+        "0.66",
+        "0.67",
+        "0.666",
+        "1"
+      ],
+      "a": 1,
+      "h": "fixed with setprecision(2) rounds to 2 decimal places.",
+      "e": "2 / 3 = 0.666…, and setprecision(2) with fixed rounds it to 2 decimal places: 0.67."
+    },
+    {
+      "q": "An int can hold numbers up to about:",
+      "o": [
+        "2.1 × 10^9",
+        "9.2 × 10^18",
+        "32,767",
+        "4.3 × 10^9"
+      ],
+      "a": 0,
+      "h": "An int has 32 bits, and one of them is the sign.",
+      "e": "A 32-bit int goes up to 2,147,483,647. 9.2 × 10^18 is long long, and 4.3 × 10^9 is unsigned int."
+    },
+    {
+      "q": "What does this print?",
+      "code": "bool b = 5;\ncout << b + true;",
+      "run": true,
+      "o": [
+        "6",
+        "2",
+        "1",
+        "Compile error"
+      ],
+      "a": 1,
+      "h": "Any non-zero value stored in a bool becomes true. What is true as a number?",
+      "e": "Any non-zero value stored in a bool becomes true (1), and true is 1, so 1 + 1 = 2."
+    }
+  ]
+}

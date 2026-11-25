@@ -1,0 +1,12 @@
+{
+  "questions": [
+    { "q": "What is gcd(12, 18)?", "o": ["3", "6", "36", "216"], "a": 1, "e": "The common divisors of 12 and 18 are 1, 2, 3 and 6; the largest is 6." },
+    { "q": "What is lcm(4, 6)?", "o": ["2", "10", "12", "24"], "a": 2, "e": "Multiples of 4: 4, 8, 12… and of 6: 6, 12… The first common one is 12." },
+    { "q": "What does this print?", "code": "cout << gcd(48, 18) << \" \" << lcm(48, 18);", "run": true, "o": ["6 144", "3 144", "6 864", "2 72"], "a": 0, "e": "gcd(48, 18) = 6, and lcm = 48 / 6 × 18 = 144. Check: 6 × 144 = 864 = 48 × 18." },
+    { "q": "Why write a / gcd(a, b) * b instead of a * b / gcd(a, b)?", "o": ["It is shorter", "The product a × b can overflow before the division", "Division must always come first in C++", "It gives the GCD instead"], "a": 1, "e": "Both formulas are equal on paper, but a × b can be far larger than the LCM and overflow. Dividing first keeps the numbers small." },
+    { "q": "A loop that finds the GCD of an array should start at:", "o": ["1", "0", "-1", "the largest element"], "a": 1, "e": "gcd(0, x) = x, so 0 doesn't change the answer. Starting at 1 always gives 1. (An LCM loop starts at 1.)" },
+    { "q": "Two lights blink every 4 s and 6 s, together at time 0. When do they next blink together?", "o": ["2 s", "10 s", "12 s", "24 s"], "a": 2, "e": "“Together again” is the smallest time both periods divide: lcm(4, 6) = 12." },
+    { "q": "With jugs of 4 and 6 litres, which total can you measure exactly?", "o": ["3 litres", "5 litres", "8 litres", "11 litres"], "a": 2, "e": "Reachable totals are the multiples of gcd(4, 6) = 2 that are at most 4 + 6 = 10. Only 8 is both." },
+    { "q": "What does this print?", "code": "vector<long long> a = {5, 17, 23, 11};\nlong long g = 0;\nfor (long long x : a) g = gcd(g, llabs(x - a[0]));\ncout << g;", "run": true, "o": ["1", "2", "6", "12"], "a": 2, "e": "The differences from 5 are 12, 18 and 6, and their gcd is 6. That is the largest k for which all four numbers leave the same remainder." }
+  ]
+}

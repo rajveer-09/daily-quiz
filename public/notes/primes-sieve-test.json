@@ -1,0 +1,188 @@
+{
+  "questions": [
+    {
+      "k": "concept",
+      "q": "Why does trial division only need to test divisors up to √n?",
+      "o": [
+        "Because n / 2 would be too slow",
+        "If n = a × b with a ≤ b, then a ≤ √n",
+        "Divisors above √n are always even",
+        "Primes are rarer above √n"
+      ],
+      "a": 1,
+      "h": "Divisors come in pairs d and n / d.",
+      "e": "If both factors were above √n, their product would be above n. So any factorisation has one factor at most √n, and finding none up to √n means n is prime."
+    },
+    {
+      "k": "concept",
+      "q": "In the sieve, why does the inner loop start at j = i * i?",
+      "o": [
+        "To avoid overflow",
+        "Because i * i is always prime",
+        "Smaller multiples of i were already crossed out by smaller primes",
+        "Because 2 * i is always even"
+      ],
+      "a": 2,
+      "h": "Take i = 5. Who already crossed out 10, 15 and 20?",
+      "e": "Any multiple k × i with k < i has a prime factor smaller than i, so it was crossed out earlier. The first new one is i × i."
+    },
+    {
+      "k": "code",
+      "q": "This function should return true if n is prime, testing divisors only up to √n. Which condition goes in the blank?",
+      "code": "bool isPrime(int n) {\n    if (n < 2) return false;\n    for (int i = 2; ____; i++)\n        if (n % i == 0) return false;\n    return true;\n}",
+      "o": [
+        "i < n / 2",
+        "i <= 10",
+        "i * i < n",
+        "i * i <= n"
+      ],
+      "a": 3,
+      "mono": true,
+      "h": "Test it on n = 9 and n = 4.",
+      "e": "i * i <= n checks every i up to √n. With i * i < n, 9 and 25 would count as prime; with i < n / 2, n = 4 never enters the loop and is called prime."
+    },
+    {
+      "k": "code",
+      "q": "This sieve should leave every prime up to n marked true and everything else false. Which loop header goes in the blank?",
+      "code": "vector<bool> isP(n + 1, true);\nisP[0] = isP[1] = false;\nfor (int i = 2; i * i <= n; i++)\n    if (isP[i])\n        for (____)\n            isP[j] = false;",
+      "o": [
+        "int j = i * i; j <= n; j += i",
+        "int j = 2; j <= n; j *= i",
+        "int j = i; j <= n; j += i",
+        "int j = i * i; j < n; j++"
+      ],
+      "a": 0,
+      "mono": true,
+      "h": "Cross out the multiples of i, but never i itself.",
+      "e": "Start at i * i and step by i. Starting at i crosses out the prime itself; j++ crosses out non-multiples; j < n skips n."
+    },
+    {
+      "k": "code",
+      "q": "This code prints all divisors of n by finding them in pairs (d and n / d). Which condition stops a divisor from being printed twice?",
+      "code": "for (int d = 1; d * d <= n; d++)\n    if (n % d == 0) {\n        cout << d << \" \";\n        if (____) cout << n / d << \" \";\n    }",
+      "o": [
+        "d * d == n",
+        "d != n / d",
+        "n / d > 1",
+        "d < n"
+      ],
+      "a": 1,
+      "mono": true,
+      "h": "For n = 36, what happens at d = 6?",
+      "e": "When d × d = n, the pair is (6, 6), so the partner must not be printed again. Print n / d only when it differs from d."
+    },
+    {
+      "k": "debug",
+      "q": "This function should return true only for prime numbers. For n = 1 it returns true, but 1 is not prime. What is missing?",
+      "code": "bool isPrime(int n) {\n    for (int i = 2; i * i <= n; i++)\n        if (n % i == 0) return false;\n    return true;\n}",
+      "drive": "cout << isPrime(1);",
+      "expect": "1",
+      "o": [
+        "Start i at 1",
+        "Return false at the end",
+        "Use i * i < n",
+        "if (n < 2) return false; at the start"
+      ],
+      "a": 3,
+      "h": "Does the loop run at all for n = 1?",
+      "e": "For n = 0 and 1 the loop never runs, so the function falls through to return true. Neither is prime, so reject n < 2 first."
+    },
+    {
+      "k": "debug",
+      "q": "This sieve should leave every prime up to n marked true. For n = 30 only 7 11 13 17 19 23 29 stay marked: 2, 3 and 5 are lost. What is the fix?",
+      "code": "vector<bool> sieve(int n) {\n    vector<bool> isP(n + 1, true);\n    isP[0] = isP[1] = false;\n    for (int i = 2; i * i <= n; i++)\n        if (isP[i])\n            for (int j = i; j <= n; j += i)\n                isP[j] = false;\n    return isP;\n}",
+      "drive": "vector<bool> p = sieve(30);\nfor (int i = 0; i <= 30; i++) if (p[i]) cout << i << \" \";",
+      "expect": "7 11 13 17 19 23 29",
+      "o": [
+        "Initialise isP to false",
+        "Loop i up to n",
+        "Start j at i * i (or 2 * i), not at i",
+        "Use j++ instead of j += i"
+      ],
+      "a": 2,
+      "h": "What is the first value of j, and what does it cross out?",
+      "e": "j = i crosses out i itself, so every prime up to √30 (2, 3, 5) is lost. Start at i * i."
+    },
+    {
+      "k": "debug",
+      "q": "This function should count the divisors of n. For n = 36 it returns 10, but 36 has 9 divisors (1, 2, 3, 4, 6, 9, 12, 18, 36). What is the fix?",
+      "code": "int countDivisors(int n) {\n    int c = 0;\n    for (int d = 1; d * d <= n; d++)\n        if (n % d == 0) c += 2;\n    return c;\n}",
+      "drive": "cout << countDivisors(36);",
+      "expect": "10",
+      "o": [
+        "Add 1 instead of 2 when d == n / d",
+        "Start d at 2",
+        "Return c / 2",
+        "Loop while d * d < n"
+      ],
+      "a": 0,
+      "h": "Which divisor pair of 36 is the same number twice?",
+      "e": "6 × 6 = 36 is counted as two divisors. Use c += (d == n / d) ? 1 : 2;"
+    },
+    {
+      "k": "edge",
+      "q": "A prime check uses for (int i = 2; i * i <= n; i++) with int i. What goes wrong for n = 2147483647, the largest int?",
+      "o": [
+        "The loop runs n times",
+        "i * i overflows int once i passes 46340",
+        "n % i is undefined for large n",
+        "2147483647 is not prime"
+      ],
+      "a": 1,
+      "h": "√2147483647 ≈ 46341. What is 46341 × 46341 in an int?",
+      "e": "46341² is larger than INT_MAX, so i * i overflows before the loop can stop. Write (long long)i * i <= n or i <= n / i."
+    },
+    {
+      "k": "edge",
+      "q": "How many divisors does 1 have, and is 1 prime?",
+      "o": [
+        "1 divisor; not prime",
+        "2 divisors; prime",
+        "1 divisor; prime",
+        "0 divisors; not prime"
+      ],
+      "a": 0,
+      "h": "A prime has exactly two different divisors.",
+      "e": "1 has only itself as a divisor. A prime needs exactly two (1 and itself), so 1 is not prime. Checks must handle 0, 1 and 2 correctly."
+    },
+    {
+      "k": "complexity",
+      "q": "What is the time complexity of the sieve up to n?",
+      "o": [
+        "O(n√n)",
+        "O(√n)",
+        "O(n log log n)",
+        "O(n²)"
+      ],
+      "a": 2,
+      "h": "Each prime p crosses out about n / p numbers.",
+      "e": "n/2 + n/3 + n/5 + … (over primes) is about n log log n, which is nearly linear. For n = 10^7 it runs in well under a second."
+    },
+    {
+      "k": "complexity",
+      "q": "How much memory does a sieve up to n = 10^7 need?",
+      "o": [
+        "O(1)",
+        "O(log n)",
+        "O(√n)",
+        "O(n): about 10^7 flags"
+      ],
+      "a": 3,
+      "h": "The sieve keeps one flag per number.",
+      "e": "One flag per number from 0 to n, so O(n). vector<bool> stores them as bits, about 1.25 MB for 10^7."
+    },
+    {
+      "k": "complexity",
+      "q": "Answer 10^5 queries “is x prime?” with x ≤ 10^6. What is the best approach?",
+      "o": [
+        "Sieve once up to 10^6, then answer each query in O(1)",
+        "Count the divisors of x up to x for every query",
+        "Run a new sieve for every query",
+        "Trial division up to x for every query"
+      ],
+      "a": 0,
+      "h": "Many queries on the same small range: do the work once.",
+      "e": "One sieve costs about 10^6 · log log 10^6 steps, and then every query is an array lookup. Checking up to x per query would be 10^5 × 10^6 = 10^11 steps."
+    }
+  ]
+}

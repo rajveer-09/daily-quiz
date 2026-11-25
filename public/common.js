@@ -31,6 +31,8 @@ window.UI = (() => {
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
+    bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     minus: '<path d="M5 12h14"/>',
     right: '<path d="M5 12h14M13 6l6 6-6 6"/>',

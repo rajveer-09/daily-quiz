@@ -1,0 +1,107 @@
+<!-- Notes: GCD and LCM (Level 1 · Maths). Based on "GCD & LCM Notes C++" and "GCD & LCM in C++" (25 Nov 2026, Rajveer).
+     Fragment: loaded into the notes reader. -->
+<h2 id="definitions">1. Definitions</h2>
+<p><b>GCD (greatest common divisor, also called HCF):</b> the largest number that divides both a and b with no remainder.</p>
+<p>Divisors of 12 are 1, 2, 3, 4, 6, 12 and of 18 are 1, 2, 3, 6, 9, 18. The largest common one is 6, so <b>gcd(12, 18) = 6</b>.</p>
+<p><b>LCM (least common multiple):</b> the smallest positive number that both a and b divide.</p>
+<p>Multiples of 4 are 4, 8, 12, 16 and of 6 are 6, 12, 18. The first common one is 12, so <b>lcm(4, 6) = 12</b>.</p>
+
+<h2 id="factors" data-key="Prime factors">2. The prime-factor view</h2>
+<p>Write both numbers as prime powers. The GCD takes the <b>smaller</b> exponent of each prime; the LCM takes the <b>larger</b>. With 12 = 2² × 3 and 18 = 2 × 3²:</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Quantity</th><th>Rule</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>gcd(12, 18)</td><td>smaller exponents: 2¹ × 3¹</td><td>6</td></tr>
+    <tr><td>lcm(12, 18)</td><td>larger exponents: 2² × 3²</td><td>36</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="identity" data-key="gcd × lcm = a × b">3. The key identity</h2>
+<p><b>gcd(a, b) × lcm(a, b) = a × b.</b> Check: 6 × 36 = 216 = 12 × 18.</p>
+<p>So <b>lcm(a, b) = a / gcd(a, b) × b</b>. Dividing first keeps the numbers small.</p>
+
+<h2 id="euclid" data-key="Euclid's algorithm">4. Euclid's algorithm</h2>
+<p>Keep replacing (a, b) with (b, a % b) until b becomes 0. Then a is the GCD: <b>gcd(a, b) = gcd(b, a % b)</b> and <b>gcd(a, 0) = a</b>.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Step</th><th>Division</th><th>Next pair</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>48 = 2 × 18 + 12</td><td>gcd(18, 12)</td></tr>
+    <tr><td>2</td><td>18 = 1 × 12 + 6</td><td>gcd(12, 6)</td></tr>
+    <tr class="hl"><td>3</td><td>12 = 2 × 6 + 0</td><td>gcd(6, 0) = 6</td></tr>
+  </tbody>
+</table></div>
+<p>It takes <b>O(log min(a, b))</b> steps, so it is instant even for numbers up to 10^18.</p>
+
+<h2 id="facts" data-key="Key facts">5. Facts you will use</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Fact</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>gcd(a, 0) = a, and gcd(0, 0) = 0</td><td>0 is the safe starting value for a GCD over an array</td></tr>
+    <tr><td>gcd(a, b) = gcd(a, b − a)</td><td>Subtracting never changes the GCD, so the GCD of an array equals the GCD of its differences</td></tr>
+    <tr><td>gcd(a, b, c) = gcd(gcd(a, b), c)</td><td>Fold a loop over the array; the same works for LCM</td></tr>
+    <tr><td>gcd(k·a, k·b) = k · gcd(a, b)</td><td>Take a common factor out to simplify</td></tr>
+    <tr><td>If gcd(a, b) = 1, lcm(a, b) = a × b</td><td>The numbers are <b>coprime</b>, and the LCM grows fast</td></tr>
+    <tr><td>ax + by = c has a solution only if gcd(a, b) divides c</td><td><b>Bézout's identity</b>: equation and water-jug problems</td></tr>
+    <tr><td>gcd ≤ min(a, b), and lcm ≥ max(a, b)</td><td>Quick bounds to sanity-check an answer</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="code" data-key="C++ code">6. C++ code</h2>
+<p>In contests use the built-ins from <code>&lt;numeric&gt;</code> (C++17): <code>gcd(a, b)</code> and <code>lcm(a, b)</code>. They work on absolute values and accept mixed types. On older compilers, GCC has <code>__gcd(a, b)</code>, with both values of the same type. Write your own only when you need it.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+long long gcdRec(long long a, long long b) {          // recursive Euclid
+    return b == 0 ? a : gcdRec(b, a % b);
+}
+
+long long gcdIter(long long a, long long b) {         // iterative Euclid
+    while (b != 0) {
+        long long r = a % b;
+        a = b;
+        b = r;
+    }
+    return a;
+}
+
+long long lcmSafe(long long a, long long b) {
+    if (a == 0 || b == 0) return 0;
+    return a / gcd(a, b) * b;                         // divide FIRST, then multiply
+}
+
+int main() {
+    cout &lt;&lt; gcd(12, 18) &lt;&lt; " " &lt;&lt; lcm(12, 18) &lt;&lt; "\n";       // built-ins
+    cout &lt;&lt; gcdRec(48, 18) &lt;&lt; " " &lt;&lt; gcdIter(48, 18) &lt;&lt; "\n";
+    cout &lt;&lt; lcmSafe(4, 6) &lt;&lt; "\n";
+
+    vector&lt;long long&gt; v = {12, 18, 30};
+    long long g = 0, l = 1;                          // GCD starts at 0, LCM at 1
+    for (long long x : v) { g = gcd(g, x); l = lcm(l, x); }
+    cout &lt;&lt; g &lt;&lt; " " &lt;&lt; l &lt;&lt; "\n";
+
+    cout &lt;&lt; gcd(0, 5) &lt;&lt; " " &lt;&lt; gcd(-12, 18) &lt;&lt; "\n";       // gcd(0, x) = x; signs are ignored
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>6 36
+6 6
+12
+6 180
+5 6</code></pre>
+<div class="nt-table"><table>
+  <thead><tr><th>Function</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>gcd(a, b), lcm(a, b)</td><td>O(log min(a, b))</td></tr>
+    <tr><td>GCD or LCM of n numbers</td><td>O(n log max)</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="mistakes" data-key="Mistakes">7. Common mistakes</h2>
+<ol>
+  <li><b>Overflow in the LCM.</b> <code>a * b / gcd(a, b)</code> can overflow before the division. Always write <code>a / gcd(a, b) * b</code>. An LCM folded over an array can still pass 9.2 × 10^18, so stop or cap it at the limit you care about.</li>
+  <li><b><code>int</code> instead of <code>long long</code>.</b> <code>int</code> overflows above about 2 × 10^9, and products and LCMs get big fast.</li>
+  <li><b>Wrong starting value.</b> Start a GCD loop at 0 and an LCM loop at 1. A GCD loop that starts at 1 always gives 1.</li>
+  <li><b>Zero.</b> gcd(0, 0) = 0, so check before dividing by a GCD.</li>
+  <li><b>Negative numbers in your own GCD.</b> <code>%</code> keeps the sign of the left number, so a hand-written Euclid can return −6 for (−12, 18). Use the built-in <code>gcd</code>, or take <code>llabs</code> first.</li>
+  <li><b>LCM under a modulus.</b> Taking <code>% MOD</code> step by step gives wrong answers, because the LCM divides by the GCD. Use the larger exponent of each prime instead.</li>
+  <li><b>Compiler version.</b> <code>gcd</code> and <code>lcm</code> need C++17 (<code>-std=c++17</code>). <code>__gcd</code> needs both values of the same type.</li>
+</ol>

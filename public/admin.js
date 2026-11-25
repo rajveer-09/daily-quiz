@@ -86,6 +86,10 @@ function route() {
     const parts = m;
     return load('notes', async () => { const st = await Notes.load(...parts); if (st.redirect) { location.replace(st.redirect); return null; } return st; });
   }
+  if ((m = Notes.parseTests(h))) {
+    const parts = m;
+    return load('stests', async () => { const st = await Notes.loadTests(...parts); if (st.redirect) { location.replace(st.redirect); return null; } return st; });
+  }
   if (h === '/groups') return load('sets', () => api('/api/admin/sets'));
   if (h === '/students') return load('students', () => api('/api/admin/students'));
   if (h === '/new') return load('edit', async () => ({ isNew: true, attempts: [] }));
@@ -130,7 +134,7 @@ function newTestDraft(d) {
 const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, fullscreen: !!t.fullscreen, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
-const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students'], ['notes', '#/notes', 'file', 'Notes']];
+const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students'], ['notes', '#/notes', 'file', 'Notes'], ['stests', '#/practice', 'target', 'Practice']];
 
 function shell(head, body) {
   const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests', analysis: 'tests' }[V.page] || V.page;
@@ -916,11 +920,12 @@ function render() {
   let html;
   if (V.loading) html = shell('<div class="skel" style="height:56px;width:40%;margin-bottom:24px"></div>', '<div class="kpis"><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div></div><div class="skel" style="height:320px;margin-top:18px"></div>');
   else if (V.page === 'notes' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumb(V.data)}</div>` : '', Notes.view(V.data, { sub: 'The class notes exactly as students see them. Open a level, then a topic.' }));
+  else if (V.page === 'stests' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumbTests(V.data)}</div>` : '', Notes.viewTests(V.data));
   else if (!V.data) html = shell('', empty('x', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
   else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
-  document.title = `${V.page === 'notes' ? Notes.title(V.data) : t ? t.textContent : 'Admin'} · BigONotebook Admin`;
+  document.title = `${V.page === 'notes' ? Notes.title(V.data) : V.page === 'stests' ? Notes.titleTests(V.data) : t ? t.textContent : 'Admin'} · BigONotebook Admin`;
 }
 function renderKeepFocus(id) {
   const el = document.getElementById(id), pos = el ? el.selectionStart : 0;

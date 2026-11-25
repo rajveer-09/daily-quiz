@@ -1,0 +1,115 @@
+<!-- Problem-solving framework: GCD and LCM (Level 1 · Maths). Based on "GCD & LCM in C++" (25 Nov 2026, Rajveer).
+     Fragment: loaded into the notes reader. -->
+<h2 id="spot">1. Spot a GCD or LCM problem</h2>
+<aside class="nt-call tip"><b>Rule of thumb:</b> the <b>largest</b> thing that fits into all → GCD. The <b>smallest</b> thing all fit into → LCM. Problems rarely say “gcd” out loud, so watch for these signals.</aside>
+<div class="nt-table"><table>
+  <thead><tr><th>The problem says…</th><th>Think</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td>“largest” size that splits everything equally, no leftovers</td><td>GCD</td><td>ropes of 48 and 18 cut into equal pieces: longest piece 6</td></tr>
+    <tr><td>“first time together”, “coincide”, “repeat at the same time”</td><td>LCM</td><td>lights blink every 4 s and 6 s: together every 12 s</td></tr>
+    <tr><td>count numbers in [1, N] divisible by a or b</td><td>LCM + inclusion–exclusion</td><td>N/a + N/b − N/lcm(a, b)</td></tr>
+    <tr><td>repeatedly x = x − y or x = x % y</td><td>the GCD never changes</td><td>every number can end at the gcd of the array</td></tr>
+    <tr><td>“same remainder mod k”, “make all equal by adding or subtracting k”</td><td>GCD of differences</td><td>largest k = gcd of |aᵢ − a₀|</td></tr>
+    <tr><td>“measure exactly c” with steps a and b, ax + by = c</td><td>Bézout</td><td>water jugs: gcd(a, b) must divide c</td></tr>
+    <tr><td>“remove one element”, “all except index i”</td><td>prefix + suffix GCD</td><td>gcd(pre[i − 1], suf[i + 1])</td></tr>
+    <tr><td>simplify or add fractions</td><td>GCD and LCM</td><td>6/8 → 3/4; LCM of the denominators</td></tr>
+    <tr><td>“coprime”, “gcd = 1”</td><td>GCD</td><td>keep p/q only when gcd(p, q) = 1</td></tr>
+  </tbody>
+</table></div>
+<p><b>Limits hint:</b> numbers up to 10^9 or 10^18 with a small count usually means one O(log) GCD per number, not looping over divisors.</p>
+
+<h2 id="steps">2. Five steps for any GCD/LCM problem</h2>
+<ol>
+  <li><b>Spot it.</b> Match the wording to a signal above. “Largest that fits all” (GCD) or “smallest all fit into” (LCM)?</li>
+  <li><b>Translate to maths.</b> Write the answer as a formula before coding:
+    <ul>
+      <li>largest d dividing every aᵢ → d = gcd(a₁, …, aₙ)</li>
+      <li>smallest t divisible by every aᵢ → t = lcm(a₁, …, aₙ)</li>
+      <li>is ax + by = c solvable? → c % gcd(a, b) == 0</li>
+    </ul>
+  </li>
+  <li><b>Transform it if it isn't direct.</b>
+    <ul>
+      <li>Differences: gcd(a, b) = gcd(a, b − a), so look at aᵢ − a₀.</li>
+      <li>Invariant: subtract or mod operations never change the GCD.</li>
+      <li>Remove one element: a prefix GCD and a suffix GCD.</li>
+      <li>Counting: inclusion–exclusion with the LCM.</li>
+      <li>A huge LCM under a modulus: the larger exponent of each prime.</li>
+    </ul>
+  </li>
+  <li><b>Pick the tool:</b> <code>gcd</code> / <code>lcm</code>, a loop over the array, prefix/suffix arrays, or extended Euclid.</li>
+  <li><b>Guard the edges:</b> overflow (divide before multiplying), zeros, negatives, n = 1, all numbers equal, a modulus. Test a tiny case by hand.</li>
+</ol>
+
+<h2 id="cheat">3. Cheat sheet</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>Goal</th><th>Code or formula</th></tr></thead>
+  <tbody>
+    <tr><td>GCD of two numbers</td><td><code>gcd(a, b)</code></td></tr>
+    <tr><td>LCM of two numbers</td><td><code>a / gcd(a, b) * b</code></td></tr>
+    <tr><td>GCD of an array</td><td>loop <code>g = gcd(g, x)</code> from g = 0</td></tr>
+    <tr><td>LCM of an array</td><td>loop <code>l = lcm(l, x)</code> from l = 1; watch overflow</td></tr>
+    <tr><td>Is ax + by = c solvable?</td><td><code>c % gcd(a, b) == 0</code></td></tr>
+    <tr><td>Find x, y with ax + by = gcd(a, b)</td><td>extended Euclid (below)</td></tr>
+    <tr><td>Count in [1, N] divisible by a or b</td><td><code>N/a + N/b - N/lcm(a, b)</code></td></tr>
+    <tr><td>Largest k with equal remainders</td><td>gcd of |aᵢ − a₀|</td></tr>
+    <tr><td>GCD of all except index i</td><td><code>gcd(pre[i - 1], suf[i + 1])</code></td></tr>
+    <tr><td>Simplify p / q</td><td>divide both by gcd(p, q)</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="extended">4. Extended Euclid</h2>
+<p>It finds x and y with a·x + b·y = gcd(a, b). You need it to actually solve ax + by = c, and for modular inverses.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+long long extGcd(long long a, long long b, long long &amp;x, long long &amp;y) {
+    if (b == 0) { x = 1; y = 0; return a; }
+    long long x1, y1;
+    long long g = extGcd(b, a % b, x1, y1);
+    x = y1;
+    y = x1 - (a / b) * y1;
+    return g;
+}
+
+int main() {
+    long long x, y;
+    long long g = extGcd(30, 12, x, y);
+    cout &lt;&lt; g &lt;&lt; " " &lt;&lt; x &lt;&lt; " " &lt;&lt; y &lt;&lt; "\n";       // 30 * 1 + 12 * (-2) = 6
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>6 1 -2</code></pre>
+
+<h2 id="example">Worked example</h2>
+<p><b>Problem:</b> find the largest k such that every aᵢ % k is the same. Print −1 if every k works. <b>Limits:</b> n ≤ 10^5, −10^9 ≤ aᵢ ≤ 10^9.</p>
+<div class="nt-steps">
+  <p><b>1. Spot:</b> “same remainder mod k” → GCD of differences.</p>
+  <p><b>2. Translate:</b> aᵢ % k == a₀ % k exactly when k divides aᵢ − a₀.</p>
+  <p><b>3. Transform:</b> so k must divide every difference; the largest such k is the gcd of all |aᵢ − a₀|.</p>
+  <p><b>4. Tool:</b> one loop with <code>gcd</code>, starting at 0.</p>
+  <p><b>5. Edges:</b> if every number is equal, the GCD stays 0 and any k works, so print −1. Differences reach 2 × 10^9, so use <code>long long</code>.</p>
+</div>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    vector&lt;long long&gt; a(n);
+    for (auto &amp;x : a) cin &gt;&gt; x;
+    long long g = 0;
+    for (long long x : a) g = gcd(g, llabs(x - a[0]));
+    cout &lt;&lt; (g == 0 ? -1 : g) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4
+5 17 23 11</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>6</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+7 7 7</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>-1</code></pre></div>
+</div>
+<p>Check: the differences are 12, 18 and 6, whose gcd is 6, and 5, 17, 23 and 11 all leave remainder 5 when divided by 6.</p>

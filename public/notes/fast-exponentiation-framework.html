@@ -1,0 +1,80 @@
+<!-- Problem-solving framework: Fast Exponentiation (Level 1 · Maths). Fragment: loaded into the notes reader. -->
+<h2 id="spot">1. Spot a fast-power problem</h2>
+<div class="nt-table"><table>
+  <thead><tr><th>The problem says…</th><th>Think</th></tr></thead>
+  <tbody>
+    <tr><td>“aᵇ mod m”, “print the answer modulo 10⁹ + 7” with a huge exponent</td><td>modular fast power</td></tr>
+    <tr><td>“last digit” or “last k digits of aᵇ”</td><td>fast power mod 10 or mod 10ᵏ</td></tr>
+    <tr><td>“number of ways” = k choices for each of n positions</td><td>kⁿ mod m</td></tr>
+    <tr><td>a division, average or nCr under a prime modulus</td><td>modular inverse: b^(p−2)</td></tr>
+    <tr><td>an exponent that is itself a power (a^(b^c))</td><td>Fermat: reduce the exponent mod p − 1</td></tr>
+    <tr><td>“apply the same step n times” with n up to 10^18 (Fibonacci, linear recurrences)</td><td>matrix power</td></tr>
+  </tbody>
+</table></div>
+<p><b>Limits hint:</b> an exponent up to 10^9 or 10^18 rules out any loop that runs b times; you need O(log b).</p>
+
+<h2 id="steps">2. Five steps</h2>
+<ol>
+  <li><b>Find the base, the exponent and the modulus.</b> Write the answer as aᵇ mod m, or as a product of such powers.</li>
+  <li><b>Reduce what you can:</b> <code>a %= m</code> (fix a negative result). If m is prime and a isn't a multiple of m, the exponent can be reduced mod m − 1.</li>
+  <li><b>Replace every division</b> under a prime modulus with multiplication by the inverse, <code>modPow(b, m - 2, m)</code>.</li>
+  <li><b>Check overflow:</b> m² must fit in a <code>long long</code> (m up to about 3 × 10^9). Use <code>long long</code> everywhere.</li>
+  <li><b>Guard the edges:</b> b = 0 gives 1, m = 1 gives 0, a = 0, a negative base, 0⁰ (usually defined as 1).</li>
+</ol>
+
+<h2 id="template">3. Template</h2>
+<pre><code class="cpp">long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    if (a &lt; 0) a += m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+// inverse of x mod a prime p:  modPow(x, p - 2, p)</code></pre>
+
+<h2 id="example">Worked example</h2>
+<p><b>Problem:</b> read a and b (0 ≤ a, b ≤ 10^18) and print the last digit of aᵇ. Take 0⁰ = 1.</p>
+<div class="nt-steps">
+  <p><b>1. Base, exponent, modulus:</b> the last digit is aᵇ mod 10, so a, b and m = 10.</p>
+  <p><b>2. Reduce:</b> only the last digit of a matters, so <code>a %= 10</code>. (10 isn't prime, so the exponent can't be reduced with Fermat; fast power handles 10^18 anyway.)</p>
+  <p><b>3. Divisions:</b> none.</p>
+  <p><b>4. Overflow:</b> m = 10, so every product is tiny.</p>
+  <p><b>5. Edges:</b> b = 0 gives 1, even when a = 0. a = 0 with b &gt; 0 gives 0.</p>
+</div>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+
+int main() {
+    long long a, b;
+    cin &gt;&gt; a &gt;&gt; b;
+    cout &lt;&lt; modPow(a, b, 10) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2 10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>4</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>123456789 1000000000000000000</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0 0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1</code></pre></div>
+</div>
+<p>Check: 2¹⁰ = 1024 ends in 4. 9 raised to an even power ends in 1, and 10^18 is even.</p>

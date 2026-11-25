@@ -1,0 +1,130 @@
+{
+  "questions": [
+    {
+      "q": "What is the time complexity?",
+      "code": "for (int i = 1; i <= n; i += 2) cnt++;",
+      "o": [
+        "O(n / 2)",
+        "O(n)",
+        "O(log n)",
+        "O(√n)"
+      ],
+      "a": 1,
+      "h": "Roughly how many times does the loop run? Then drop the constant.",
+      "e": "It runs about n / 2 times, and constants are dropped: O(n)."
+    },
+    {
+      "q": "What is the time complexity?",
+      "code": "for (int i = n; i > 1; i /= 2) cnt++;",
+      "o": [
+        "O(n)",
+        "O(n / 2)",
+        "O(log n)",
+        "O(1)"
+      ],
+      "a": 2,
+      "h": "How many times can you halve n before it reaches 1?",
+      "e": "i is halved each round, so it reaches 1 after about log₂ n rounds."
+    },
+    {
+      "q": "What is the time complexity?",
+      "code": "for (int i = 0; i < n; i++)\n    for (int j = 0; j < 100; j++) cnt++;",
+      "o": [
+        "O(n²)",
+        "O(100n²)",
+        "O(n)",
+        "O(1)"
+      ],
+      "a": 2,
+      "h": "Does the inner loop depend on n?",
+      "e": "The inner loop always runs 100 times, a constant. 100 × n is O(n)."
+    },
+    {
+      "q": "What is the time complexity?",
+      "code": "for (int i = 0; i < n; i++) cnt++;\nfor (int i = 0; i < n; i++)\n    for (int j = 0; j < n; j++) cnt++;",
+      "o": [
+        "O(n)",
+        "O(n² + n)",
+        "O(n²)",
+        "O(n³)"
+      ],
+      "a": 2,
+      "h": "The two parts run one after the other: add them and keep the biggest term.",
+      "e": "n + n² steps; keep the biggest term: O(n²)."
+    },
+    {
+      "q": "What is the time complexity?",
+      "code": "for (int i = 1; i <= n; i++)\n    for (int j = 1; j <= n; j *= 3) cnt++;",
+      "o": [
+        "O(n²)",
+        "O(n log n)",
+        "O(log n)",
+        "O(n)"
+      ],
+      "a": 1,
+      "h": "The inner loop multiplies j by 3 each round.",
+      "e": "The inner loop multiplies j by 3, so it runs about log₃ n times for each of the n outer rounds."
+    },
+    {
+      "q": "n ≤ 10^6 and the time limit is 1 second. Which complexity is too slow?",
+      "o": [
+        "O(n)",
+        "O(n log n)",
+        "O(n²)",
+        "O(log n)"
+      ],
+      "a": 2,
+      "h": "Square 10^6 and compare it with about 10^8 operations per second.",
+      "e": "O(n²) would be about 10^12 steps, far above the roughly 10^8 operations per second."
+    },
+    {
+      "q": "What is the extra space of an n × n grid of ints?",
+      "o": [
+        "O(n)",
+        "O(n²)",
+        "O(1)",
+        "O(2n)"
+      ],
+      "a": 1,
+      "h": "How many values does an n × n grid store?",
+      "e": "The grid stores n × n values, so it uses O(n²) memory."
+    },
+    {
+      "q": "A recursive function calls itself n levels deep before returning. How much stack space does it use?",
+      "o": [
+        "O(1)",
+        "O(log n)",
+        "O(n)",
+        "O(n²)"
+      ],
+      "a": 2,
+      "h": "How many calls are waiting on the stack at the deepest point?",
+      "e": "Every call that is still waiting sits on the call stack, so n levels deep is O(n) space."
+    },
+    {
+      "q": "What is the time complexity?",
+      "code": "long long i = 2;\nwhile (i <= n) i = i * i;",
+      "o": [
+        "O(log n)",
+        "O(√n)",
+        "O(log log n)",
+        "O(n)"
+      ],
+      "a": 2,
+      "h": "Write i for a few rounds: 2, 4, …",
+      "e": "i goes 2, 4, 16, 256, …: it is squared each round, which reaches n after about log log n rounds."
+    },
+    {
+      "q": "Which grows the fastest as n gets large?",
+      "o": [
+        "O(n log n)",
+        "O(n²)",
+        "O(2ⁿ)",
+        "O(n³)"
+      ],
+      "a": 2,
+      "h": "Compare them for n = 100.",
+      "e": "Exponential growth beats every power of n: 2ⁿ eventually passes n³, n² and n log n."
+    }
+  ]
+}

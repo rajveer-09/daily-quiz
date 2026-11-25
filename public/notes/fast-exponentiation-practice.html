@@ -1,0 +1,268 @@
+<!-- Practice questions: Fast Exponentiation (Level 1 · Maths). Each problem: statement, samples (.nt-io), a hint and a solution.
+     The samples are checked against the solution code. -->
+<p>The problems go from the basic squaring loop to Fermat and matrix power, each adding one idea. Try each one first, and open the hint only when you are stuck.</p>
+
+<h2 id="p1">1. Pow(x, n)</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/powx-n/" target="_blank" rel="noopener">LeetCode 50 · Pow(x, n)</a></p>
+<p>Read a decimal number x and an integer n. Print xⁿ with exactly 5 decimal places. n can be negative.</p>
+<p><b>Limits:</b> −100 &lt; x &lt; 100, −2^31 ≤ n ≤ 2^31 − 1 · <b>Idea:</b> the squaring loop</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2.00000 10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1024.00000</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2.10000 3</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>9.26100</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2.00000 -2</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0.25000</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>x⁻ⁿ = 1 / xⁿ. And −2^31 can't be negated inside an <code>int</code>.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Run the loop on |n| (stored in a <code>long long</code>, so −2^31 can be negated), then take 1 / result for negative n. O(log |n|).</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+int main() {
+    double x;
+    long long n;
+    cin &gt;&gt; x &gt;&gt; n;
+    long long e = n &lt; 0 ? -n : n;
+    double r = 1, b = x;
+    while (e &gt; 0) {
+        if (e &amp; 1) r *= b;
+        b *= b;
+        e &gt;&gt;= 1;
+    }
+    if (n &lt; 0) r = 1 / r;
+    cout &lt;&lt; fixed &lt;&lt; setprecision(5) &lt;&lt; r &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p2">2. Exponentiation</h2>
+<p class="nt-lc"><a href="https://cses.fi/problemset/task/1095" target="_blank" rel="noopener">CSES 1095 · Exponentiation</a></p>
+<p>Read n, then n lines with a and b. For each, print aᵇ mod 10⁹ + 7. Take 0⁰ = 1.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 2 × 10^5, 0 ≤ a, b ≤ 10^9 · <b>Idea:</b> modular fast power</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+3 4
+2 8
+123 123</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>81
+256
+921450052</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>2 × 10^5 queries with b up to 10^9: a plain loop would be 10^14 steps. Each query needs O(log b).</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>The modPow template for each query: about 30 steps each, so 6 × 10^6 in total.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+const long long MOD = 1000000007;
+
+long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    while (n--) {
+        long long a, b;
+        cin &gt;&gt; a &gt;&gt; b;
+        cout &lt;&lt; modPow(a, b, MOD) &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p3">3. Count Good Numbers</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/count-good-numbers/" target="_blank" rel="noopener">LeetCode 1922 · Count Good Numbers</a></p>
+<p>A digit string is <b>good</b> if the digits at even positions (0, 2, 4, …) are even and the digits at odd positions are prime (2, 3, 5 or 7). Read n and print how many good strings of length n there are, mod 10⁹ + 7. Leading zeros are allowed.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^15 · <b>Idea:</b> counting = a product of powers</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>1</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>5</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>4</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>400</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>50</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>564908303</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>How many choices does each even position have? Each odd position? How many even positions are there in a string of length n?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Even positions have 5 choices (0, 2, 4, 6, 8) and odd positions 4 (2, 3, 5, 7). There are ⌈n/2⌉ even positions and ⌊n/2⌋ odd ones, so the answer is 5^⌈n/2⌉ × 4^⌊n/2⌋ mod 10⁹ + 7. For n = 4: 25 × 16 = 400.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+const long long MOD = 1000000007;
+
+long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    long long evens = (n + 1) / 2, odds = n / 2;
+    cout &lt;&lt; modPow(5, evens, MOD) * modPow(4, odds, MOD) % MOD &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p4">4. Super Pow</h2>
+<p class="nt-lc"><a href="https://leetcode.com/problems/super-pow/" target="_blank" rel="noopener">LeetCode 372 · Super Pow</a></p>
+<p>Read a, then k, then the k digits of a huge exponent b (most significant first). Print aᵇ mod 1337.</p>
+<p><b>Limits:</b> 1 ≤ a ≤ 2^31 − 1, 1 ≤ k ≤ 2000 · <b>Idea:</b> the exponent is too big for any type</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2
+2
+1 0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1024</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>2147483647
+3
+2 0 0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>1198</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>Read b digit by digit, like building a number: if b = 10x + d, then aᵇ = (aˣ)¹⁰ × aᵈ.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Keep r = a^(digits read so far). Each new digit d turns r into r¹⁰ × aᵈ, all mod 1337. Every power is a small modPow, so it is O(k) steps.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+
+int main() {
+    long long a;
+    int k;
+    cin &gt;&gt; a &gt;&gt; k;
+    long long r = 1;
+    for (int i = 0; i &lt; k; i++) {
+        int d;
+        cin &gt;&gt; d;
+        r = modPow(r, 10, 1337) * modPow(a, d, 1337) % 1337;   // b = 10x + d
+    }
+    cout &lt;&lt; r &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p5">5. Exponentiation II</h2>
+<p class="nt-lc"><a href="https://cses.fi/problemset/task/1712" target="_blank" rel="noopener">CSES 1712 · Exponentiation II</a></p>
+<p>Read n, then n lines with a, b and c. For each, print a^(b^c) mod 10⁹ + 7.</p>
+<p><b>Limits:</b> 1 ≤ n ≤ 10^5, 0 ≤ a, b, c ≤ 10^9 · <b>Idea:</b> Fermat reduces the exponent</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>3
+3 7 1
+15 2 2
+3 4 5</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>2187
+50625
+763327764</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>b^c is far too big to compute. For a prime p and a not divisible by p, a^e ≡ a^(e mod (p − 1)). So which modulus do you use for b^c?</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Compute e = b^c mod (p − 1) with fast power, then a^e mod p. Fermat needs a not divisible by p; here a ≤ 10^9 &lt; p, so that only fails for a = 0, where the answer is 1 if b^c = 0 (b = 0 and c &gt; 0) and 0 otherwise.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+const long long MOD = 1000000007;
+
+long long modPow(long long a, long long b, long long m) {
+    long long r = 1 % m;
+    a %= m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;
+        a = a * a % m;
+        b &gt;&gt;= 1;
+    }
+    return r;
+}
+
+int main() {
+    int n;
+    cin &gt;&gt; n;
+    while (n--) {
+        long long a, b, c;
+        cin &gt;&gt; a &gt;&gt; b &gt;&gt; c;
+        if (a == 0) { cout &lt;&lt; (b == 0 &amp;&amp; c &gt; 0 ? 1 : 0) &lt;&lt; "\n"; continue; }
+        long long e = modPow(b, c, MOD - 1);      // b^c mod (p - 1)
+        cout &lt;&lt; modPow(a, e, MOD) &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+</details>
+
+<h2 id="p6">6. Fibonacci Numbers</h2>
+<p class="nt-lc"><a href="https://cses.fi/problemset/task/1722" target="_blank" rel="noopener">CSES 1722 · Fibonacci Numbers</a></p>
+<p>F(0) = 0, F(1) = 1, and F(n) = F(n − 1) + F(n − 2). Read n and print F(n) mod 10⁹ + 7.</p>
+<p><b>Limits:</b> 0 ≤ n ≤ 10^18 · <b>Idea:</b> matrix power</p>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>10</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>55</code></pre></div>
+</div>
+<div class="nt-io">
+  <div><span>Input</span><pre class="plain"><code>0</code></pre></div>
+  <div><span>Output</span><pre class="plain"><code>0</code></pre></div>
+</div>
+<details class="nt-hint"><summary>Hint</summary><p>A loop to 10^18 is far too slow. The matrix [[1, 1], [1, 0]] raised to the power n holds F(n). Apply fast power to matrices.</p></details>
+<details class="nt-hint"><summary>Solution</summary>
+<p>Same loop as modPow, but the “numbers” are 2 × 2 matrices and the multiplication is matrix multiplication. Mⁿ = [[F(n+1), F(n)], [F(n), F(n−1)]], so the answer is the top-right entry. O(log n) matrix products.</p>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+const long long MOD = 1000000007;
+typedef array&lt;array&lt;long long, 2&gt;, 2&gt; Mat;
+
+Mat mul(const Mat &amp;A, const Mat &amp;B) {
+    Mat C = {{{0, 0}, {0, 0}}};
+    for (int i = 0; i &lt; 2; i++)
+        for (int j = 0; j &lt; 2; j++)
+            for (int k = 0; k &lt; 2; k++)
+                C[i][j] = (C[i][j] + A[i][k] * B[k][j]) % MOD;
+    return C;
+}
+
+int main() {
+    long long n;
+    cin &gt;&gt; n;
+    Mat r = {{{1, 0}, {0, 1}}}, a = {{{1, 1}, {1, 0}}};   // r starts as the identity
+    while (n &gt; 0) {
+        if (n &amp; 1) r = mul(r, a);
+        a = mul(a, a);
+        n &gt;&gt;= 1;
+    }
+    cout &lt;&lt; r[0][1] &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+</details>

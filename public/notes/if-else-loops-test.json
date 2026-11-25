@@ -1,0 +1,141 @@
+{
+  "questions": [
+    {
+      "q": "What does this print?",
+      "code": "int n = 15;\nif (n % 3 == 0 && n % 5 == 0) cout << \"both\";\nelse if (n % 3 == 0) cout << \"three\";\nelse cout << \"none\";",
+      "run": true,
+      "o": [
+        "both",
+        "three",
+        "none",
+        "boththree"
+      ],
+      "a": 0,
+      "h": "Which condition is checked first, and is it true for 15?",
+      "e": "15 is divisible by 3 and 5, so the first branch runs and the rest are skipped."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int x = 7;\ncout << (x % 2 == 0 ? \"even\" : \"odd\");",
+      "run": true,
+      "o": [
+        "even",
+        "odd",
+        "1",
+        "0"
+      ],
+      "a": 1,
+      "h": "What is 7 % 2?",
+      "e": "7 % 2 is 1, so the condition is false and the ternary gives \"odd\"."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int c = 0;\nfor (int i = 10; i > 0; i -= 3) c++;\ncout << c;",
+      "run": true,
+      "o": [
+        "3",
+        "4",
+        "10",
+        "0"
+      ],
+      "a": 1,
+      "h": "Write the values of i until i > 0 fails.",
+      "e": "i takes the values 10, 7, 4 and 1, so the body runs 4 times."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int i = 5;\ndo {\n    i++;\n} while (i < 5);\ncout << i;",
+      "run": true,
+      "o": [
+        "5",
+        "6",
+        "4",
+        "It loops forever"
+      ],
+      "a": 1,
+      "h": "When does a do-while check its condition?",
+      "e": "A do-while runs its body once before checking. i becomes 6, then 6 < 5 is false, so it stops."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int s = 0;\nfor (int i = 1; i <= 4; i++)\n    for (int j = 1; j <= i; j++) s++;\ncout << s;",
+      "run": true,
+      "o": [
+        "16",
+        "10",
+        "4",
+        "8"
+      ],
+      "a": 1,
+      "h": "Count the inner rounds for i = 1, 2, 3 and 4.",
+      "e": "The inner loop runs 1 + 2 + 3 + 4 = 10 times in total."
+    },
+    {
+      "q": "What does this print?",
+      "code": "switch (2) {\n    case 1: cout << \"a\";\n    case 2: cout << \"b\";\n    case 3: cout << \"c\";\n}",
+      "run": true,
+      "o": [
+        "b",
+        "bc",
+        "abc",
+        "c"
+      ],
+      "a": 1,
+      "h": "Is there a break after any case?",
+      "e": "There is no break, so after case 2 runs, execution falls through into case 3 as well."
+    },
+    {
+      "q": "Which loop always runs its body at least once?",
+      "o": [
+        "for",
+        "while",
+        "do-while",
+        "None of them"
+      ],
+      "a": 2,
+      "h": "Which loop checks its condition after the body?",
+      "e": "do-while checks its condition after the body, so the body runs at least once."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int n = 1234, r = 0;\nwhile (n > 0) {\n    r = r * 10 + n % 10;\n    n /= 10;\n}\ncout << r;",
+      "run": true,
+      "o": [
+        "1234",
+        "4321",
+        "10",
+        "4"
+      ],
+      "a": 1,
+      "h": "Each round takes n % 10 and attaches it to the right of r.",
+      "e": "Each round takes the last digit of n and attaches it to r, which reverses the number."
+    },
+    {
+      "q": "To print 1, 3, 5, … up to N without an if, what should the loop's update be?",
+      "o": [
+        "i++",
+        "i += 2",
+        "i *= 2",
+        "i--"
+      ],
+      "a": 1,
+      "mono": true,
+      "h": "Start at the first odd number and jump straight to the next odd one.",
+      "e": "Start at 1 and jump by 2: every value visited is odd, so no if is needed."
+    },
+    {
+      "q": "What does this print?",
+      "code": "int best = -1000;\nint a[] = {-5, -2, -9};\nfor (int x : a) if (x > best) best = x;\ncout << best;",
+      "run": true,
+      "o": [
+        "-1000",
+        "-2",
+        "-9",
+        "0"
+      ],
+      "a": 1,
+      "h": "Which of the three numbers is the largest?",
+      "e": "-2 is the largest of -5, -2 and -9. Starting below every value (or at the first one) keeps the answer correct for negatives."
+    }
+  ]
+}

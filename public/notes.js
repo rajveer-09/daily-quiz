@@ -21,30 +21,35 @@ window.Notes = (() => {
       { id: 'fundamentals', title: 'Fundamentals', topics: [
         { id: 'intro-data-types', title: 'Introduction and Data Types', date: '2026-11-13', by: 'Rajveer',
           desc: 'Program structure, input and output, data types, ASCII, casting, overflow and decimal traps.',
-          files: { notes: 'intro-data-types', framework: 'intro-data-types-framework', practice: 'intro-data-types-practice', quiz: 'intro-data-types-quiz' } },
+          files: { notes: 'intro-data-types', framework: 'intro-data-types-framework', practice: 'intro-data-types-practice', quiz: 'intro-data-types-quiz', test: 'intro-data-types-test' } },
         { id: 'if-else-loops', title: 'If-Else and Loops', date: '2026-11-24', by: 'Rajveer',
           desc: 'Conditions, if-else ladders, switch, for and while loops, break and continue, nested loops.',
-          files: { notes: 'if-else-loops', framework: 'if-else-loops-framework', practice: 'if-else-loops-practice', quiz: 'if-else-loops-quiz' } },
+          files: { notes: 'if-else-loops', framework: 'if-else-loops-framework', practice: 'if-else-loops-practice', quiz: 'if-else-loops-quiz', test: 'if-else-loops-test' } },
         { id: 'time-space-complexity', title: 'Time and Space Complexity', date: '2026-11-24', by: 'Rajveer',
           desc: 'Counting steps, Big-O, reading complexity from loops, choosing an approach from the limits, memory.',
-          files: { notes: 'time-space-complexity', framework: 'time-space-complexity-framework', practice: 'time-space-complexity-practice', quiz: 'time-space-complexity-quiz' } },
+          files: { notes: 'time-space-complexity', framework: 'time-space-complexity-framework', practice: 'time-space-complexity-practice', quiz: 'time-space-complexity-quiz', test: 'time-space-complexity-test' } },
       ] },
     ] },
     { id: 'level-1', name: 'Level 1', subjects: [
       { id: 'maths', title: 'Maths', topics: [
         { id: 'digit-manipulations', title: 'Digit Manipulations', date: '2026-11-18', by: 'Rajveer',
           desc: 'One template for every digit problem: reverse with overflow, palindromes, digital root, Armstrong, Strong and happy numbers.',
-          files: { notes: 'digit-manipulations', framework: 'digit-manipulations-framework', practice: 'digit-manipulations-practice', quiz: 'digit-manipulations-quiz' } },
+          files: { notes: 'digit-manipulations', framework: 'digit-manipulations-framework', practice: 'digit-manipulations-practice', quiz: 'digit-manipulations-quiz', test: 'digit-manipulations-test' } },
         { id: 'primes-sieve', title: 'Prime Numbers and Sieve', date: '2026-11-20', by: 'Rajveer',
           desc: 'Divisors in O(√n), prime checks, and the Sieve of Eratosthenes.',
-          files: { notes: 'primes-sieve', framework: 'primes-sieve-framework', practice: 'primes-sieve-practice', quiz: 'primes-sieve-quiz' } },
-        { id: 'gcd-lcm', title: 'GCD and LCM' },
-        { id: 'fast-exponentiation', title: 'Fast Exponentiation' },
+          files: { notes: 'primes-sieve', framework: 'primes-sieve-framework', practice: 'primes-sieve-practice', quiz: 'primes-sieve-quiz', test: 'primes-sieve-test' } },
+        { id: 'gcd-lcm', title: 'GCD and LCM', date: '2026-11-25', by: 'Rajveer',
+          desc: 'Euclid, the gcd × lcm identity, and how to spot GCD and LCM problems: invariants, differences, Bézout, prefix GCD.',
+          files: { notes: 'gcd-lcm', framework: 'gcd-lcm-framework', practice: 'gcd-lcm-practice', quiz: 'gcd-lcm-quiz', test: 'gcd-lcm-test' } },
+        { id: 'fast-exponentiation', title: 'Fast Exponentiation', date: '2026-11-26', by: 'Rajveer',
+          desc: 'aᵇ mod m in O(log b): squaring, the binary view, modular inverse by Fermat, and matrix power.',
+          files: { notes: 'fast-exponentiation', framework: 'fast-exponentiation-framework', practice: 'fast-exponentiation-practice', quiz: 'fast-exponentiation-quiz', test: 'fast-exponentiation-test' } },
       ] },
+      { id: 'stl', title: 'STL', topics: [] },
       { id: 'arrays', title: 'Arrays', topics: [
         { id: 'array-traversal', title: 'Array Traversal', date: '2026-11-13', by: 'Rajveer',
           desc: 'Indexes, reading arrays, one-pass traversal: sum, largest, search and counting.',
-          files: { notes: 'array-traversal', framework: 'array-traversal-framework', practice: 'array-traversal-practice', quiz: 'array-traversal-quiz' } },
+          files: { notes: 'array-traversal', framework: 'array-traversal-framework', practice: 'array-traversal-practice', quiz: 'array-traversal-quiz', test: 'array-traversal-test' } },
       ] },
       { id: 'strings', title: 'Strings', topics: [] },
     ] },
@@ -147,11 +152,11 @@ window.Notes = (() => {
     }).join('')}</div>`;
   }
   // A subject is a row that expands to show its topics.
-  const subjectBlock = (level, s) => {
-    const key = level.id + '/' + s.id, open = openSet.has(key);
+  const subjectBlock = (level, s, rows = topicRows, prefix = '') => {
+    const key = prefix + level.id + '/' + s.id, open = openSet.has(key);
     return `<section class="nt-subj${open ? ' open' : ''}" data-key="${esc(key)}">
     <button type="button" class="nt-subj-h" data-nt="subj" aria-expanded="${open}"><span class="t">${esc(s.title)}</span>${s.topics.length ? '' : '<span class="badge">Coming soon</span>'}${icon('chevd')}</button>
-    <div class="nt-subj-b"><div class="nt-subj-in">${topicRows(level, s)}</div></div>
+    <div class="nt-subj-b"><div class="nt-subj-in">${rows(level, s)}</div></div>
   </section>`;
   };
 
@@ -203,6 +208,164 @@ window.Notes = (() => {
       </article>
     </div>`;
   }
+
+  /* ---------- Practice (questions with hints and solutions) ----------
+     #/practice[/level[/subject[/topic]]]: the same levels and subjects as the notes. Each topic lists its questions
+     (/notes/<topic>-test.json) with a hint and a solution to open. */
+  const TBASE = '#/practice';
+  /* Practice progress, LeetCode style: one ring where each subject's solved share is its own coloured arc,
+     the unsolved rest stays grey; the count sits in the middle and each subject is listed beside it.
+     Subjects keep their colour (by catalogue order), so adding a subject never repaints the others. */
+  // Fixed colour per subject, ordered so neighbours on the ring stay easy to tell apart (checked for colour-blind readers too).
+  const SUBJ_SLOT = { fundamentals: 1, maths: 2, stl: 7, arrays: 3, strings: 4 };
+  const SUBJ_ORDER = CATALOG.flatMap(l => l.subjects.map(x => x.id));
+  function practiceStats(p) {
+    const subs = [];
+    for (const l of CATALOG) for (const x of l.subjects) {
+      let got = 0, all = 0;
+      for (const t of x.topics) { const k = t.files && t.files.test; if (k && p.totals[k]) { all += p.totals[k]; got += (p.solved[k] || []).length; } }
+      if (all) subs.push({ name: x.title, level: l.name, got, all, slot: SUBJ_SLOT[x.id] || [5, 6, 8][SUBJ_ORDER.indexOf(x.id) % 3] });
+    }
+    return { subs, got: subs.reduce((a, x) => a + x.got, 0), all: subs.reduce((a, x) => a + x.all, 0) };
+  }
+  function solvedRing(st) {
+    const r = 54, c = 2 * Math.PI * r, gap = 2.5;
+    let at = 0;
+    const arcs = st.subs.map(x => {
+      const len = st.all ? c * x.got / st.all : 0, start = at; at += len;
+      if (len <= 0) return '';
+      const vis = Math.max(len - (len > gap * 2 ? gap : 0), 1.2);
+      return `<circle class="ring-fg" cx="64" cy="64" r="${r}" style="stroke:var(--s${x.slot})" stroke-dasharray="${vis.toFixed(2)} ${c.toFixed(2)}" stroke-dashoffset="${(-start).toFixed(2)}"><title>${esc(x.name)}: ${x.got} of ${x.all}</title></circle>`;
+    }).join('');
+    return `<div class="ring" role="img" aria-label="${st.got} of ${st.all} problems solved">
+      <svg viewBox="0 0 128 128"><circle class="ring-bg" cx="64" cy="64" r="${r}"/>${arcs}</svg>
+      <span class="ring-t"><span><b>${st.got}</b><small>/${st.all}</small></span><em>Solved</em></span></div>`;
+  }
+  const progressCard = (p, link) => {
+    const st = practiceStats(p);
+    return `<div class="card pg-card">
+      ${solvedRing(st)}
+      <div class="pg-subs">${st.subs.map(x => `<div class="pg-sub"><span class="pg-dot" style="background:var(--s${x.slot})"></span><span class="pg-n">${esc(x.name)}<small>${esc(x.level)}</small></span><span class="pg-v"><b>${x.got}</b>/${x.all}</span></div>`).join('')}</div>
+      <div class="pg-foot"><span class="pg-rank">${icon('trophy')}${p.rank ? `Rank <b>#${p.rank.rank}</b> of ${p.rank.of} in your hall` : 'Not ranked yet'}</span>
+        <a class="pg-link" href="${link}">Practice leaderboard${icon('right')}</a></div>
+    </div>`;
+  };
+  const KIND = { concept: 'Concept', code: 'Standard code', debug: 'Find the bug', edge: 'Edge case', complexity: 'Complexity' };
+  // Practice state, per topic key ("<topic>-test"): which questions are completed / saved to revisit, and the questions.
+  const PS = {}, QS = {}, BUSY = new Set();
+  let CUR = null;   // key of the open practice topic page
+  const ps = key => PS[key] || (PS[key] = { done: new Set(), rev: new Set() });
+  const setProg = prog => {
+    for (const k of Object.keys(PS)) delete PS[k];
+    if (!prog) return;
+    for (const [k, d] of Object.entries(prog.solved || {})) ps(k).done = new Set(d);
+    for (const [k, d] of Object.entries(prog.revisit || {})) ps(k).rev = new Set(d);
+  };
+  const doneLine = () => `<span class="st-prog"><b>${ps(CUR).done.size}</b> / ${QS[CUR].length} completed</span>`;
+  const footBtns = (key, i) => {
+    const d = ps(key).done.has(i), r = ps(key).rev.has(i);
+    return `<button type="button" class="btn btn-sm st-rev${r ? ' on' : ''}" data-nt="stRev" data-key="${key}" data-i="${i}" aria-pressed="${r}"${hooks.revisit ? '' : ' disabled'}>${icon('bookmark')}${r ? 'Marked for revisit' : 'Mark for revisit'}</button>
+      <button type="button" class="btn btn-sm st-done${d ? ' on' : ''}" data-nt="stDone" data-key="${key}" data-i="${i}" aria-pressed="${d}"${hooks.mark ? '' : ' disabled'}>${icon('check')}${d ? 'Completed' : 'Mark as completed'}</button>`;
+  };
+  // One question card. key + i identify it everywhere (marks, picks).
+  const qCard = (key, q, i) => `<article class="card st-q${ps(key).done.has(i) ? ' done' : ''}" data-key="${key}" data-q="${i}">
+          <div class="st-h"><span class="st-n">${i + 1}</span><div class="st-qt">${KIND[q.k] ? `<span class="st-kind k-${q.k}">${KIND[q.k]}</span>` : ''}<p class="qz-text">${esc(q.q)}</p></div></div>
+          ${q.code ? `<pre class="qz-code"><code>${hlCpp(q.code)}</code></pre>` : ''}
+          <div class="st-opts" role="group" aria-label="Options">${q.o.map((_, j) => `<button type="button" class="st-opt" data-nt="stPick" data-j="${j}"><span class="k">${LETTERS[j]}</span><span>${optText(q, j)}</span></button>`).join('')}</div>
+          <p class="st-res" aria-live="polite"></p>
+          ${q.h ? `<details class="nt-hint"><summary>Hint</summary><p>${esc(q.h)}</p></details>` : ''}
+          <details class="nt-hint st-sol locked"><summary aria-disabled="true">Solution<span class="st-lock">${icon('lock')}<span class="st-tip" role="tooltip">Pick an option to unlock the solution</span></span></summary><p class="qz-ans good">Answer: <b>${LETTERS[q.a]}. ${optText(q, q.a)}</b></p><p>${esc(q.e)}</p></details>
+          <div class="st-foot">${footBtns(key, i)}</div>
+        </article>`;
+  const thref = (...p) => TBASE + '/' + p.filter(Boolean).join('/');
+  const hasTest = t => !!(t.files && t.files.test);
+  const testsIn = s => s.topics.filter(hasTest).length;
+  async function loadTests(lv, sb, tp) {
+    const level = lv ? CATALOG.find(l => l.id === lv) : null;
+    if (lv && !level) return { redirect: TBASE };
+    const subject = level && sb ? level.subjects.find(x => x.id === sb) : null;
+    if (sb && !subject) return { redirect: thref(level.id) };
+    const topic = subject && tp ? subject.topics.find(t => t.id === tp) : null;
+    if (tp && (!topic || !hasTest(topic))) return { redirect: thref(level.id) };
+    if (subject) setOpen('tests:' + level.id + '/' + subject.id, true);
+    if (subject && !topic) return { redirect: thref(level.id) };
+    const [test, prog] = await Promise.all([topic ? fetchQuiz(topic.files.test) : null, hooks.solved ? hooks.solved().catch(() => null) : null]);
+    setProg(prog);
+    CUR = topic && test ? topic.files.test : null;
+    if (CUR) QS[CUR] = test.questions;
+    return { level, subject, topic, test, prog };
+  }
+  const parseTests = h => { const m = h.match(/^\/practice(?:\/([\w-]+)(?:\/([\w-]+)(?:\/([\w-]+))?)?)?$/); return m ? m.slice(1) : null; };
+  const crumbTests = st => {
+    if (!st || !st.level) return '';
+    const { level, subject, topic } = st, parts = [`<a href="${TBASE}">Practice</a>`];
+    parts.push(subject ? `<a href="${thref(level.id)}">${esc(level.name)}</a>` : `<b>${esc(level.name)}</b>`);
+    if (subject) parts.push(topic ? `<a href="${thref(level.id)}">${esc(subject.title)}</a>` : `<b>${esc(subject.title)}</b>`);
+    if (topic) parts.push(`<b>${esc(topic.title)}</b>`);
+    return parts.join('<span>/</span>');
+  };
+  const titleTests = st => !st || !st.level ? 'Practice' : st.topic ? st.topic.title + ' · Practice' : st.level.name + ' practice';
+  function testRows(level, subject, prog) {
+    if (!subject.topics.length) return `<div class="dashed"><span>Practice for ${esc(subject.title)} is coming soon.</span></div>`;
+    return `<div class="card tlist">${subject.topics.map((t, i) => {
+      const num = `<span class="tnum">${String(i + 1).padStart(2, '0')}</span>`;
+      return hasTest(t)
+        ? `<a class="trow" href="${thref(level.id, subject.id, t.id)}">${num}<div class="t"><b>${esc(t.title)}</b></div>${prog && prog.totals[t.files.test] ? `<span class="st-cnt${(prog.solved[t.files.test] || []).length >= prog.totals[t.files.test] ? ' all' : ''}">${(prog.solved[t.files.test] || []).length}/${prog.totals[t.files.test]}</span>` : ''}<span class="go">Open${icon('chev')}</span></a>`
+        : `<div class="trow soon" aria-disabled="true">${num}<div class="t"><b>${esc(t.title)}</b></div><span class="badge">Coming soon</span></div>`;
+    }).join('')}</div>`;
+  }
+  const viewTests = st => `<div class="nt-scope${st && st.topic ? ' nt-page' : ''}">${testsInner(st)}</div>`;
+  function testsInner(st) {
+    const { level, subject, topic, test } = st || {};
+    if (topic) {
+      return `<div class="nt-top"><a class="nt-back" href="${thref(level.id)}">${icon('left')}${esc(level.name)}</a></div>
+        <header class="page-head"><span class="eyebrow">Practice · ${esc(level.name)} · ${esc(subject.title)}</span><h1>${esc(topic.title)}</h1>
+          <p>${test.questions.length} questions · <a href="${href(level.id, subject.id, topic.id)}">Read the notes</a>${hooks.solved ? ' · ' + doneLine() : ''}</p></header>
+        <div class="nt-body st-list">${test.questions.map((q, i) => qCard(CUR, q, i)).join('')}</div>`;
+    }
+    if (level) {
+      return `<div class="page-head"><a class="nt-back" href="${TBASE}">${icon('left')}All levels</a><h1>${esc(level.name)}</h1>
+        <p>Open a subject to see its practice questions.</p></div>
+        <div class="nt-subjs">${level.subjects.map(x => subjectBlock(level, x, (l, s) => testRows(l, s, st.prog), 'tests:')).join('')}</div>`;
+    }
+    const nRev = st && st.prog && st.prog.revisit ? Object.values(st.prog.revisit).reduce((a, d) => a + d.length, 0) : 0;
+    return `<div class="page-head row"><div><h1>Practice</h1><p>Questions on each topic to try after you study it. Open a hint or the solution when you need it.</p></div>
+      ${hooks.revisit ? `<a class="btn st-revlink" href="#/revisit">${icon('bookmark')}Revisit list${nRev ? ` <span class="n">${nRev}</span>` : ''}</a>` : ''}</div>
+      ${st && st.prog ? progressCard(st.prog, '#/leaderboard/practice') : ''}
+      <div class="lvls">${CATALOG.map(l => {
+        const n = l.subjects.reduce((k, x) => k + testsIn(x), 0);
+        return `<a class="card lvl" href="${thref(l.id)}">
+          <div class="lvl-top"><h2>${esc(l.name)}</h2>${n ? '' : '<span class="badge">Coming soon</span>'}</div>
+          <ul>${l.subjects.map(x => `<li class="${testsIn(x) ? 'on' : ''}"><span>${esc(x.title)}</span>${x.topics.length ? '' : '<small>Coming soon</small>'}</li>`).join('')}</ul>
+          <span class="go">Open ${esc(l.name)}${icon('right')}</span>
+        </a>`;
+      }).join('')}</div>`;
+  }
+
+  /* ---------- Revisit: every practice question the student saved, grouped by topic ---------- */
+  async function loadRevisit() {
+    const prog = hooks.solved ? await hooks.solved().catch(() => null) : null;
+    setProg(prog);
+    CUR = null;
+    const groups = [];
+    for (const level of CATALOG) for (const subject of level.subjects) for (const topic of subject.topics) {
+      const key = topic.files && topic.files.test, idx = key && prog && prog.revisit && prog.revisit[key];
+      if (idx && idx.length) groups.push({ level, subject, topic, key, idx });
+    }
+    await Promise.all(groups.map(async g => { const t = await fetchQuiz(g.key).catch(() => null); if (t) QS[g.key] = t.questions; }));
+    return { groups: groups.filter(g => QS[g.key]) };
+  }
+  const viewRevisit = st => {
+    const groups = (st && st.groups) || [], n = groups.reduce((a, g) => a + g.idx.length, 0);
+    return `<div class="nt-scope nt-page">
+      <header class="page-head"><h1>Revisit</h1>${n ? `<p>${plural(n, 'question')} saved from ${plural(groups.length, 'topic')}.</p>` : ''}</header>
+      ${n ? groups.map(g => `<section class="rv-group">
+        <div class="rv-head"><div><span class="eyebrow">${esc(g.level.name)} · ${esc(g.subject.title)}</span><h2>${esc(g.topic.title)}</h2></div>
+          <a class="pg-link" href="${thref(g.level.id, g.subject.id, g.topic.id)}">Open topic${icon('right')}</a></div>
+        <div class="nt-body st-list">${g.idx.filter(i => QS[g.key][i]).map(i => qCard(g.key, QS[g.key][i], i)).join('')}</div>
+      </section>`).join('') : `<div class="dashed"><span>Nothing saved yet.</span><a class="btn btn-sm" href="${TBASE}">Go to practice</a></div>`}
+    </div>`;
+  };
 
   /* ---------- Test yourself ----------
      The app passes hooks: scores() → { key: { score, total, at } } and save(key, answers) → { score, total, at }.
@@ -323,6 +486,13 @@ window.Notes = (() => {
   });
 
   document.addEventListener('click', e => {
+    // A practice solution stays shut until an option has been picked.
+    const locked = e.target.closest && e.target.closest('.st-sol.locked > summary');
+    if (locked) {   // on touch screens there is no hover, so a tap shows the tip for a moment
+      e.preventDefault();
+      locked.classList.add('tip-on'); clearTimeout(locked._t); locked._t = setTimeout(() => locked.classList.remove('tip-on'), 1800);
+      return;
+    }
     const b = e.target.closest && e.target.closest('[data-nt]');
     if (!b) return;
     const a = b.dataset.nt;
@@ -341,6 +511,39 @@ window.Notes = (() => {
       b.setAttribute('aria-expanded', open);
       setOpen(sec.dataset.key, open);
     }
+    else if (a === 'stPick') {
+      const card = b.closest('.st-q'), box = b.parentElement;
+      if (!card || box.classList.contains('picked')) return;
+      const q = QS[card.dataset.key] && QS[card.dataset.key][+card.dataset.q], j = +b.dataset.j;
+      if (!q) return;
+      box.classList.add('picked');
+      box.querySelectorAll('.st-opt').forEach((o, k) => {
+        o.disabled = true;
+        if (k === q.a) o.classList.add('ok');
+        else if (k === j) o.classList.add('bad');
+      });
+      const sol = card.querySelector('.st-sol'); if (sol) { sol.classList.remove('locked'); sol.querySelector('summary').removeAttribute('aria-disabled'); }
+      const r = card.querySelector('.st-res');
+      if (r) { r.className = 'st-res ' + (j === q.a ? 'ok' : 'bad'); r.innerHTML = j === q.a ? icon('check') + 'Correct' : `${icon('x')}Not quite. The answer is ${LETTERS[q.a]}.`; }
+    }
+    else if ((a === 'stDone' && hooks.mark) || (a === 'stRev' && hooks.revisit)) {
+      // Completed / revisit: shown straight away, put back if saving fails.
+      const key = b.dataset.key, i = +b.dataset.i, set = a === 'stDone' ? 'done' : 'rev', id = key + ':' + i + ':' + set;
+      if (BUSY.has(id)) return;
+      const paint = () => {
+        document.querySelectorAll(`.st-q[data-key="${key}"][data-q="${i}"]`).forEach(card => {
+          card.classList.toggle('done', ps(key).done.has(i));
+          const f = card.querySelector('.st-foot'); if (f) f.innerHTML = footBtns(key, i);
+        });
+        const p = document.querySelector('.st-prog'); if (p && CUR === key) p.outerHTML = doneLine();
+      };
+      const S = ps(key)[set], on = !S.has(i);
+      if (on) S.add(i); else S.delete(i);
+      BUSY.add(id); paint();
+      (set === 'done' ? hooks.mark(key, i, on) : hooks.revisit(key, i, on))
+        .then(r => { ps(key)[set] = new Set(set === 'done' ? r.done : r.rev); }, () => { const T = ps(key)[set]; if (on) T.delete(i); else T.add(i); })
+        .finally(() => { BUSY.delete(id); paint(); });
+    }
     else if (a === 'fs') toggleFs();
     else if (a === 'toc') {
       const el = document.getElementById(b.dataset.id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -352,5 +555,5 @@ window.Notes = (() => {
       if (navigator.clipboard && pre) navigator.clipboard.writeText(pre.textContent).then(() => done(true), () => done(false)); else done(false);
     }
   });
-  return { CATALOG, SECTIONS, init, load, parse, view, crumb, title };
+  return { CATALOG, SECTIONS, init, load, parse, view, crumb, title, progressCard, loadRevisit, viewRevisit, loadTests, parseTests, viewTests, crumbTests, titleTests };
 })();

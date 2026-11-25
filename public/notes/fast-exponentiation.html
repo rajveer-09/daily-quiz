@@ -1,0 +1,97 @@
+<!-- Notes: Fast Exponentiation (Level 1 · Maths). Fragment: loaded into the notes reader. -->
+<h2 id="problem">1. The problem</h2>
+<p>Compute <b>aᵇ</b>, usually <b>mod m</b>, when b can be as large as 10^18.</p>
+<ul>
+  <li>The plain loop <code>for (i = 0; i &lt; b; i++) r *= a;</code> takes <b>b steps</b>. For b = 10^18 that would run for centuries.</li>
+  <li>aᵇ itself is astronomically large (2^100 has 31 digits), so it never fits in a <code>long long</code>. Problems ask for it mod some m, often 10⁹ + 7.</li>
+</ul>
+<p>Fast exponentiation (also called <b>binary exponentiation</b> or <b>exponentiation by squaring</b>) needs only about <b>log₂ b</b> steps: around 60 for b = 10^18.</p>
+
+<h2 id="idea" data-key="Squaring">2. The idea: square, don't multiply one at a time</h2>
+<ul>
+  <li>If b is even: aᵇ = (a^(b/2))², so one answer for half the exponent, squared.</li>
+  <li>If b is odd: aᵇ = a × a^(b−1), and b − 1 is even.</li>
+</ul>
+<p>Each step halves the exponent: 3¹³ needs 3⁶, which needs 3³, which needs 3¹, then 3⁰ = 1. Four halvings instead of 13 multiplications.</p>
+
+<h2 id="binary" data-key="Binary view">3. The binary view</h2>
+<p>Write b in binary. 13 = 1101₂ = 8 + 4 + 1, so</p>
+<pre class="plain"><code>3¹³ = 3⁸ × 3⁴ × 3¹</code></pre>
+<p>The powers 3¹, 3², 3⁴, 3⁸ come from squaring again and again. Multiply into the answer only those whose bit of b is 1. That is the iterative algorithm.</p>
+<div class="nt-table"><table>
+  <thead><tr><th>Round</th><th>b (binary)</th><th>Last bit</th><th>r (answer so far)</th><th>a after squaring</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1101</td><td>1</td><td>1 × 3 = 3</td><td>9 = 3²</td></tr>
+    <tr><td>2</td><td>110</td><td>0</td><td>3</td><td>81 = 3⁴</td></tr>
+    <tr><td>3</td><td>11</td><td>1</td><td>3 × 81 = 243</td><td>6561 = 3⁸</td></tr>
+    <tr class="hl"><td>4</td><td>1</td><td>1</td><td>243 × 6561 = 1594323</td><td>(not needed)</td></tr>
+  </tbody>
+</table></div>
+<p>After round 4, b becomes 0 and the loop stops: 3¹³ = 1594323.</p>
+
+<h2 id="code" data-key="Code">4. Code</h2>
+<pre><code class="cpp">#include &lt;bits/stdc++.h&gt;
+using namespace std;
+
+long long powRec(long long a, long long b) {       // recursive; no modulus, small results only
+    if (b == 0) return 1;
+    long long half = powRec(a, b / 2);
+    return b % 2 == 0 ? half * half : half * half * a;
+}
+
+long long modPow(long long a, long long b, long long m) {   // iterative, a^b mod m
+    long long r = 1 % m;
+    a %= m;
+    if (a &lt; 0) a += m;
+    while (b &gt; 0) {
+        if (b &amp; 1) r = r * a % m;      // this bit of b is 1: multiply it in
+        a = a * a % m;                 // a, a^2, a^4, a^8, ...
+        b &gt;&gt;= 1;                       // move to the next bit
+    }
+    return r;
+}
+
+int main() {
+    cout &lt;&lt; powRec(3, 13) &lt;&lt; "\n";
+    cout &lt;&lt; modPow(2, 10, 1000) &lt;&lt; "\n";                          // 1024 % 1000
+    cout &lt;&lt; modPow(2, 1000000000000000000LL, 1000000007) &lt;&lt; "\n";  // 2^(10^18) mod 1e9+7
+    return 0;
+}</code></pre>
+<pre class="plain out"><code>1594323
+24
+719476260</code></pre>
+<ul>
+  <li><code>b &amp; 1</code> is the last bit of b (1 when b is odd), and <code>b &gt;&gt;= 1</code> halves b, dropping that bit.</li>
+  <li>Time: <b>O(log b)</b>. Space: O(1) for the loop; the recursive version uses O(log b) for its calls.</li>
+</ul>
+
+<h2 id="mod" data-key="Modulo rules">5. Working modulo m</h2>
+<ul>
+  <li><b>(x × y) % m = ((x % m) × (y % m)) % m.</b> So you can take <code>% m</code> after every multiplication, and the numbers stay below m.</li>
+  <li><b>Reduce the base first</b>: <code>a %= m</code>. A base like 10^18 would otherwise overflow on the first squaring.</li>
+  <li><b>Overflow limit:</b> <code>r * a</code> is below m², so it fits in a <code>long long</code> (about 9.2 × 10^18) only while m is at most about 3 × 10^9. For 10⁹ + 7 that is fine. For bigger m, use <code>__int128</code> (on 64-bit compilers) for the multiplication.</li>
+  <li><b>Never</b> use <code>pow()</code> from <code>&lt;cmath&gt;</code> here: it works with <code>double</code>, loses digits on big numbers, and can't take a modulus.</li>
+</ul>
+
+<h2 id="inverse" data-key="Modular inverse">6. Modular inverse (Fermat)</h2>
+<p>Division doesn't work under a modulus: (a / b) % m is not (a % m) / (b % m). Instead, multiply by the <b>inverse</b> of b: the number b⁻¹ with b × b⁻¹ ≡ 1 (mod m).</p>
+<p>When m is <b>prime</b> and b is not a multiple of m, <b>Fermat's little theorem</b> gives</p>
+<pre class="plain"><code>b⁻¹ ≡ b^(m−2)  (mod m)</code></pre>
+<p>So the inverse is just <code>modPow(b, m - 2, m)</code>. For example, the inverse of 3 mod 10⁹ + 7 is 333333336, because 3 × 333333336 = 1000000008 ≡ 1. This is how nCr mod p and averages mod p are computed.</p>
+<p>Fermat also shrinks huge exponents: for prime p and a not a multiple of p, a^e ≡ a^(e mod (p − 1)) (mod p).</p>
+
+<h2 id="matrix">7. Beyond numbers: matrix power</h2>
+<p>The same squaring works for anything you can multiply, such as matrices. Fibonacci numbers satisfy</p>
+<pre class="plain"><code>[ F(n+1)  F(n)   ]   =   [ 1  1 ] ⁿ
+[ F(n)    F(n−1) ]       [ 1  0 ]</code></pre>
+<p>so F(n) for n = 10^18 takes about 60 matrix squarings. Practice problem 6 uses this.</p>
+
+<h2 id="mistakes" data-key="Mistakes">8. Common mistakes</h2>
+<ol>
+  <li><b>Forgetting <code>a %= m</code></b> before the loop. The first <code>a * a</code> overflows.</li>
+  <li><b>Using <code>int</code></b> for r or a. <code>r * a</code> needs <code>long long</code> even when m fits in an <code>int</code>.</li>
+  <li><b>Taking the mod only at the end.</b> The numbers overflow long before; take it after every multiplication.</li>
+  <li><b>b = 0 and m = 1.</b> a⁰ = 1, but 1 % 1 = 0, which is why the code starts with <code>r = 1 % m</code>.</li>
+  <li><b>Negative base.</b> <code>%</code> can return a negative number in C++; add m once after reducing.</li>
+  <li><b>Inverse with a non-prime m,</b> or with b a multiple of m. Fermat needs a prime m and b not divisible by it.</li>
+</ol>

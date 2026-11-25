@@ -1,0 +1,191 @@
+{
+  "questions": [
+    {
+      "k": "concept",
+      "q": "For positive a and b, gcd(a, b) × lcm(a, b) equals:",
+      "o": [
+        "gcd(a, b)²",
+        "a × b",
+        "a + b",
+        "max(a, b)"
+      ],
+      "a": 1,
+      "h": "Check with a = 4, b = 6.",
+      "e": "gcd(4, 6) × lcm(4, 6) = 2 × 12 = 24 = 4 × 6. Each prime's smaller and larger exponents add up to its total in a × b."
+    },
+    {
+      "k": "concept",
+      "q": "Why does Euclid's step gcd(a, b) = gcd(b, a % b) work?",
+      "o": [
+        "a % b is always prime",
+        "It only works when a is even",
+        "Because b is always smaller than a",
+        "Any common divisor of a and b also divides a % b = a − k·b"
+      ],
+      "a": 3,
+      "h": "Write a % b as a − k × b.",
+      "e": "If d divides a and b, it divides a − k·b = a % b, and the reverse also holds. So both pairs have the same common divisors and the same GCD."
+    },
+    {
+      "k": "code",
+      "q": "This function should return the GCD of a and b using a loop. Which line goes in the blank?",
+      "code": "long long gcdIter(long long a, long long b) {\n    while (b != 0) {\n        long long r = a % b;\n        ____\n    }\n    return a;\n}",
+      "o": [
+        "a = b; b = r;",
+        "a = r; b = a;",
+        "a = b; b = a % b;",
+        "b = a; a = r;"
+      ],
+      "a": 0,
+      "mono": true,
+      "h": "(a, b) becomes (b, a % b).",
+      "e": "The pair moves one step: b becomes the new a, and the remainder r becomes the new b. The last option computes a % b after a has already changed."
+    },
+    {
+      "k": "code",
+      "q": "This recursive function should return the GCD of a and b. Which call goes in the blank?",
+      "code": "long long gcdRec(long long a, long long b) {\n    if (b == 0) return a;\n    return ____;\n}",
+      "o": [
+        "gcdRec(a % b, b)",
+        "gcdRec(b, a / b)",
+        "gcdRec(b, a % b)",
+        "a % b"
+      ],
+      "a": 2,
+      "mono": true,
+      "h": "Same step as the loop: (a, b) → (b, a % b).",
+      "e": "gcdRec(b, a % b) shrinks the pair each call until b = 0. gcdRec(a % b, b) keeps the same b forever and never reaches the base case."
+    },
+    {
+      "k": "code",
+      "q": "Which LCM formula avoids overflow?",
+      "o": [
+        "a / gcd(a, b) * b",
+        "(a * b) % gcd(a, b)",
+        "gcd(a, b) / a * b",
+        "a * b / gcd(a, b)"
+      ],
+      "a": 0,
+      "mono": true,
+      "h": "Make the number smaller before you multiply.",
+      "e": "Dividing first keeps the intermediate value at most the LCM itself. a * b can overflow even when the LCM fits."
+    },
+    {
+      "k": "debug",
+      "q": "This function should return the GCD of a and b. For a = 48, b = 18 it returns 18 instead of 6. What is wrong?",
+      "code": "long long gcdIter(long long a, long long b) {\n    while (b != 0) {\n        a = b;\n        b = a % b;\n    }\n    return a;\n}",
+      "drive": "cout << gcdIter(48, 18);",
+      "expect": "18",
+      "o": [
+        "It should return b instead of a",
+        "The loop should be while (a != 0)",
+        "It needs a < b at the start",
+        "a is overwritten before a % b is computed; save r = a % b first"
+      ],
+      "a": 3,
+      "h": "After a = b, what is a % b?",
+      "e": "Once a = b, a % b is always 0, so the loop ends after one step with a = 18. Compute r = a % b first, then shift: a = b; b = r;"
+    },
+    {
+      "k": "debug",
+      "q": "This function should return the LCM of a and b. For a = b = 100000 (LCM 100000) it returns a wrong number. What is the fix?",
+      "code": "int lcmOf(int a, int b) {\n    return a * b / gcd(a, b);\n}",
+      "o": [
+        "Use gcd(a, b) * a * b",
+        "Divide first, a / gcd(a, b) * b, and use long long",
+        "Swap a and b",
+        "Add 1 to the result"
+      ],
+      "a": 1,
+      "h": "How big is 100000 × 100000?",
+      "e": "a * b = 10^10 overflows int before the division happens. Divide first and use long long."
+    },
+    {
+      "k": "debug",
+      "q": "This function should return the GCD of all the numbers in v. For {12, 18, 24} it returns 1 instead of 6. What is the fix?",
+      "code": "long long gcdOfArray(vector<long long> v) {\n    long long g = 1;\n    for (long long x : v) g = gcd(g, x);\n    return g;\n}",
+      "drive": "cout << gcdOfArray({12, 18, 24});",
+      "expect": "1",
+      "o": [
+        "Start the loop at index 1",
+        "Write gcd(x, g) instead of gcd(g, x)",
+        "Start g at 0 (gcd(0, x) = x) or at v[0]",
+        "Use lcm instead of gcd"
+      ],
+      "a": 2,
+      "h": "What is gcd(1, anything)?",
+      "e": "gcd(1, x) = 1, so starting at 1 locks the answer at 1. gcd(0, x) = x, which makes 0 the right starting value."
+    },
+    {
+      "k": "edge",
+      "q": "This function returns the GCD of a and b. What does it return for a = 0, b = 7?",
+      "code": "long long gcdRec(long long a, long long b) {\n    if (b == 0) return a;\n    return gcdRec(b, a % b);\n}",
+      "drive": "cout << gcdRec(0, 7);",
+      "expect": "7",
+      "o": [
+        "0",
+        "It crashes",
+        "1",
+        "7"
+      ],
+      "a": 3,
+      "h": "First call: b = 7, so the next call is gcdRec(7, 0 % 7).",
+      "e": "gcdRec(0, 7) → gcdRec(7, 0) → 7. Every number divides 0, so gcd(0, x) = x."
+    },
+    {
+      "k": "edge",
+      "q": "This function should return the GCD of a and b, which is always positive. For a = 12, b = −18 it returns −6. What is the safest fix?",
+      "code": "long long gcdIter(long long a, long long b) {\n    while (b != 0) {\n        long long r = a % b;\n        a = b;\n        b = r;\n    }\n    return a;\n}",
+      "drive": "cout << gcdIter(12, -18);",
+      "expect": "-6",
+      "o": [
+        "Return a * a",
+        "Take absolute values first: a = llabs(a), b = llabs(b)",
+        "Start with b = 1",
+        "Swap a and b first"
+      ],
+      "a": 1,
+      "h": "In C++ the sign of a % b follows a.",
+      "e": "Negative inputs can leave a negative result. The GCD is defined as positive, so work on llabs(a) and llabs(b)."
+    },
+    {
+      "k": "edge",
+      "q": "a and b are up to 10^9. Does lcm(a, b) fit in a long long?",
+      "o": [
+        "Yes: it is at most 10^18 < 9.2 × 10^18",
+        "No, it needs __int128",
+        "Yes, it even fits in an int",
+        "Only if a and b are prime"
+      ],
+      "a": 0,
+      "h": "The LCM is at most a × b.",
+      "e": "lcm ≤ a × b ≤ 10^18, and long long holds up to about 9.2 × 10^18. Compute it as a / gcd(a, b) * b."
+    },
+    {
+      "k": "complexity",
+      "q": "What is the time complexity of Euclid's algorithm?",
+      "o": [
+        "O(√a)",
+        "O(min(a, b))",
+        "O(log min(a, b))",
+        "O(a × b)"
+      ],
+      "a": 2,
+      "h": "In every two steps the smaller number at least halves.",
+      "e": "The numbers shrink at least as fast as Fibonacci numbers grow, so even for 10^18 it takes fewer than 100 steps."
+    },
+    {
+      "k": "complexity",
+      "q": "What extra space do gcdRec and gcdIter use?",
+      "o": [
+        "Both O(min(a, b))",
+        "gcdRec: O(1); gcdIter: O(log n)",
+        "Both O(1)",
+        "gcdRec: O(log min(a, b)) stack; gcdIter: O(1)"
+      ],
+      "a": 3,
+      "h": "Each recursive call stays on the stack until the base case.",
+      "e": "The recursion is as deep as the number of Euclid steps, O(log min(a, b)). The loop only keeps a, b and r."
+    }
+  ]
+}

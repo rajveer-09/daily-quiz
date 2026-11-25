@@ -1,0 +1,191 @@
+{
+  "questions": [
+    {
+      "k": "concept",
+      "q": "What does this print?",
+      "code": "int n = 4096;\ncout << n % 10 << \" \" << n / 10;",
+      "run": true,
+      "o": [
+        "6 4096",
+        "409 6",
+        "6 409",
+        "4 96"
+      ],
+      "a": 2,
+      "h": "% 10 gives the last digit; / 10 removes it.",
+      "e": "n % 10 is the last digit (6) and n / 10 drops it (409). Every digit loop is built from these two steps."
+    },
+    {
+      "k": "concept",
+      "q": "For n ≥ 1, which formula gives the number of digits of n?",
+      "o": [
+        "n / 10 + 1",
+        "floor(log10(n)) + 1",
+        "ceil(log10(n))",
+        "log10(n)"
+      ],
+      "a": 1,
+      "mono": true,
+      "h": "Try n = 100, which has 3 digits.",
+      "e": "log10(100) = 2, so floor + 1 gives 3. ceil(log10(100)) gives 2, which is wrong for every power of 10."
+    },
+    {
+      "k": "code",
+      "q": "This loop should add up all the digits of n (n > 0). Which condition goes in the blank?",
+      "code": "int sum = 0;\nwhile (____) {\n    sum += n % 10;\n    n /= 10;\n}",
+      "o": [
+        "n > 0",
+        "n > 9",
+        "n >= 10",
+        "n % 10 > 0"
+      ],
+      "a": 0,
+      "mono": true,
+      "h": "When should the loop stop: when n has one digit left, or when nothing is left?",
+      "e": "Keep going until n becomes 0. n > 9 and n >= 10 skip the first digit; n % 10 > 0 stops at the first 0 digit (for example in 105)."
+    },
+    {
+      "k": "code",
+      "q": "This code should reverse the digits of n (123 becomes 321). Which expression goes in the blank?",
+      "code": "int rev = 0;\nwhile (n > 0) {\n    rev = ____;\n    n /= 10;\n}",
+      "o": [
+        "rev + n % 10",
+        "rev * 10 + n / 10",
+        "n % 10 * 10 + rev",
+        "rev * 10 + n % 10"
+      ],
+      "a": 3,
+      "mono": true,
+      "h": "Shift rev one place left, then append the last digit of n.",
+      "e": "rev * 10 makes room at the end, and + n % 10 puts n's last digit there. For 123: 3 → 32 → 321."
+    },
+    {
+      "k": "code",
+      "q": "Which code turns n into its first digit (for example, 4096 becomes 4)?",
+      "o": [
+        "n = n % 10;",
+        "n = n / 10;",
+        "while (n >= 10) n /= 10;",
+        "while (n > 0) n /= 10;"
+      ],
+      "a": 2,
+      "mono": true,
+      "h": "Keep dropping last digits until exactly one digit is left.",
+      "e": "Stop once n has one digit (n < 10). Looping while n > 0 runs one step too far and ends at 0; n % 10 is the last digit, not the first."
+    },
+    {
+      "k": "debug",
+      "q": "This function should return true when n is a palindrome (reads the same backwards, like 121). For n = 121 it returns false. What is the bug?",
+      "code": "bool isPalindrome(int n) {\n    int rev = 0;\n    while (n > 0) {\n        rev = rev * 10 + n % 10;\n        n /= 10;\n    }\n    return rev == n;\n}",
+      "drive": "cout << isPalindrome(121);",
+      "expect": "0",
+      "o": [
+        "rev overflows for 121",
+        "n is 0 after the loop; compare rev with a saved copy of n",
+        "% and / are the wrong way round",
+        "The loop should be while (n >= 0)"
+      ],
+      "a": 1,
+      "h": "What is the value of n when the loop finishes?",
+      "e": "The loop destroys n, so rev is compared with 0. Save int orig = n; before the loop and return rev == orig."
+    },
+    {
+      "k": "debug",
+      "q": "This loop should add up the digits of n. For n = 47 it never stops. Which line is wrong?",
+      "code": "int sum = 0;\nwhile (n > 0) {\n    sum += n % 10;\n    n = n % 10;\n}",
+      "o": [
+        "n = n % 10; should be n /= 10;",
+        "while (n > 0) should be while (n >= 0)",
+        "sum should start at 1",
+        "sum += n % 10; should be sum += n / 10;"
+      ],
+      "a": 0,
+      "h": "Trace n: 47, then …?",
+      "e": "n = 47 % 10 = 7, then 7 % 10 = 7 forever. The step that shrinks n must be n /= 10."
+    },
+    {
+      "k": "debug",
+      "q": "This function should multiply the digits of n (for 234: 2 × 3 × 4 = 24). It returns 0. What is the fix?",
+      "code": "int productOfDigits(int n) {\n    int prod = 0;\n    while (n > 0) {\n        prod *= n % 10;\n        n /= 10;\n    }\n    return prod;\n}",
+      "drive": "cout << productOfDigits(234);",
+      "expect": "0",
+      "o": [
+        "Use prod += n % 10",
+        "Divide n by 10 before multiplying",
+        "Loop while n >= 0",
+        "Start prod at 1"
+      ],
+      "a": 3,
+      "h": "What is 0 times anything?",
+      "e": "A product must start at 1 (a sum starts at 0). With prod = 0 every multiplication stays 0."
+    },
+    {
+      "k": "edge",
+      "q": "This function should count the digits of n. What does it return for n = 0?",
+      "code": "int countDigits(int n) {\n    int c = 0;\n    while (n > 0) {\n        c++;\n        n /= 10;\n    }\n    return c;\n}",
+      "drive": "cout << countDigits(0);",
+      "expect": "0",
+      "o": [
+        "1",
+        "0",
+        "-1",
+        "It never returns"
+      ],
+      "a": 1,
+      "h": "Does the loop run even once when n is 0?",
+      "e": "The loop never runs, so it returns 0, but 0 has one digit. Handle it first: if (n == 0) return 1;"
+    },
+    {
+      "k": "edge",
+      "q": "A function adds up the digits of n with a while (n > 0) loop. For n = −123 it returns 0 instead of 6. What is the best fix?",
+      "o": [
+        "Work on llabs(n) stored in a long long",
+        "Return -sum at the end",
+        "Change the condition to n != 0",
+        "Change the condition to n >= 0"
+      ],
+      "a": 0,
+      "h": "In C++, -123 % 10 is -3, not 3.",
+      "e": "Take the absolute value first. With n != 0 the loop runs, but the digits come out negative (−3, −2, −1), so the sum is −6. Use long long because abs(INT_MIN) does not fit in an int."
+    },
+    {
+      "k": "edge",
+      "q": "You reverse n = 1999999999 and store the result in an int called rev. What happens?",
+      "o": [
+        "rev becomes 9999999991 correctly",
+        "It does not compile",
+        "rev overflows (9999999991 > INT_MAX); use long long",
+        "rev becomes 1999999999"
+      ],
+      "a": 2,
+      "h": "How big is the reversed number, and what is the largest int?",
+      "e": "9999999991 is far above INT_MAX (about 2.1 × 10^9). Store rev in a long long, or check before each step if the problem asks you to detect overflow."
+    },
+    {
+      "k": "complexity",
+      "q": "What is the time complexity of a loop over the digits of n?",
+      "o": [
+        "O(n log n)",
+        "O(n)",
+        "O(√n)",
+        "O(log n)"
+      ],
+      "a": 3,
+      "h": "Each step divides n by 10.",
+      "e": "The loop runs once per digit, and n has floor(log10 n) + 1 digits. For n = 10^18 that is only 19 steps."
+    },
+    {
+      "k": "complexity",
+      "q": "How much extra space does reversing n with rev = rev * 10 + n % 10 use?",
+      "o": [
+        "O(log n)",
+        "O(n)",
+        "O(√n)",
+        "O(1)"
+      ],
+      "a": 3,
+      "h": "Count the variables, not the digits.",
+      "e": "Only rev and n are kept, so the space is O(1). Converting n to a string would use O(number of digits) = O(log n)."
+    }
+  ]
+}
