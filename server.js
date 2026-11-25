@@ -20,7 +20,12 @@ const GRACE_MS = 20_000;         // network allowance after a timed quiz ends
 const DEFAULT_DURATION = 30;     // minutes
 
 if (!MONGODB_URI) { console.error('MONGODB_URI is missing. Put it in the .env file.'); process.exit(1); }
-if (!ADMIN_EMAIL || !ADMIN_PASSWORD) console.warn('ADMIN_EMAIL / ADMIN_PASSWORD are not set in .env, so admin sign-in is disabled.');
+// Admins: ADMIN_EMAIL / ADMIN_PASSWORD, plus any extra ones in ADMINS as "email:password,email:password".
+const ADMIN_LIST = [[ADMIN_EMAIL, ADMIN_PASSWORD], ...String(process.env.ADMINS || '').split(',').map(x => {
+  const i = x.indexOf(':');
+  return i > 0 ? [x.slice(0, i), x.slice(i + 1)] : ['', ''];
+})].map(([e, p]) => [String(e).trim(), String(p).trim()]).filter(([e, p]) => e && p);
+if (!ADMIN_LIST.length) console.warn('No admin is set in .env (ADMIN_EMAIL / ADMIN_PASSWORD or ADMINS), so admin sign-in is disabled.');
 
 // A warm pool of connections so a burst of students at test time doesn't wait on new TLS handshakes.
 const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 15000, maxPoolSize: 50, minPoolSize: 5, maxIdleTimeMS: 300_000 });
@@ -823,11 +828,14 @@ app.get('/api/leaderboard/:id', auth, async (req, res) => {
 app.post('/api/admin/login', (req, res) => {
   const ip = req.ip, f = failures.get(ip);
   if (f && f.n >= 5 && f.until > Date.now()) return res.status(429).json({ error: 'Too many wrong attempts. Wait 15 minutes and try again.' });
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) return res.status(503).json({ error: 'Admin sign-in is not set up on the server.' });
+  if (!ADMIN_LIST.length) return res.status(503).json({ error: 'Admin sign-in is not set up on the server.' });
   const email = String(req.body?.email ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
-  if (safeEq(email, ADMIN_EMAIL.toLowerCase()) && safeEq(password, ADMIN_PASSWORD)) {
+  // Check every admin (no early exit), so the time taken does not hint at which email exists.
+  let match = null;
+  for (const [e, p] of ADMIN_LIST) if (safeEq(email, e.toLowerCase()) & safeEq(password, p) && !match) match = e;
+  if (match) {
     failures.delete(ip);
-    return res.json({ token: makeToken(ADMIN_EMAIL), email: ADMIN_EMAIL });
+    return res.json({ token: makeToken(match), email: match });
   }
   failures.set(ip, { n: f && f.until > Date.now() ? f.n + 1 : 1, until: Date.now() + 15 * 60e3 });
   res.status(401).json({ error: 'Wrong email or password.' });
@@ -912,6 +920,25 @@ app.get('/api/admin/overview', async (req, res) => {
 });
 
 /* ----- One test, analysed: everything the admin's Analysis page needs (computed in the browser) ----- */
+/** Admin preview: every paper of a test with its questions in the exact order its students get (same jumbling as orderFor),
+    plus the answers and explanations. Read-only. */
+app.get('/api/admin/tests/:id/preview', async (req, res) => {
+  const id = String(req.params.id);
+  const [T, ZM, SETS] = await Promise.all([getTests(), getQuizzes(), getSets()]);
+  const test = T.find(x => x._id === id);
+  if (!test) return res.status(404).json({ error: 'Test not found.' });
+  const quizzes = {};
+  const papers = (test.papers || []).map(p => {
+    const z = ZM.get(p.quizId);
+    if (z && !quizzes[p.quizId]) quizzes[p.quizId] = { title: z.title, description: z.description || '', topics: z.topics || {}, questions: z.questions };
+    const n = z ? z.questions.length : 0;
+    return { id: p.id, quizId: p.quizId, everyone: !!p.everyone, shuffle: !!p.shuffle, sets: p.sets || [], rolls: p.rolls || [],
+      order: z ? (p.shuffle ? seededPerm(n, p.id) : Array.from({ length: n }, (_, i) => i)) : [] };
+  });
+  res.json({ test: { id, title: test.title || '', date: test.date, start: test.start, duration: test.duration, fullscreen: !!test.fullscreen },
+    papers, quizzes, sets: SETS.map(s => ({ id: s._id, name: s.name })) });
+});
+
 app.get('/api/admin/tests/:id/analysis', async (req, res) => {
   const id = String(req.params.id);
   const st = await adminState();

@@ -203,8 +203,8 @@ function setQuiz(z) {
   if (z.state === 'done') {
     const Q = z.questions, ans = z.attempt.ans;
     const firstWrong = Q.findIndex((_, i) => kindOf(Q, ans, i) === 'bad');
-    V.filter = firstWrong >= 0 ? 'wrong' : 'all';
-    V.open = new Set(firstWrong >= 0 ? [firstWrong] : []);
+    V.filter = 'all';
+    V.open = new Set(Q.map((_, i) => i));
     store.del(flagKey(z.id));
     loadQuizBoard(z.id);
   }
@@ -514,7 +514,7 @@ function viewLocked() {
 const optHtml = (q, j) => q.p ? `<pre>${esc(q.o[j])}</pre>` : esc(q.o[j]);
 const answered = q => Number.isInteger(V.byQ[q.id]);
 const leftMs = () => V.quiz && V.quiz.attempt ? V.quiz.attempt.deadline - now() : 0;
-const saveText = () => V.saveErr ? `${icon('x')}Not saved, retrying` : V.saving ? 'Saving…' : `${icon('check')}Saved`;
+const saveText = () => V.saveErr ? 'Not saved, retrying' : V.saving ? 'Saving…' : `${icon('check')}Saved`;
 const flagBtn = q => { const on = V.flags.has(q.id); return `<button type="button" class="flag-btn${on ? ' on' : ''}" data-act="flag" aria-pressed="${on}" aria-label="${on ? 'Flagged for review' : 'Flag for review'}">${icon('flag')}<span class="lbl-t">${on ? 'Flagged' : 'Flag for review'}</span></button>`; };
 
 function viewTake() {
@@ -587,7 +587,7 @@ function standing(rows, mine, quizMode) {
   return d > 0 ? `${plural(d, 'more point')} to pass #${above.rank}.` : `Level on points with #${above.rank}; they were faster.`;
 }
 
-const endNoteOf = A => A.endReason === 'left-fullscreen' ? `<span class="badge bad end-note">${icon('x')}Submitted because you left full screen</span>`
+const endNoteOf = A => A.endReason === 'left-fullscreen' ? `<span class="badge bad end-note">Submitted because you left full screen</span>`
   : A.auto ? `<span class="badge warn end-note">${icon('clock')}Auto-submitted when time ran out</span>` : '';
 
 /** Score, rank, time and class average: shown as soon as the student submits (the board is live). */
@@ -632,16 +632,22 @@ function viewResult() {
   });
   const weak = topicStats.filter(s => s.f < .67).sort((a, b) => a.f - b.f).slice(0, 2).map(s => s.t);
   const show = i => V.filter === 'all' || (V.filter === 'right' && kind(i) === 'ok') || (V.filter === 'wrong' && kind(i) === 'bad') || (V.filter === 'skip' && kind(i) === 'skip');
-  const ansBox = (q, cls, label, j) => `<div class="ans ${cls}"><span>${icon(cls === 'ok' ? 'check' : 'x')}${label}</span><b>${L[j]} · ${optHtml(q, j)}</b></div>`;
   const item = i => {
     const q = Q[i], a = ans[i], k = kind(i), open = V.open.has(i);
     return `<article class="card rvx${open ? ' open' : ''}" id="r${i}">
       <button class="rvx-h" data-act="rv" data-q="${i}" aria-expanded="${open}"><span class="n ${k}">Q${i + 1}</span><span class="t"><b>${esc(q.q)}</b><span>${q.t ? esc(q.t) + ' · ' : ''}${k === 'ok' ? 'Correct' : k === 'bad' ? 'Wrong' : 'Not answered'}</span></span>${icon('chevd')}</button>
       ${open ? `<div class="rvx-b">
-        ${q.c ? `<pre class="code"><code>${esc(q.c)}</code></pre>` : ''}
-        <div class="pair">${k === 'ok' ? ansBox(q, 'ok', 'Your answer · correct', q.a)
-          : `${k === 'bad' ? ansBox(q, 'bad', 'Your answer', a) : `<div class="ans skip"><span>${icon('minus')}Not answered</span><b>—</b></div>`}${ansBox(q, 'ok', 'Correct', q.a)}`}</div>
-        ${q.e ? `<div class="why"><span>Why</span><p>${esc(q.e)}</p></div>` : ''}
+        ${q.c ? `<pre class="code"><code>${Notes.hlCpp(q.c)}</code></pre>` : ''}
+        <ol class="rv-opts">${q.o.map((_, j) => {
+          const right = j === q.a, mine = j === a;
+          const tag = right && mine ? `${icon('check')}Your answer · correct` : right ? `${icon('check')}Correct answer` : mine ? 'Your answer' : '';
+          return `<li class="${right ? 'ok' : mine ? 'bad' : ''}"${mine && !right ? ` title="You picked ${L[j]}; the right answer is ${L[q.a]}"` : ''}><span class="k">${L[j]}</span><span class="v">${optHtml(q, j)}</span>${tag ? `<span class="rv-tag">${tag}</span>` : ''}</li>`;
+        }).join('')}</ol>
+        ${k === 'skip' ? `<p class="rv-skip">${icon('minus')}You did not answer this one.</p>` : ''}
+        ${q.e ? `<div class="why">
+          <div class="why-h">${icon('bulb')}<b>Explanation</b><span class="why-a">Answer <b>${L[q.a]}</b> · ${q.p ? `<code>${esc(q.o[q.a])}</code>` : esc(q.o[q.a])}</span></div>
+          <p>${esc(q.e)}</p>
+        </div>` : ''}
       </div>` : ''}
     </article>`;
   };
@@ -657,8 +663,7 @@ function viewResult() {
   <div class="duo">
     <section class="card panel">
       <div class="card-head" style="margin:0"><h2>Your answers</h2><span class="muted" style="font-size:12px">in the order you saw them</span></div>
-      <div class="amap">${Q.map((_, i) => { const k = kind(i); return `<button class="am ${k}" data-act="jump" data-q="${i}" aria-label="Question ${i + 1}, ${k === 'ok' ? 'correct' : k === 'bad' ? 'wrong' : 'not answered'}">${i + 1}${k === 'ok' ? icon('check') : k === 'bad' ? icon('x') : icon('minus')}</button>`; }).join('')}</div>
-      <span class="muted" style="font-size:12px">Tap a question to see the explanation.</span>
+      <div class="amap">${Q.map((_, i) => { const k = kind(i); return `<button class="am ${k}" data-act="jump" data-q="${i}" aria-label="Question ${i + 1}, ${k === 'ok' ? 'correct' : k === 'bad' ? 'wrong' : 'not answered'}" title="Q${i + 1} · ${k === 'ok' ? 'correct' : k === 'bad' ? `wrong: you picked ${L[ans[i]]}, answer ${L[Q[i].a]}` : 'not answered'}">${i + 1}${k === 'ok' ? icon('check') : k === 'bad' ? '' : icon('minus')}</button>`; }).join('')}</div>
     </section>
     ${topicStats.length ? `<section class="card panel">
       <div class="card-head" style="margin:0"><h2>By topic</h2><span class="muted" style="font-size:12px">correct / asked</span></div>
@@ -667,7 +672,7 @@ function viewResult() {
     </section>` : ''}
   </div>
   <section style="display:grid;gap:12px">
-    <div class="section-head" style="margin:0"><h2>${counts.wrong ? `The ${counts.wrong} you missed` : 'Review answers'}</h2>
+    <div class="section-head" style="margin:0"><h2>${V.filter === 'wrong' ? `The ${counts.wrong} you missed` : 'Review answers'}</h2>
       <div class="seg" role="tablist" aria-label="Show">${[['wrong', 'Wrong'], ['all', 'All'], ['right', 'Correct'], ['skip', 'Skipped']].filter(([k]) => k === 'all' || counts[k]).map(([k, t]) => `<button class="${V.filter === k ? 'on' : ''}" role="tab" aria-selected="${V.filter === k}" data-act="filter" data-f="${k}">${t} <span class="n">${counts[k]}</span></button>`).join('')}</div>
     </div>
     ${shown.length ? shown.map(item).join('') : '<div class="dashed"><span>Nothing here.</span></div>'}
@@ -751,7 +756,7 @@ function render() {
   }
   let html;
   if (V.loading) html = `<div class="skel" style="height:44px;width:50%"></div><div class="duo"><div class="skel" style="height:240px"></div><div class="skel" style="height:240px"></div></div>`;
-  else if (V.loadErr) html = `<div class="card empty"><div class="ico">${icon('x')}</div><h3>Couldn't load this page</h3><p>${esc(V.loadErr)}</p><button class="btn btn-primary" data-act="retry">Try again</button></div>`;
+  else if (V.loadErr) html = `<div class="card empty"><h3>Couldn't load this page</h3><p>${esc(V.loadErr)}</p><button class="btn btn-primary" data-act="retry">Try again</button></div>`;
   else if (V.page === 'home') html = viewHome();
   else if (V.page === 'profile') html = viewProfile();
   else if (V.page === 'past') html = viewPast();

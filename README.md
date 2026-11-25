@@ -73,6 +73,7 @@ npm start
 | `STUDENT_PASSWORD` | Shared password students enter with their roll number (default `notebook`) |
 | `ADMIN_EMAIL` | Admin sign-in email |
 | `ADMIN_PASSWORD` | Admin sign-in password |
+| `ADMINS` | Optional extra admins, as `email:password,email:password` |
 | `ADMIN_SECRET` | Long random string that signs admin sessions |
 
 ## Project layout

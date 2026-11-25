@@ -81,6 +81,7 @@ function route() {
     });
   }
   if (h === '/leaderboard') return load('board', loadBoard);
+  if ((m = h.match(/^\/preview\/(t[\w]+)$/))) { const id = m[1]; V.pvSet = 0; return load('preview', () => api('/api/admin/tests/' + id + '/preview')); }
   if ((m = h.match(/^\/analysis\/(t[\w]+)$/))) { const id = m[1]; return load('analysis', () => api('/api/admin/tests/' + id + '/analysis')); }
   if ((m = Notes.parse(h))) {
     const parts = m;
@@ -165,7 +166,7 @@ const pctBadge = (s, t) => { const f = t ? s / t : 0; return `<span class="badge
 const bar = (label, f, value, title) => `<div class="bar" title="${esc(title || '')}"><span class="lab">${label}</span><div class="track"><i class="${f < .5 ? 'low' : ''}" style="width:${Math.max(0, Math.min(1, f)) * 100}%"></i></div><span class="v">${value}</span></div>`;
 const groupName = (sets, id) => id ? ((sets.find(s => s.id === id) || {}).name || id) : 'No group';
 const armed = (key, idle, armedText, cls = 'btn-danger btn-sm', extra = '') => `<button type="button" class="btn ${cls}${V.confirm === key ? ' armed' : ''}" data-act="${key.split(':')[0]}"${extra}>${V.confirm === key ? armedText : idle}</button>`;
-const empty = (ic, title, text, action = '') => `<div class="card empty"><div class="ico">${icon(ic)}</div><h3>${title}</h3><p>${text}</p>${action}</div>`;
+const empty = (ic, title, text, action = '') => `<div class="card empty">${ic ? `<div class="ico">${icon(ic)}</div>` : ''}<h3>${title}</h3><p>${text}</p>${action}</div>`;
 const fmtTime = ms => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const hm = hhmm => { const [h, m] = hhmm.split(':').map(Number); const d = new Date(2000, 0, 1, h, m); return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
 function rel(ms) {
@@ -191,8 +192,33 @@ function testCard(t, sets, compact) {
       <div class="muted" style="font-size:14px">${icon('clock')} ${esc(hm(t.start))} · ${t.duration} min · ${t.fullscreen ? 'full screen · ' : ''}${sub}/${total} submitted${t.unassigned ? ` · <span style="color:var(--warn)">${t.unassigned} without a quiz</span>` : ''}</div>
       <div class="tc-papers">${t.papers.map((p, i) => `<div class="tc-paper"><span class="paper-tag">Set ${PL[i]}</span><a href="#/quiz/${esc(p.quizId)}"><b>${esc(p.quizTitle)}</b></a>${p.shuffle ? '<span class="badge">Jumbled</span>' : ''}<span class="muted">→ ${esc(audienceText(p, sets))} · ${p.count} student${p.count === 1 ? '' : 's'}</span>${p.started ? `<span class="badge accent">${p.started} in progress</span>` : ''}${p.avgPct !== null ? `<span class="badge">avg ${p.avgPct}%</span>` : ''}</div>`).join('')}</div>
     </div>
-    ${compact ? '' : `<div class="tc-acts"><a class="btn btn-ghost btn-sm" href="#/test/${esc(t.id)}">${icon('edit')}Edit</a><a class="btn btn-ghost btn-sm" href="#/analysis/${esc(t.id)}">${icon('chart')}Analysis</a>${armed('deltest:' + t.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(t.id)}" title="Delete test"`)}</div>`}
+    ${compact ? '' : `<div class="tc-acts"><a class="btn btn-ghost btn-sm" href="#/preview/${esc(t.id)}">${icon('eye')}Preview</a><a class="btn btn-ghost btn-sm" href="#/test/${esc(t.id)}">${icon('edit')}Edit</a><a class="btn btn-ghost btn-sm" href="#/analysis/${esc(t.id)}">${icon('chart')}Analysis</a>${armed('deltest:' + t.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(t.id)}" title="Delete test"`)}</div>`}
   </article>`;
+}
+
+/* ---------- Test preview: each set's questions in its students' order, with answers ---------- */
+function viewPreview() {
+  const D = V.data, t = D.test, i = Math.min(V.pvSet || 0, D.papers.length - 1), p = D.papers[i], z = D.quizzes[p.quizId];
+  const tabs = D.papers.length > 1 ? `<div class="seg pv-tabs" role="tablist">${D.papers.map((x, k) => `<button role="tab" aria-selected="${k === i}" class="${k === i ? 'on' : ''}" data-act="pvset" data-i="${k}">Set ${PL[k]}</button>`).join('')}</div>` : '';
+  const crumb = `<a href="#/tests">Tests</a> / Preview`;
+  const sub = `${esc(fmtDay(t.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(hm(t.start))} · ${t.duration} min${t.fullscreen ? ' · full screen' : ''}`;
+  const actions = `<a class="btn btn-ghost" href="#/test/${esc(t.id)}">${icon('edit')}Edit test</a>${z ? `<a class="btn btn-ghost" href="#/edit/${esc(p.quizId)}">${icon('edit')}Edit questions</a>` : ''}`;
+  if (!z) return shell(head(esc(t.title || 'Test'), sub, actions, crumb), tabs + empty('', 'This set has no quiz', 'Choose a quiz for it in Edit test.'));
+  const Q = p.order.map(k => ({ q: z.questions[k], orig: k + 1 }));
+  const code = c => `<pre class="qz-code"><code>${Notes.hlCpp(c)}</code></pre>`;
+  const opt = (q, j) => q.p ? `<code>${esc(q.o[j])}</code>` : esc(q.o[j]);
+  const body = `${tabs}
+  <div class="card pv-info">
+    <div class="pv-meta"><span class="paper-tag">Set ${PL[i]}</span><b>${esc(z.title)}</b>${p.shuffle ? '<span class="badge">Jumbled</span>' : ''}<span class="muted">→ ${esc(audienceText(p, D.sets))}</span></div>
+    <div class="pv-key"><span class="panel-label">Answer key</span><div class="pv-keys">${Q.map((x, k) => `<span><small>${k + 1}</small>${L[x.q.a]}</span>`).join('')}</div></div>
+  </div>
+  <div class="pv-list">${Q.map((x, k) => `<article class="card pv-q">
+    <div class="pv-h"><span class="pv-n">${k + 1}</span><div class="pv-qt">${x.q.t ? `<span class="badge">${esc(x.q.t)}</span>` : ''}${p.shuffle ? `<span class="muted pv-orig">Q${x.orig} in the quiz</span>` : ''}<p>${esc(x.q.q)}</p></div></div>
+    ${x.q.c ? code(x.q.c) : ''}
+    <ol class="pv-opts">${x.q.o.map((_, j) => `<li class="${j === x.q.a ? 'ok' : ''}"><span class="k">${L[j]}</span><span class="v">${opt(x.q, j)}</span>${j === x.q.a ? `<span class="pv-right">${icon('check')}Correct</span>` : ''}</li>`).join('')}</ol>
+    ${x.q.e ? `<div class="pv-why"><span class="panel-label">Explanation</span><p>${esc(x.q.e)}</p></div>` : ''}
+  </article>`).join('')}</div>`;
+  return shell(head(esc(t.title || 'Test'), sub + ` · ${Q.length} questions`, actions, crumb), body);
 }
 
 /* ---------- Login ---------- */
@@ -633,7 +659,7 @@ function viewAnalysis() {
       <td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}${s.group ? ' · ' + esc(s.group) : ''}</small></div></div></td>
       <td data-l="Score" class="r">${pctBadge(s.score, s.total)}</td>
       <td data-l="Time" class="r">${mmss(s.secs)}</td>
-      <td data-l="Answers"><div class="strip">${Q.map((q, k) => { const kd = R.kind(s, q); return `<i class="${kd === 'ok' ? 'ok' : kd === 'bad' ? 'bad' : ''}" title="Q${k + 1}: ${kd === 'skip' ? 'blank' : L[s.byQ[q.id]] + (kd === 'ok' ? ' ✓' : ' ✗')}"></i>`; }).join('')}</div></td>
+      <td data-l="Answers"><div class="strip">${Q.map((q, k) => { const kd = R.kind(s, q); return `<i class="${kd === 'ok' ? 'ok' : kd === 'bad' ? 'bad' : ''}" title="Q${k + 1}: ${kd === 'skip' ? 'blank' : L[s.byQ[q.id]] + (kd === 'ok' ? ' · correct' : ' · wrong')}"></i>`; }).join('')}</div></td>
       <td data-l="How it ended">${s.endReason === 'left-fullscreen' ? '<span class="badge bad">Left full screen</span>' : s.auto ? '<span class="badge warn">Time ran out</span>' : '<span class="badge">Submitted</span>'}${s.reloads ? ` <span class="badge warn">Reloaded ×${s.reloads}</span>` : ''}</td>
     </tr>`).join('')}${others.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}"><td data-l="Rank" class="muted">–</td><td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}</small></div></div></td><td data-l="Score" class="r" colspan="4"><span class="badge${s.state === 'started' ? ' accent' : ''}">${s.state === 'started' ? 'Taking it now' : s.state === 'upcoming' ? 'Not started yet' : 'Did not take it'}</span></td></tr>`).join('')}</tbody></table></div>
   </section>`;
@@ -921,8 +947,8 @@ function render() {
   if (V.loading) html = shell('<div class="skel" style="height:56px;width:40%;margin-bottom:24px"></div>', '<div class="kpis"><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div><div class="skel" style="height:110px"></div></div><div class="skel" style="height:320px;margin-top:18px"></div>');
   else if (V.page === 'notes' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumb(V.data)}</div>` : '', Notes.view(V.data, { sub: 'The class notes exactly as students see them. Open a level, then a topic.' }));
   else if (V.page === 'stests' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumbTests(V.data)}</div>` : '', Notes.viewTests(V.data));
-  else if (!V.data) html = shell('', empty('x', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
-  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
+  else if (!V.data) html = shell('', empty('', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
+  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, preview: viewPreview, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
   document.title = `${V.page === 'notes' ? Notes.title(V.data) : V.page === 'stests' ? Notes.titleTests(V.data) : t ? t.textContent : 'Admin'} · BigONotebook Admin`;
@@ -1090,6 +1116,7 @@ $app.addEventListener('click', async e => {
   if (a === 'openday') { V.dayView = 'day'; V.q = ''; return; }
   if (a === 'rowfilter') { V.rowFilter = b.dataset.f; render(); return; }
   if (a === 'setfilter') { V.setFilter = b.dataset.f; render(); return; }
+  if (a === 'pvset') { V.pvSet = +b.dataset.i; render(); window.scrollTo(0, 0); return; }
   if (a === 'testsTab') { V.testsTab = b.dataset.v; render(); return; }
   if (a === 'menu' || a === 'menuClose') {
     V.menu = a === 'menu' ? !V.menu : false;

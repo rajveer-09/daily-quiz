@@ -424,7 +424,7 @@ window.Notes = (() => {
       <div class="qz-review">${z.qs.map((q, i) => {
         const ok = z.picks[i] === q.a;
         return `<div class="card qz-rv ${ok ? 'ok' : 'bad'}">
-          <div class="qz-rv-h"><span class="badge ${ok ? 'ok' : 'bad'}">${icon(ok ? 'check' : 'x')}${ok ? 'Correct' : 'Wrong'}</span><b>Question ${i + 1}</b></div>
+          <div class="qz-rv-h"><span class="badge ${ok ? 'ok' : 'bad'}">${ok ? icon('check') : ''}${ok ? 'Correct' : 'Wrong'}</span><b>Question ${i + 1}</b></div>
           ${qText(q)}
           <p class="qz-ans">Your answer: <b>${LETTERS[z.picks[i]]}. ${optText(q, z.picks[i])}</b></p>
           ${ok ? '' : `<p class="qz-ans good">Correct answer: <b>${LETTERS[q.a]}. ${optText(q, q.a)}</b></p>`}
@@ -524,7 +524,7 @@ window.Notes = (() => {
       });
       const sol = card.querySelector('.st-sol'); if (sol) { sol.classList.remove('locked'); sol.querySelector('summary').removeAttribute('aria-disabled'); }
       const r = card.querySelector('.st-res');
-      if (r) { r.className = 'st-res ' + (j === q.a ? 'ok' : 'bad'); r.innerHTML = j === q.a ? icon('check') + 'Correct' : `${icon('x')}Not quite. The answer is ${LETTERS[q.a]}.`; }
+      if (r) { r.className = 'st-res ' + (j === q.a ? 'ok' : 'bad'); r.innerHTML = j === q.a ? icon('check') + 'Correct' : `Not quite. The answer is ${LETTERS[q.a]}.`; }
     }
     else if ((a === 'stDone' && hooks.mark) || (a === 'stRev' && hooks.revisit)) {
       // Completed / revisit: shown straight away, put back if saving fails.
@@ -555,5 +555,5 @@ window.Notes = (() => {
       if (navigator.clipboard && pre) navigator.clipboard.writeText(pre.textContent).then(() => done(true), () => done(false)); else done(false);
     }
   });
-  return { CATALOG, SECTIONS, init, load, parse, view, crumb, title, progressCard, loadRevisit, viewRevisit, loadTests, parseTests, viewTests, crumbTests, titleTests };
+  return { CATALOG, SECTIONS, init, load, parse, view, crumb, title, hlCpp, progressCard, loadRevisit, viewRevisit, loadTests, parseTests, viewTests, crumbTests, titleTests };
 })();
