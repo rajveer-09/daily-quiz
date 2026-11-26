@@ -93,6 +93,7 @@ function route() {
   }
   if (h === '/groups') return load('sets', () => api('/api/admin/sets'));
   if (h === '/students') return load('students', () => api('/api/admin/students'));
+  if (h === '/activity' || (m = h.match(/^\/activity\/(\d{4}-\d{2}-\d{2})$/))) { const d = m ? m[1] : ''; return load('activity', () => api('/api/admin/activity' + (d ? '?date=' + d : ''))); }
   if (h === '/new') return load('edit', async () => ({ isNew: true, attempts: [] }));
   if ((m = h.match(/^\/quiz\/([\w-]+)$/))) return load('quiz', () => api('/api/admin/quizzes/' + m[1]));
   if ((m = h.match(/^\/edit\/([\w-]+)$/))) return load('edit', () => api('/api/admin/quizzes/' + m[1]));
@@ -136,7 +137,7 @@ function newTestDraft(d) {
 const testDraftOf = t => JSON.parse(JSON.stringify({ version: t.updatedAt || null, fullscreen: !!t.fullscreen, title: t.title, date: t.date, start: t.start, duration: t.duration, papers: t.papers.map(p => ({ id: p.id, quizId: p.quizId, everyone: p.everyone, shuffle: !!p.shuffle, sets: p.sets, rolls: p.rolls })) }));
 
 /* ---------- Shared bits ---------- */
-const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students'], ['notes', '#/notes', 'file', 'Notes'], ['stests', '#/practice', 'target', 'Practice']];
+const NAV = [['overview', '#/', 'grid', 'Overview'], ['tests', '#/tests', 'calendar', 'Tests'], ['day', '#/day', 'list', 'Daily results'], ['board', '#/leaderboard', 'trophy', 'Leaderboard'], ['quizzes', '#/quizzes', 'book', 'Question bank'], ['sets', '#/groups', 'layers', 'Groups'], ['students', '#/students', 'users', 'Students'], ['activity', '#/activity', 'pulse', 'Activity'], ['notes', '#/notes', 'file', 'Notes'], ['stests', '#/practice', 'target', 'Practice']];
 
 function shell(head, body) {
   const active = { quiz: 'quizzes', edit: 'quizzes', student: 'students', test: 'tests', analysis: 'tests' }[V.page] || V.page;
@@ -523,6 +524,69 @@ $app.addEventListener('pointermove', e => {
 });
 $app.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('.clk-face') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.clk-face'))) { const o = document.querySelector('.clk-n.hov'); if (o) o.classList.remove('hov'); } });
 $app.addEventListener('focusin', e => { if (e.target.id === 'clkH') clkMode('h'); else if (e.target.id === 'clkM') clkMode('m'); });
+
+/* ---------- Activity: who has the site open, when people were last on, sign-ins ---------- */
+const ago = t => t ? `<span data-rel="${t}">${rel(t)}</span>` : '–';
+const EVENT = { login: ['Signed in', 'accent'], open: ['Opened the site', ''], failed: ['Wrong password', 'warn'] };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const onBadge = '<span class="badge ok"><span class="dot"></span>Online</span>';
+function viewActivity() {
+  const D = V.data, on = D.online, st = on.filter(p => p.who === 'student').length, ad = on.length - st, T = D.todayStats;
+  const kpis = `<div class="kpis">
+    <div class="card kpi"><div class="kpi-top">${tile('pulse', 'mint')}<span class="k-sub">${plural(st, 'student')} · ${plural(ad, 'admin')}</span></div><div><div class="k-val">${on.length}</div><div class="k-label">Online now</div></div></div>
+    <div class="card kpi"><div class="kpi-top">${tile('users', 'accent')}<span class="k-sub">${plural(T.studentLogins, 'sign-in')}</span></div><div><div class="k-val">${T.studentsOpened}</div><div class="k-label">Students on the site today</div></div></div>
+    <div class="card kpi"><div class="kpi-top">${tile('lock', 'amber')}<span class="k-sub">${T.failed ? `<span style="color:var(--warn)">${plural(T.failed, 'wrong password')}</span>` : 'No wrong passwords'}</span></div><div><div class="k-val">${T.adminLogins}</div><div class="k-label">Admin sign-ins today</div></div></div>
+  </div>`;
+  const admins = `<section class="card pad act-card"><div class="card-head"><h3>Admins</h3></div><div class="act-list">${D.admins.map(a => `<div class="act-row">
+      <div class="who-cell">${avatar(a.email, 'sm')}<div><b>${esc(a.email)}</b><small>${a.online ? `On ${esc(a.page)}` : a.seenAt ? `Last seen ${ago(a.seenAt)}` : 'Not seen yet'}</small></div></div>
+      <div class="act-meta"><small>Last sign-in</small><b>${a.lastLogin ? esc(fmtWhen(a.lastLogin)) : '–'}</b>${a.loginDevice ? `<small>${esc(a.loginDevice)}</small>` : ''}</div>
+      <div class="act-st">${a.online ? onBadge : ''}</div>
+    </div>`).join('')}</div></section>`;
+  const online = `<section class="card pad act-card"><div class="card-head"><h3><span class="live-dot"></span>Online now · ${on.length}</h3></div>${on.length ? `<div class="act-list">${on.map(p => `<div class="act-row">
+      <div class="who-cell">${avatar(p.name, 'sm')}<div><b>${esc(p.name)}</b><small${p.who === 'admin' ? '' : ' class="mono"'}>${p.who === 'admin' ? 'Admin' : esc(p.id)}</small></div></div>
+      <div class="act-meta"><small>On ${esc(p.page)}</small><b>Opened ${p.openedAt ? esc(fmtTime(p.openedAt)) : '–'}</b><small>${esc(p.device)}</small></div>
+    </div>`).join('')}</div>` : '<p class="muted" style="font-size:14px">Nobody has the site open right now.</p>'}</section>`;
+  const q = (V.actQ || '').trim().toLowerCase();
+  const rec = D.recent.filter(p => !q || p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+  const shown = q || V.actMore ? rec : rec.slice(0, 15);
+  const students = `<section class="act-sec"><div class="section-head"><h2>Students</h2><div class="search" style="max-width:280px">${icon('search')}<input class="input" id="actq" type="search" placeholder="Find a student" value="${esc(V.actQ || '')}" style="min-height:38px"></div></div>
+    ${shown.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>Student</th><th>Last opened the site</th><th>Last seen</th><th>Device</th></tr></thead><tbody>${shown.map(p => `<tr>
+      <td data-l="Student"><div class="who-cell">${avatar(p.name, 'sm')}<div><b>${esc(p.name)}</b><small class="mono">${esc(p.id)}</small></div></div></td>
+      <td data-l="Last opened">${p.openedAt ? esc(fmtWhen(p.openedAt)) : '–'}</td>
+      <td data-l="Last seen">${p.online ? onBadge : ago(p.seenAt)}</td>
+      <td data-l="Device" class="muted">${esc(p.device)}</td></tr>`).join('')}</tbody></table></div>` : `<p class="muted" style="font-size:14px">${q ? 'No student matches.' : 'No student has opened the site yet.'}</p>`}
+    ${!q && rec.length > 15 ? `<button class="btn btn-ghost btn-sm" data-act="actMore" style="margin-top:10px">${V.actMore ? 'Show fewer' : `Show all ${rec.length}`}</button>` : ''}
+  </section>`;
+  const f = V.actF || 'all', sq = V.q.trim().toLowerCase();
+  const rows = D.log.filter(e => (f === 'all' || e.who === f) && (!sq || e.name.toLowerCase().includes(sq) || e.id.toLowerCase().includes(sq))).slice(0, 200);
+  const seg = `<div class="seg">${[['all', 'All'], ['student', 'Students'], ['admin', 'Admins']].map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="actF" data-v="${k}">${l}</button>`).join('')}</div>`;
+  const max = Math.max(1, ...D.days.map(x => x.n));
+  const dayLbl = d => d === D.today ? 'Today' : d === addDays(D.today, -1) ? 'Yesterday' : fmtDay(d, { weekday: 'short', day: 'numeric', month: 'short' });
+  const strip = `<div class="act-days" role="tablist" aria-label="Day">${[...D.days].reverse().map(x => `<a role="tab" aria-selected="${x.date === D.date}" class="act-day${x.date === D.date ? ' on' : ''}" href="#/activity/${x.date}" title="${esc(dayLbl(x.date))}: ${plural(x.n, 'entry').replace('entrys', 'entries')}, ${plural(x.people, 'person').replace('persons', 'people')}">
+      <span class="act-bar"><i style="height:${x.n ? Math.max(8, Math.round(x.n / max * 100)) : 0}%"></i></span><b>${x.n}</b><small>${esc(x.date === D.today ? 'Today' : fmtDay(x.date, { weekday: 'short' }))}</small><small>${Number(x.date.slice(8))}</small></a>`).join('')}</div>`;
+  const log = `<section class="act-sec"><div class="section-head"><h2>Activity log · ${esc(dayLbl(D.date))}</h2>${D.log.length ? armed('delActDay:' + D.date, `${icon('trash')}Delete this day`, `Delete all ${D.log.length}?`, 'btn-ghost btn-sm', ` data-date="${D.date}"`) : ''}</div>
+    ${strip}
+    <div class="toolbar"><div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Search name, roll or email" value="${esc(V.q)}" style="min-height:40px"></div>${seg}</div>
+    ${rows.length ? `<div class="card table-wrap"><table class="table stackable"><thead><tr><th>When</th><th>Who</th><th>What</th><th>Device</th><th><span class="sr-only">Delete</span></th></tr></thead><tbody>${rows.map(e => { const [w, c] = EVENT[e.kind] || [e.kind, '']; return `<tr>
+      <td data-l="When"><b style="font-weight:500">${esc(fmtTime(e.at))}</b><small class="act-ago">${ago(e.at)}</small></td>
+      <td data-l="Who"><div class="who-cell">${avatar(e.name, 'sm')}<div><b>${esc(e.name)}</b><small class="mono">${e.who === 'admin' ? 'Admin' : esc(e.id)}</small></div></div></td>
+      <td data-l="What"><span class="badge ${c}">${w}</span></td>
+      <td data-l="Device" class="muted">${esc(e.device)}</td>
+      <td class="r">${armed('delAct:' + e.key, icon('trash'), 'Delete?', 'btn-ghost btn-sm act-del', ` data-key="${e.key}" title="Delete this entry" aria-label="Delete this entry"`)}</td></tr>`; }).join('')}</tbody></table></div>` : `<p class="muted" style="font-size:14px">${sq || f !== 'all' ? 'Nothing matches.' : 'Nothing on this day.'}</p>`}
+  </section>`;
+  return shell(head('Activity', 'Who has the site open, when people were last on, and every sign-in.', `<button class="btn btn-ghost" data-act="anRefresh">${icon('history')}Refresh</button>`),
+    `${kpis}<div class="act-grid">${online}${admins}</div>${students}${log}`);
+}
+
+/* Heartbeat: an open, visible admin page tells the server every minute (Activity → Online now). */
+let beatAt = 0;
+function beat() {
+  if (!session || document.visibilityState !== 'visible' || Date.now() - beatAt < 55_000) return;
+  beatAt = Date.now();
+  api('/api/admin/ping', 'POST', { page: location.hash.split('/')[1] || '' }).catch(() => {});
+}
+setInterval(beat, 15_000);
+document.addEventListener('visibilitychange', beat);
 
 async function saveTest() {
   if (V.busy) return;
@@ -1144,7 +1208,7 @@ function render() {
   else if (V.page === 'notes' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumb(V.data)}</div>` : '', Notes.view(V.data, { sub: 'The class notes exactly as students see them. Open a level, then a topic.' }));
   else if (V.page === 'stests' && V.data) html = shell(V.data.level ? `<div class="crumb nt-crumb">${Notes.crumbTests(V.data)}</div>` : '', Notes.viewTests(V.data));
   else if (!V.data) html = shell('', empty('', "Couldn't load this page", esc(V.err), '<button class="btn btn-primary" data-act="retry">Try again</button>'));
-  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, preview: viewPreview, students: viewStudents, student: viewStudent, edit: viewEdit })[V.page]();
+  else html = ({ overview: viewOverview, tests: viewTests, test: viewTest, day: viewDay, quizzes: viewQuizzes, quiz: viewQuiz, sets: viewSets, board: viewBoard, analysis: viewAnalysis, preview: viewPreview, students: viewStudents, student: viewStudent, activity: viewActivity, edit: viewEdit })[V.page]();
   $app.innerHTML = html;
   const t = document.querySelector('.ahead h1');
   document.title = `${V.page === 'notes' ? Notes.title(V.data) : V.page === 'stests' ? Notes.titleTests(V.data) : t ? t.textContent : 'Admin'} · BigONotebook Admin`;
@@ -1157,7 +1221,7 @@ function renderKeepFocus(id) {
 }
 setInterval(() => { document.querySelectorAll('[data-rel]').forEach(el => { el.textContent = rel(+el.dataset.rel); }); }, 1000);
 // Keep live pages fresh (submissions arriving, tests going live).
-setInterval(() => { if (['overview', 'tests', 'day', 'quiz'].includes(V.page) && !V.loading && !V.confirm && document.visibilityState === 'visible' && !document.activeElement.matches('input,select,textarea')) refresh(); }, 30_000);
+setInterval(() => { if (['overview', 'tests', 'day', 'quiz', 'activity'].includes(V.page) && !V.loading && !V.confirm && document.visibilityState === 'visible' && !document.activeElement.matches('input,select,textarea')) refresh(); }, 30_000);
 
 /* ---------- Actions ---------- */
 async function assign(rolls, set) {
@@ -1175,6 +1239,7 @@ $app.addEventListener('input', e => {
   if (el.id === 'em') V.form.email = el.value;
   else if (el.id === 'pw') V.form.password = el.value;
   else if (el.id === 'sq') { V.q = el.value; renderKeepFocus('sq'); }
+  else if (el.id === 'actq') { V.actQ = el.value; renderKeepFocus('actq'); }
   else if (el.id === 'pickq') { V.pickQ = el.value; renderKeepFocus('pickq'); }
   else if (el.id === 'imp') V.importText = el.value;
   else if (el.id === 'clkH' || el.id === 'clkM') clkType(el);
@@ -1335,6 +1400,24 @@ $app.addEventListener('click', async e => {
   if (a === 'openday') { V.dayView = 'day'; V.q = ''; return; }
   if (a === 'rowfilter') { V.rowFilter = b.dataset.f; render(); return; }
   if (a === 'setfilter') { V.setFilter = b.dataset.f; render(); return; }
+  if (a === 'actF') { V.actF = b.dataset.v; render(); return; }
+  if (a === 'actMore') { V.actMore = !V.actMore; render(); return; }
+  if (a === 'delAct' || a === 'delActDay') {
+    const key = a === 'delAct' ? 'delAct:' + b.dataset.key : 'delActDay:' + b.dataset.date;
+    if (V.confirm !== key) { V.confirm = key; render(); return; }
+    V.confirm = '';
+    try {
+      if (a === 'delAct') {
+        await api('/api/admin/activity/' + b.dataset.key, 'DELETE');
+        V.data.log = V.data.log.filter(x => x.key !== b.dataset.key); render(); toast('Entry deleted');
+      } else {
+        const r = await api('/api/admin/activity?date=' + b.dataset.date, 'DELETE');
+        toast(`Deleted ${r.deleted} entr${r.deleted === 1 ? 'y' : 'ies'}`);
+      }
+      refresh();
+    } catch (err) { toast(err.message, true); render(); }
+    return;
+  }
   if (a === 'anRefresh') { refresh(); return; }
   if (a === 'reopenAsk') { V.reopen = b.dataset.roll; render(); const i = document.getElementById('reopenMin'); if (i) i.select(); return; }
   if (a === 'reopenNo') { V.reopen = null; render(); return; }

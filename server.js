@@ -1,6 +1,6 @@
 import express from 'express';
 import compression from 'compression';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import { readdir, readFile } from 'node:fs/promises';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
@@ -50,7 +50,9 @@ const attempts = db.collection('attempts');
 const schedule = db.collection('schedule');  // legacy, migrated into tests
 const meta = db.collection('meta');
 const solved = db.collection('solved');      // Practice marks per student and topic: { roll, key: "<topic>-test", done: [question index], rev: [index saved to revisit], at }
-const practice = db.collection('practice');  // notes "Test yourself": { roll, key, score, total, at, best: { score, total, at } }
+const practice = db.collection('practice');
+const activity = db.collection('activity');  // sign-ins and site opens, kept 90 days: { who: 'student'|'admin', id, name, kind: 'login'|'open'|'failed', at, device }
+const presence = db.collection('presence');  // last seen per person: { _id: "student:ROLL" | "admin:email", who, id, name, seenAt, openedAt, device, page }  // notes "Test yourself": { roll, key, score, total, at, best: { score, total, at } }
 await Promise.all([
   students.createIndex({ roll: 1 }, { unique: true }),
   attempts.createIndex({ quizId: 1 }),
@@ -59,6 +61,8 @@ await Promise.all([
   attempts.createIndex({ testId: 1 }),
   attempts.createIndex({ status: 1, deadline: 1 }),
   tests.createIndex({ date: 1, start: 1 }),
+  activity.createIndex({ at: 1 }, { expireAfterSeconds: 90 * 86400 }),
+  presence.createIndex({ seenAt: -1 }),
 ]);
 
 /* ---------- In-memory cache ----------
@@ -447,6 +451,34 @@ function adminAuth(req, res, next) {
 }
 const failures = new Map();
 
+/* ---------- Activity: sign-ins, site opens, who has the site open ---------- */
+const ONLINE_MS = 150_000;      // seen this recently = has the site open (pages beat every 60 s while visible)
+const VISIT_GAP = 30 * 60_000;  // back after this long = a new visit in the log
+function deviceOf(req) {
+  const ua = String(req.get('user-agent') || '');
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone' : /CrOS/.test(ua) ? 'Chromebook' : /Windows/i.test(ua) ? 'Windows' : /Mac OS X/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : '';
+  const br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  return [br, os].filter(Boolean).join(' on ') || 'Unknown device';
+}
+function logActivity(req, who, id, name, kind) {
+  activity.insertOne({ who, id: String(id).slice(0, 80), name: String(name || id).slice(0, 80), kind, at: new Date(), device: deviceOf(req) })
+    .catch(e => console.error('activity log failed:', e.message));
+}
+const PAGES = { home: 'Home', profile: 'Profile', past: 'Past tests', leaderboard: 'Leaderboard', test: 'A test', quiz: 'A test', notes: 'Notes', practice: 'Practice', revisit: 'Revisit',
+  tests: 'Tests', day: 'Daily results', quizzes: 'Question bank', edit: 'Question bank', groups: 'Groups', students: 'Students', student: 'Students', analysis: 'Test analysis', preview: 'Test preview', activity: 'Activity', new: 'Question bank' };
+/** Heartbeat from an open page. The first beat after a gap counts as opening the site. */
+const ADMIN_PAGES = { test: 'Tests', quiz: 'Question bank', leaderboard: 'Leaderboard', notes: 'Notes', practice: 'Practice' };
+async function seen(req, who, id, name) {
+  const key = String(req.body?.page || '').toLowerCase();
+  const now = new Date(), page = (who === 'admin' && ADMIN_PAGES[key]) || PAGES[key] || (who === 'admin' ? 'Overview' : 'Home');
+  const prev = await presence.findOneAndUpdate({ _id: `${who}:${id}` },
+    { $set: { who, id, name, seenAt: now, device: deviceOf(req), page } }, { upsert: true, returnDocument: 'before', projection: { seenAt: 1 } });
+  if (!prev || now - prev.seenAt > VISIT_GAP) {
+    await presence.updateOne({ _id: `${who}:${id}` }, { $set: { openedAt: now } });
+    logActivity(req, who, id, name, 'open');
+  }
+}
+
 /* ---------- App ---------- */
 const app = express();
 app.disable('x-powered-by');
@@ -547,6 +579,7 @@ app.post('/api/login', async (req, res) => {
   const existing = await students.findOne({ roll });
   if (existing) {
     await students.updateOne({ _id: existing._id }, { $set: { lastLoginAt: now } });
+    logActivity(req, 'student', roll, existing.name, 'login');
     return res.json({ student: { name: existing.name, roll }, token: makeStudentToken(roll), isNew: false });
   }
   const name = cleanName(req.body?.name);
@@ -556,9 +589,17 @@ app.post('/api/login', async (req, res) => {
   catch (e) {
     if (e.code !== 11000) throw e;
     const s = await students.findOne({ roll });
+    logActivity(req, 'student', roll, s.name, 'login');
     return res.json({ student: { name: s.name, roll }, token: makeStudentToken(roll), isNew: false });
   }
+  logActivity(req, 'student', roll, name, 'login');
   res.status(201).json({ student: { name, roll }, token: makeStudentToken(roll), isNew: true });
+});
+
+/** An open student page says it is still open (every minute while visible). */
+app.post('/api/ping', auth, async (req, res) => {
+  if (!req.preview) await seen(req, 'student', req.student.roll, req.student.name);
+  res.json({ ok: true });
 });
 
 // Everything for the student's home, upcoming and past pages. Sets and paper names are never sent.
@@ -846,13 +887,60 @@ app.post('/api/admin/login', (req, res) => {
   for (const [e, p] of ADMIN_LIST) if (safeEq(email, e.toLowerCase()) & safeEq(password, p) && !match) match = e;
   if (match) {
     failures.delete(ip);
+    logActivity(req, 'admin', match, match, 'login');
     return res.json({ token: makeToken(match), email: match });
   }
   failures.set(ip, { n: f && f.until > Date.now() ? f.n + 1 : 1, until: Date.now() + 15 * 60e3 });
+  logActivity(req, 'admin', email || '(no email)', email || '(no email)', 'failed');
   res.status(401).json({ error: 'Wrong email or password.' });
 });
 
 app.use('/api/admin', adminAuth);
+
+app.post('/api/admin/ping', async (req, res) => { await seen(req, 'admin', req.admin, req.admin); res.json({ ok: true }); });
+/** A whole day in QUIZ_TZ as [from, to). */
+const dayRange = d => [new Date(zoned(d, '00:00')), new Date(zoned(addDays(d, 1), '00:00'))];
+app.get('/api/admin/activity', async (req, res) => {
+  const now = Date.now(), t = today(), dayStart = new Date(zoned(t, '00:00'));
+  const date = isDate(String(req.query.date || '')) && req.query.date <= t ? String(req.query.date) : t, [from, to] = dayRange(date);
+  const [pres, log, lastLogins, todayAgg, perDay] = await Promise.all([
+    presence.find({}).sort({ seenAt: -1 }).limit(400).toArray(),
+    activity.find({ at: { $gte: from, $lt: to } }).sort({ at: -1 }).limit(2000).toArray(),
+    activity.aggregate([{ $match: { who: 'admin', kind: 'login' } }, { $sort: { at: -1 } }, { $group: { _id: '$id', at: { $first: '$at' }, device: { $first: '$device' } } }]).toArray(),
+    activity.aggregate([{ $match: { at: { $gte: dayStart } } }, { $group: { _id: { who: '$who', kind: '$kind' }, n: { $sum: 1 }, people: { $addToSet: '$id' } } }]).toArray(),
+    activity.aggregate([{ $match: { at: { $gte: new Date(zoned(addDays(t, -13), '00:00')) } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$at', timezone: QUIZ_TZ } }, n: { $sum: 1 }, people: { $addToSet: '$id' } } }]).toArray(),
+  ]);
+  const person = p => ({ who: p.who, id: p.id, name: p.name, seenAt: +p.seenAt, openedAt: p.openedAt ? +p.openedAt : null, device: p.device || '', page: p.page || '', online: now - p.seenAt < ONLINE_MS });
+  const people = pres.map(person);
+  const count = (who, kind) => (todayAgg.find(x => x._id.who === who && x._id.kind === kind) || { n: 0 }).n;
+  const visitors = new Set(todayAgg.filter(x => x._id.who === 'student').flatMap(x => x.people));
+  res.json({
+    now,
+    online: people.filter(p => p.online),
+    admins: ADMIN_LIST.map(([e]) => {
+      const p = people.find(x => x.who === 'admin' && x.id === e), l = lastLogins.find(x => x._id === e);
+      return { email: e, lastLogin: l ? +l.at : null, loginDevice: l ? l.device : '', seenAt: p ? p.seenAt : null, openedAt: p ? p.openedAt : null, online: !!(p && p.online), page: p ? p.page : '' };
+    }),
+    recent: people.filter(p => p.who === 'student').slice(0, 200),
+    todayStats: { studentsOpened: visitors.size, studentLogins: count('student', 'login'), adminLogins: count('admin', 'login'), failed: count('admin', 'failed') },
+    date, today: t,
+    days: Array.from({ length: 14 }, (_, i) => { const d = addDays(t, -i), x = perDay.find(y => y._id === d); return { date: d, n: x ? x.n : 0, people: x ? x.people.length : 0 }; }),
+    log: log.map(a => ({ key: String(a._id), at: +a.at, who: a.who, id: a.id, name: a.name, kind: a.kind, device: a.device || '' })),
+  });
+});
+app.delete('/api/admin/activity/:key', async (req, res) => {
+  if (!ObjectId.isValid(req.params.key)) return res.status(400).json({ error: 'Unknown entry.' });
+  const r = await activity.deleteOne({ _id: new ObjectId(req.params.key) });
+  res.json({ deleted: r.deletedCount });
+});
+app.delete('/api/admin/activity', async (req, res) => {
+  const d = String(req.query.date || '');
+  if (!isDate(d)) return res.status(400).json({ error: 'Pick a day.' });
+  const [from, to] = dayRange(d);
+  const r = await activity.deleteMany({ at: { $gte: from, $lt: to } });
+  res.json({ deleted: r.deletedCount });
+});
 
 /** Everything the admin pages need, with each test resolved to the students who get each paper. */
 async function adminState() {

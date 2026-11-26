@@ -1021,4 +1021,15 @@ Notes.init({
 });
 window.addEventListener('hashchange', route);
 route();
+
+/* Heartbeat: an open, visible page tells the server every minute (admin Activity → Online now). */
+let beatAt = 0;
+function beat() {
+  if (!me || preview || document.visibilityState !== 'visible' || Date.now() - beatAt < 55_000) return;
+  beatAt = Date.now();
+  api('/api/ping', { page: location.hash.split('/')[1] || '' }).catch(() => {});
+}
+setInterval(beat, 15_000);
+document.addEventListener('visibilitychange', beat);
+setTimeout(beat, 1500);
 })();
