@@ -756,11 +756,20 @@ app.post('/api/solved/:key', auth, readOnly, async (req, res) => {
   res.json({ done: (r && r.done || []).sort((a, b) => a - b) });
 });
 
+/** The student's own attempt state and deadline, polled by an open test so time added by the teacher shows up live. */
+app.get('/api/tests/:id/clock', auth, async (req, res) => {
+  const a = await attempts.findOne({ roll: req.student.roll, testId: String(req.params.id) }, { projection: { status: 1, deadline: 1 } });
+  res.json({ status: !a ? 'none' : isDone(a) ? 'done' : 'started', deadline: a && a.deadline ? +new Date(a.deadline) : null, now: Date.now() });
+});
+
 app.post('/api/tests/:id/submit', auth, readOnly, async (req, res) => {
   const f = await findForStudent(req, res);
   if (!f) return;
   let a = f.a;
   if (!a) return res.status(400).json({ error: 'Start the quiz first.' });
+  if (!isDone(a) && req.body?.auto && !req.body?.reason && Date.now() < +a.deadline - 3000) {
+    return res.json(quizPayload(f.z, f.it, a, f.v)); // the teacher added time: the test carries on
+  }
   if (!isDone(a)) {
     const live = Date.now() <= +a.deadline + GRACE_MS;
     // Answers sent with the submit (e.g. ones whose autosave failed) are written atomically first, only if still in time.
@@ -963,7 +972,7 @@ app.get('/api/admin/tests/:id/analysis', async (req, res) => {
       if (!a) return { ...base, state: startsAt(test) > st.now ? 'upcoming' : 'missed' };
       const ansAt = {};
       for (const [k, v] of Object.entries(a.ansAt || {})) ansAt[k] = ms(v) - ms(a.startedAt);
-      return { ...base, state: isDone(a) ? 'done' : 'started', byQ: a.byQ || {}, order: a.order || [], ansAt, chg: a.chg || {},
+      return { ...base, state: isDone(a) ? 'done' : 'started', deadline: ms(a.deadline), reopened: a.reopened || 0, byQ: a.byQ || {}, order: a.order || [], ansAt, chg: a.chg || {},
         score: a.score ?? null, total: a.total ?? null, secs: a.secs ?? null, startedAt: ms(a.startedAt), at: ms(a.at),
         auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0 };
     }).concat(A.filter(a => !given.some(g => g.s.roll === a.roll)).map(a => { // took it, but no longer assigned (test edited / student removed from it)
@@ -973,6 +982,50 @@ app.get('/api/admin/tests/:id/analysis', async (req, res) => {
         score: a.score ?? null, total: a.total ?? null, secs: a.secs ?? null, startedAt: ms(a.startedAt), at: ms(a.at), auto: !!a.auto, endReason: a.endReason || null, reloads: (a.flags && a.flags.reload) || 0 };
     })),
   });
+});
+
+/* ----- Live control: add time to running attempts, reopen a finished one ----- */
+/** Keeps every result of a test hidden until the last running attempt (plus grace) is over, so extra time can't leak answers. */
+async function holdResults(testId) {
+  const live = await attempts.find({ testId, status: 'started' }, { projection: { deadline: 1 } }).toArray();
+  if (!live.length) return;
+  const until = new Date(Math.max(...live.map(a => +new Date(a.deadline))) + GRACE_MS + 60_000);
+  await attempts.updateMany({ testId, revealAt: { $lt: until } }, { $set: { revealAt: until } });
+}
+const minutesIn = (v, max) => { const m = Math.round(Number(v)); return Number.isFinite(m) && m >= 1 && m <= max ? m : null; };
+app.post('/api/admin/tests/:id/time', async (req, res) => {
+  const id = String(req.params.id), mins = minutesIn(req.body?.minutes, 120);
+  if (!mins) return res.status(400).json({ error: 'Choose between 1 and 120 minutes.' });
+  const filter = { testId: id, status: 'started', deadline: { $gt: new Date(Date.now() - GRACE_MS) } };
+  if (req.body?.roll) filter.roll = cleanRoll(req.body.roll);
+  const live = await attempts.find(filter, { projection: { deadline: 1 } }).toArray();
+  let n = 0;
+  for (const a of live) {
+    const r = await attempts.updateOne({ _id: a._id, status: 'started' }, { $set: { deadline: new Date(+new Date(a.deadline) + mins * 60_000) }, $inc: { addedMin: mins } });
+    n += r.modifiedCount;
+  }
+  await holdResults(id);
+  res.json({ extended: n, minutes: mins });
+});
+app.post('/api/admin/tests/:id/reopen', async (req, res) => {
+  const id = String(req.params.id), roll = cleanRoll(req.body?.roll);
+  const a = await attempts.findOne({ testId: id, roll, status: 'submitted' }, { projection: { deadline: 1, at: 1 } });
+  if (!a) return res.status(404).json({ error: 'That student has no finished attempt on this test.' });
+  // No minutes given: exactly the time they had left when it ended (at least a minute).
+  const leftMs = Math.max(60_000, +new Date(a.deadline) - +new Date(a.at));
+  const given = req.body?.minutes !== undefined && req.body?.minutes !== null;
+  const mins = given ? minutesIn(req.body.minutes, 180) : null;
+  if (given && !mins) return res.status(400).json({ error: 'Choose between 1 and 180 minutes.' });
+  const give = mins ? mins * 60_000 : leftMs;
+  const r = await attempts.updateOne({ _id: a._id, status: 'submitted' }, {
+    $set: { status: 'started', deadline: new Date(Date.now() + give), reopenedAt: new Date() },
+    $unset: { score: '', total: '', secs: '', at: '', auto: '', endReason: '', ans: '' },
+    $inc: { reopened: 1 },
+  });
+  if (!r.modifiedCount) return res.status(404).json({ error: 'That student has no finished attempt on this test.' });
+  invalidate('lb');
+  await holdResults(id);
+  res.json({ reopened: true, seconds: Math.round(give / 1000) });
 });
 
 /* ----- Leaderboard (hall by hall, only students who took it) ----- */

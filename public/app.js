@@ -790,9 +790,36 @@ setInterval(() => {
     if (el) el.textContent = fmtClock(Math.max(0, ms) / 1000);
     if (box) box.classList.toggle('low', ms < 60_000);
     document.title = `${fmtClock(Math.max(0, ms) / 1000)} · ${V.quiz.title}`;
-    if (ms <= 0 && !autoSubmitting) { autoSubmitting = true; toast("Time's up! Submitting your answers…"); finish(true).finally(() => { autoSubmitting = false; }); }
-  }
+    if (ms <= 0 && !autoSubmitting) {
+      autoSubmitting = true;
+      syncClock().then(() => {
+        if (V.quiz && V.quiz.state === 'started' && leftMs() > 1500) return; // more time was added
+        toast("Time's up! Submitting your answers…");
+        return finish(true);
+      }).finally(() => { autoSubmitting = false; });
+    } else if (Date.now() - clockAt > 15_000) syncClock();
+  } else if (V.quiz && V.quiz.state === 'done' && V.quiz.isToday && Date.now() - clockAt > 15_000) syncClock();
 }, 1000);
+
+/* Live clock: an open test checks its deadline every 15 s, so time the teacher adds (or a reopened test) shows up here. */
+let clockAt = 0, clockBusy = false;
+async function syncClock() {
+  const z = V.quiz;
+  if (!z || clockBusy || preview) return null;
+  clockBusy = true; clockAt = Date.now();
+  try {
+    const c = await api('/api/tests/' + encodeURIComponent(z.id) + '/clock');
+    if (V.quiz !== z) return c;
+    if (z.state === 'started' && c.status === 'started' && c.deadline && c.deadline !== z.attempt.deadline) {
+      const added = Math.round((c.deadline - z.attempt.deadline) / 60_000);
+      z.attempt.deadline = c.deadline;
+      toast(added > 0 ? `${added} more minute${added === 1 ? '' : 's'} added to your test.` : 'Your test time was updated.');
+    } else if ((z.state === 'started' && c.status === 'done') || (z.state === 'done' && c.status === 'started')) {
+      route(); // finished elsewhere, or reopened by the teacher
+    }
+    return c;
+  } catch (e) { return null; } finally { clockBusy = false; }
+}
 
 /* ---------- Actions ---------- */
 function goTo(q) {
@@ -842,8 +869,12 @@ async function finish(auto = false, reason = null) {
   V.busy = true; V.confirm = false; V.subErr = ''; render();
   try {
     const res = await api(`/api/tests/${encodeURIComponent(z.id)}/submit`, { byQ: V.byQ, auto, reason });
-    if (seq === navSeq) { V.qlb = null; setQuiz(res); window.scrollTo(0, 0); if (!reason) toast(auto ? "Time's up. Your answers were submitted." : 'Submitted'); }
-    exitFs();
+    if (res.state === 'started') { // the teacher added time just now
+      if (seq === navSeq) { setQuiz(res); toast('More time was added. Keep going.'); }
+    } else {
+      if (seq === navSeq) { V.qlb = null; setQuiz(res); window.scrollTo(0, 0); if (!reason) toast(auto ? "Time's up. Your answers were submitted." : 'Submitted'); }
+      exitFs();
+    }
   } catch (e) {
     V.subErr = e.message + ' Your answers are saved. Try again.';
   }

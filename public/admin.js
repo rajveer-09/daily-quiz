@@ -105,6 +105,7 @@ async function load(page, fn) {
   const keep = page === V.page;
   Object.assign(V, { page, loading: true, err: '', data: null, draft: null, dirty: false, loader: fn });
   if (!keep) Object.assign(V, { q: '', setFilter: 'all', rowFilter: 'all', testFilter: 'all', sel: new Set(), renaming: null, showImport: false, importRes: null, pick: null, pickQ: '', preview: 'all' });
+  Object.assign(V, { wp: null, cal: '', clk: 'h' });
   render();
   try {
     const d = await fn();
@@ -292,8 +293,6 @@ function viewTest() {
   const res = resolve(D, S);
   const countFor = i => [...res.values()].filter(x => x === i).length;
   const none = S.filter(s => res.get(s.roll) < 0);
-  const opens = D.date && D.start ? new Date(`${D.date}T${D.start}`) : null;
-  const durChips = [10, 15, 20, 30, 45, 60, 90].map(m => `<button type="button" class="chip-btn${+D.duration === m ? ' on' : ''}" data-act="dur" data-v="${m}">${m}m</button>`).join('');
   const paper = (p, i) => {
     const q = d.quizzes.find(z => z.id === p.quizId);
     const open = V.pick === i;
@@ -326,18 +325,7 @@ function viewTest() {
   return shell(
     head(d.editing ? 'Edit test' : 'Schedule a test', 'Students see this test, with its time and topics, on their Home page. The questions stay hidden until they press Start.', '', `<a href="#/tests">Tests</a> / ${d.editing ? 'Edit' : 'New'}`),
     `<form class="ed" id="tf" novalidate>
-      <section class="card pad">
-        <div class="card-head"><h3>When</h3>${opens && !isNaN(opens) ? `<span class="badge accent">${icon('calendar')}${esc(opens.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}</div>
-        <div class="when-grid">
-          <div class="field"><label for="tt">Test name <span class="muted" style="font-weight:400">(students see this)</span></label><input class="input" id="tt" data-tf="title" maxlength="80" value="${esc(D.title)}" placeholder="e.g. Weekly test 4" required></div>
-          <div class="field"><label for="td">Date</label><input class="input" id="td" type="date" data-tf="date" value="${esc(D.date)}"></div>
-          <div class="field"><label for="ts">Starts at</label><input class="input" id="ts" type="time" data-tf="start" value="${esc(D.start)}"></div>
-          <div class="field"><label for="tm">Duration (minutes)</label><input class="input" id="tm" type="number" min="1" max="600" data-tf="duration" value="${esc(D.duration)}"></div>
-        </div>
-        <div class="row" style="margin-top:12px;gap:6px"><span class="muted" style="font-size:13.5px;margin-right:4px">Quick:</span>${durChips}</div>
-        <label class="check" style="margin-top:14px"><input type="checkbox" id="tfs"${D.fullscreen ? ' checked' : ''}><span><b>Require full screen.</b> The test opens in full screen, and leaving full screen (Esc, switching apps) submits it immediately.</span></label>
-        <p class="hint" style="margin-top:12px">The test opens at the start time. Each student then has <b>${esc(D.duration)} minutes</b> from the moment they press Start, and answers submit automatically when time runs out.</p>
-      </section>
+      <section class="card pad" id="whenCard">${whenInner()}</section>
       <div class="section-head" style="margin:10px 0 0"><h2>Question sets</h2><span class="muted" style="font-size:14px">Give different students different quizzes</span></div>
       ${D.papers.map(paper).join('')}
       ${D.papers.length < 12 ? `<button type="button" class="btn btn-ghost btn-lg" data-act="addpaper" style="border-style:dashed">${icon('plus')}Add Set ${PL[D.papers.length]}</button>` : ''}
@@ -355,6 +343,186 @@ function viewTest() {
       </div>
     </form>`);
 }
+
+/* ---------- Test editor: when (calendar and clock pickers) ---------- */
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = t => `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+const fromYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const hm12 = s => { const [h, m] = String(s || '10:00').split(':').map(Number); return { h: h % 12 || 12, m: m || 0, pm: h >= 12 }; };
+const to24 = (h, m, pm) => `${pad2(h % 12 + (pm ? 12 : 0))}:${pad2(m)}`;
+const timeTxt = s => { if (!s) return ''; const t = hm12(s); return `${t.h}:${pad2(t.m)} ${t.pm ? 'PM' : 'AM'}`; };
+const dateTxt = s => s ? fromYmd(s).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+const DUR_CHIPS = [10, 15, 20, 30, 45, 60, 90];
+const durHint = D => `The test opens at the start time. Each student then has <b>${esc(D.duration)} minutes</b> from the moment they press Start, and answers submit automatically when time runs out.`;
+const todayStr = () => (V.data && V.data.today) || ymd(new Date(now()));
+
+function whenHead() {
+  const D = V.draft, opens = D.date && D.start ? new Date(`${D.date}T${D.start}`) : null;
+  return `<h3>When</h3>${opens && !isNaN(opens) ? `<span class="badge accent">${icon('calendar')}${esc(opens.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}`;
+}
+function whenInner() {
+  const D = V.draft;
+  const pickBtn = (k, id, ic, txt, ph) => `<button type="button" class="input pick-btn${V.wp === k ? ' on' : ''}" id="${id}" data-act="wpOpen" data-v="${k}" aria-haspopup="dialog" aria-expanded="${V.wp === k}">${icon(ic)}<span>${txt ? esc(txt) : `<span class="muted">${ph}</span>`}</span></button>`;
+  return `<div class="card-head">${whenHead()}</div>
+    <div class="when-grid">
+      <div class="field"><label for="tt">Test name <span class="muted" style="font-weight:400">(students see this)</span></label><input class="input" id="tt" data-tf="title" maxlength="80" value="${esc(D.title)}" placeholder="e.g. Weekly test 4" required></div>
+      <div class="field wp-field"><label for="td">Date</label>${pickBtn('date', 'td', 'calendar', dateTxt(D.date), 'Pick a date')}${V.wp === 'date' ? calPop() : ''}</div>
+      <div class="field wp-field r"><label for="ts">Starts at</label>${pickBtn('time', 'ts', 'clock', timeTxt(D.start), 'Pick a time')}${V.wp === 'time' ? clockPop() : ''}</div>
+      <div class="field"><label for="tm">Duration (minutes)</label><div class="dur-step"><button type="button" class="btn btn-ghost" data-act="durStep" data-v="-5" aria-label="5 minutes less">−</button><input class="input" id="tm" type="number" min="1" max="600" data-tf="duration" value="${esc(D.duration)}"><button type="button" class="btn btn-ghost" data-act="durStep" data-v="5" aria-label="5 minutes more">+</button></div></div>
+    </div>
+    <div class="row" style="margin-top:12px;gap:6px"><span class="muted" style="font-size:13.5px;margin-right:4px">Quick:</span>${DUR_CHIPS.map(m => `<button type="button" class="chip-btn${+D.duration === m ? ' on' : ''}" data-act="dur" data-v="${m}">${m}m</button>`).join('')}</div>
+    <label class="check" style="margin-top:14px"><input type="checkbox" id="tfs"${D.fullscreen ? ' checked' : ''}><span><b>Require full screen.</b> The test opens in full screen, and leaving full screen (Esc, switching apps) submits it immediately.</span></label>
+    <p class="hint" id="durHint" style="margin-top:12px">${durHint(D)}</p>`;
+}
+
+function calPop() {
+  const D = V.draft, today = todayStr();
+  const [y, mo] = (V.cal || (D.date || today).slice(0, 7)).split('-').map(Number);
+  const first = new Date(y, mo - 1, 1), lead = (first.getDay() + 6) % 7, days = new Date(y, mo, 0).getDate();
+  const busy = {};
+  (V.data.tests || []).forEach(t => { if (!(V.data.editing && t.id === V.data.editing.id)) (busy[t.date] = busy[t.date] || []).push(t); });
+  const cells = Array.from({ length: lead }, () => '<span></span>');
+  for (let d = 1; d <= days; d++) {
+    const s = `${y}-${pad2(mo)}-${pad2(d)}`, b = busy[s] || [];
+    const cls = ['cal-d', s === D.date && 'on', s === today && 'today', s < today && 'past', b.length && 'busy'].filter(Boolean).join(' ');
+    const tip = b.map(t => `${timeTxt(t.start)} · ${t.title || 'Test'}`).join('\n');
+    cells.push(`<button type="button" class="${cls}" data-act="calPick" data-v="${s}"${tip ? ` title="${esc(tip)}"` : ''} aria-label="${esc(dateTxt(s))}${b.length ? `, ${b.length} test${b.length === 1 ? '' : 's'} already` : ''}"${s === D.date ? ' aria-pressed="true"' : ''}>${d}</button>`);
+  }
+  const t0 = fromYmd(today), plus = n => ymd(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + n));
+  const quick = (l, s) => `<button type="button" class="chip-btn${D.date === s ? ' on' : ''}" data-act="calPick" data-v="${s}">${l}</button>`;
+  return `<div class="wpop cal${V.wpNew ? ' anim' : ''}" role="dialog" aria-label="Pick a date">
+    <div class="cal-head"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="calNav" data-v="-1" aria-label="Previous month">${icon('left')}</button><b>${esc(first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</b><button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="calNav" data-v="1" aria-label="Next month">${icon('right')}</button></div>
+    <div class="cal-grid cal-wk">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(w => `<span>${w}</span>`).join('')}</div>
+    <div class="cal-grid">${cells.join('')}</div>
+    <div class="wpop-foot">${quick('Today', today)}${quick('Tomorrow', plus(1))}</div>
+  </div>`;
+}
+
+const CK = { C: 80, R: 60 };
+const clkAt = deg => [CK.C + CK.R * Math.sin(deg * Math.PI / 180), CK.C - CK.R * Math.cos(deg * Math.PI / 180)];
+function clkNums(mode, t) {
+  return Array.from({ length: 12 }, (_, k) => {
+    const v = mode === 'h' ? (k || 12) : k * 5, [x, y] = clkAt(k * 30), on = mode === 'h' ? v === t.h : v === t.m;
+    return `<span class="clk-n${on ? ' on' : ''}" data-v="${v}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${mode === 'h' ? v : pad2(v)}</span>`;
+  }).join('');
+}
+/** Turns the hand the short way round (11 → 12 goes forward, not all the way back). */
+function armDeg(target) {
+  const cur = V.clkDeg == null ? target : V.clkDeg;
+  V.clkDeg = cur + ((((target - cur) % 360) + 540) % 360) - 180;
+  return V.clkDeg;
+}
+function clockPop() {
+  const t = hm12(V.draft.start), mode = V.clk === 'm' ? 'm' : 'h', { C, R } = CK;
+  const ticks = Array.from({ length: 60 }, (_, i) => { if (i % 5 === 0) return ''; const a = i * 6 * Math.PI / 180; return `<line x1="${(C + 74 * Math.sin(a)).toFixed(1)}" y1="${(C - 74 * Math.cos(a)).toFixed(1)}" x2="${(C + 77 * Math.sin(a)).toFixed(1)}" y2="${(C - 77 * Math.cos(a)).toFixed(1)}"/>`; }).join('');
+  const deg = armDeg(mode === 'h' ? (t.h % 12) * 30 : t.m * 6);
+  const seg = (id, k, v, l) => `<input class="clk-seg${mode === k ? ' on' : ''}" id="${id}" inputmode="numeric" maxlength="2" autocomplete="off" spellcheck="false" value="${v}" aria-label="${l}">`;
+  return `<div class="wpop clk${V.wpNew ? ' anim' : ''}" role="dialog" aria-label="Pick a start time">
+    <div class="clk-side">
+      <div class="clk-read">${seg('clkH', 'h', t.h, 'Hour')}<span class="clk-colon">:</span>${seg('clkM', 'm', pad2(t.m), 'Minutes')}</div>
+      <div class="clk-ap" role="group" aria-label="AM or PM"><button type="button" class="${t.pm ? '' : 'on'}" data-act="clkAp" data-v="am" aria-pressed="${!t.pm}">AM</button><button type="button" class="${t.pm ? 'on' : ''}" data-act="clkAp" data-v="pm" aria-pressed="${t.pm}">PM</button></div>
+      <button type="button" class="btn btn-primary btn-sm" data-act="wpClose">Done</button>
+    </div>
+    <div class="clk-face${mode === 'm' && t.m % 5 ? ' odd' : ''}" tabindex="0" role="slider" aria-label="${mode === 'h' ? 'Hour' : 'Minute'}" aria-valuemin="${mode === 'h' ? 1 : 0}" aria-valuemax="${mode === 'h' ? 12 : 59}" aria-valuenow="${mode === 'h' ? t.h : t.m}" aria-valuetext="${timeTxt(V.draft.start || '10:00')}">
+      <svg class="clk-svg" viewBox="0 0 160 160" aria-hidden="true"><g class="clk-ticks">${ticks}</g><g class="clk-arm" style="transform:rotate(${deg}deg)"><line class="clk-hand" x1="${C}" y1="${C}" x2="${C}" y2="${C - R + 13}"/><circle class="clk-knob" cx="${C}" cy="${C - R}" r="13"/><circle class="clk-dot" cx="${C}" cy="${C - R}" r="2.5"/></g><circle class="clk-pin" cx="${C}" cy="${C}" r="3.5"/></svg>
+      <div class="clk-nums">${clkNums(mode, t)}</div>
+    </div>
+  </div>`;
+}
+/** Updates the open clock in place, so the hand can glide and nothing flickers. */
+function paintClock(modeChanged) {
+  const pop = document.querySelector('.wpop.clk');
+  if (!pop) return;
+  const t = hm12(V.draft.start), mode = V.clk === 'm' ? 'm' : 'h', face = pop.querySelector('.clk-face');
+  pop.querySelector('.clk-arm').style.transform = `rotate(${armDeg(mode === 'h' ? (t.h % 12) * 30 : t.m * 6)}deg)`;
+  if (modeChanged) pop.querySelector('.clk-nums').innerHTML = clkNums(mode, t);
+  else pop.querySelectorAll('.clk-n').forEach(n => n.classList.toggle('on', +n.dataset.v === (mode === 'h' ? t.h : t.m)));
+  face.classList.toggle('odd', mode === 'm' && t.m % 5 !== 0);
+  face.setAttribute('aria-label', mode === 'h' ? 'Hour' : 'Minute');
+  face.setAttribute('aria-valuemin', mode === 'h' ? 1 : 0); face.setAttribute('aria-valuemax', mode === 'h' ? 12 : 59);
+  face.setAttribute('aria-valuenow', mode === 'h' ? t.h : t.m); face.setAttribute('aria-valuetext', timeTxt(V.draft.start || '10:00'));
+  const H = pop.querySelector('#clkH'), M = pop.querySelector('#clkM');
+  if (document.activeElement !== H) H.value = t.h;
+  if (document.activeElement !== M) M.value = pad2(t.m);
+  H.classList.toggle('on', mode === 'h'); M.classList.toggle('on', mode === 'm');
+  pop.querySelectorAll('[data-act="clkAp"]').forEach(b => { const on = (b.dataset.v === 'pm') === t.pm; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  const btn = document.querySelector('#ts > span'); if (btn && V.draft.start) btn.textContent = timeTxt(V.draft.start);
+  const head = document.querySelector('#whenCard .card-head'); if (head) head.innerHTML = whenHead();
+}
+function setStart(t) {
+  const v = to24(t.h, t.m, t.pm);
+  if (v !== V.draft.start) { V.draft.start = v; markDirty(); }
+  paintClock(false);
+}
+function clkMode(m) { if (V.clk === m) return; V.clk = m; paintClock(true); }
+/** Sets the hour or minute from an angle on the clock face (0° = 12 o'clock). */
+function setClock(deg, snap) {
+  const t = hm12(V.draft.start);
+  if (V.clk === 'm') t.m = Math.round(deg / (6 * snap)) * snap % 60;
+  else t.h = Math.round(deg / 30) % 12 || 12;
+  setStart(t);
+}
+/** Typing in the hour / minute boxes. */
+function clkType(el) {
+  const raw = el.value.replace(/\D/g, '').slice(0, 2);
+  if (raw !== el.value) el.value = raw;
+  if (!raw) return;
+  const t = hm12(V.draft.start), n = +raw;
+  if (el.id === 'clkH') {
+    if (n > 12 || (raw.length === 2 && n < 1)) { el.value = raw.slice(0, 1); return; }
+    if (n >= 1) setStart({ ...t, h: n });
+    if (raw.length === 2 || n > 1) { const m = document.getElementById('clkM'); if (m) { m.focus(); m.select(); } }
+  } else {
+    if (n > 59) { el.value = raw.slice(0, 1); return; }
+    setStart({ ...t, m: n });
+  }
+}
+/** Redraws only the When card, keeping focus on the same control. */
+function renderWhen() {
+  const c = document.getElementById('whenCard');
+  if (!c) return render();
+  const a = document.activeElement, inCard = a && c.contains(a);
+  const sel = !inCard ? null : a.id ? '#' + a.id : a.dataset.act ? `[data-act="${a.dataset.act}"]${a.dataset.v ? `[data-v="${a.dataset.v}"]` : ''}` : a.classList.contains('clk-face') ? '.clk-face' : null;
+  c.innerHTML = whenInner();
+  V.wpNew = false; // the opening fade plays once, not on every redraw
+  if (sel) { const n = c.querySelector(sel); if (n) n.focus({ preventScroll: true }); }
+}
+function paintDur() {
+  const D = V.draft;
+  document.querySelectorAll('#whenCard [data-act="dur"]').forEach(b => b.classList.toggle('on', +b.dataset.v === +D.duration));
+  const h = document.getElementById('durHint'); if (h) h.innerHTML = durHint(D);
+}
+function closeWp(focus) {
+  const k = V.wp; V.wp = null; renderWhen();
+  if (focus && k) { const b = document.getElementById(k === 'date' ? 'td' : 'ts'); if (b) b.focus(); }
+}
+let clkUpAt = 0;
+const faceDeg = (face, ev) => { const r = face.getBoundingClientRect(); return (Math.atan2(ev.clientX - (r.left + r.width / 2), (r.top + r.height / 2) - ev.clientY) * 180 / Math.PI + 360) % 360; };
+$app.addEventListener('pointerdown', e => {
+  const face = e.target.closest && e.target.closest('.clk-face');
+  if (!face || e.button) return;
+  e.preventDefault();
+  if (document.activeElement && document.activeElement.classList.contains('clk-seg')) document.activeElement.blur();
+  setClock(faceDeg(face, e), 5);
+  const move = ev => { face.classList.add('drag'); setClock(faceDeg(face, ev), 1); };
+  const up = () => {
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    face.classList.remove('drag'); clkUpAt = Date.now();
+    if (V.clk !== 'm') setTimeout(() => clkMode('m'), 160); // hour picked: on to minutes once the hand lands
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+});
+// hover: light up the number the pointer would pick
+$app.addEventListener('pointermove', e => {
+  const face = e.target.closest && e.target.closest('.clk-face');
+  const old = document.querySelector('.clk-n.hov');
+  if (!face || e.buttons) { if (old) old.classList.remove('hov'); return; }
+  const k = Math.round(faceDeg(face, e) / 30) % 12, n = face.querySelectorAll('.clk-n')[k];
+  if (old && old !== n) old.classList.remove('hov');
+  if (n) n.classList.add('hov');
+});
+$app.addEventListener('pointerout', e => { if (e.target.closest && e.target.closest('.clk-face') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.clk-face'))) { const o = document.querySelector('.clk-n.hov'); if (o) o.classList.remove('hov'); } });
+$app.addEventListener('focusin', e => { if (e.target.id === 'clkH') clkMode('h'); else if (e.target.id === 'clkM') clkMode('m'); });
 
 async function saveTest() {
   if (V.busy) return;
@@ -591,7 +759,8 @@ function viewAnalysis() {
   const paperTabs = D.quizzes.length > 1 ? `<div class="seg" role="tablist" aria-label="Question paper">${D.quizzes.map(z => `<button class="${z.id === qz.id ? 'on' : ''}" data-act="anQuiz" data-id="${esc(z.id)}">${esc(z.title)}</button>`).join('')}</div>` : '';
   const head1 = head(esc(T.title), `${esc(fmtDay(T.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(hm(T.start))} · ${T.duration} min · ${esc(qz.title)} (${N} questions)${T.status === 'live' ? ' · <span style="color:var(--ok)">live now</span>' : ''}`,
     `<a class="btn btn-ghost" href="#/test/${esc(T.id)}">${icon('edit')}Edit test</a><button class="btn btn-ghost" data-act="anCsv">${icon('download')}CSV</button>`, `<a href="#/tests">Tests</a> / Analysis`);
-  if (!done.length) return shell(head1, `${paperTabs}${empty('chart', 'No submissions yet', liveN ? `${liveN} student${liveN === 1 ? ' is' : 's are'} taking it right now. This page fills in as they submit.` : 'Analysis appears here as soon as students submit.')}`);
+  const liveP = livePanel(D, R);
+  if (!done.length) return shell(head1, `${paperTabs}${liveP}${empty('chart', 'No submissions yet', liveN ? `${liveN} student${liveN === 1 ? ' is' : 's are'} taking it right now. This page fills in as they submit.` : 'Analysis appears here as soon as students submit.')}`);
 
   const kpis = `<div class="kpis">
     <div class="card kpi"><span class="k-label">Submitted</span><span class="k-val">${done.length}<small> / ${R.mine.length}</small></span><span class="k-sub">${missedN ? `${missedN} missed` : 'everyone given it'}${liveN ? ` · ${liveN} in progress` : ''}</span></div>
@@ -660,12 +829,39 @@ function viewAnalysis() {
       <td data-l="Score" class="r">${pctBadge(s.score, s.total)}</td>
       <td data-l="Time" class="r">${mmss(s.secs)}</td>
       <td data-l="Answers"><div class="strip">${Q.map((q, k) => { const kd = R.kind(s, q); return `<i class="${kd === 'ok' ? 'ok' : kd === 'bad' ? 'bad' : ''}" title="Q${k + 1}: ${kd === 'skip' ? 'blank' : L[s.byQ[q.id]] + (kd === 'ok' ? ' · correct' : ' · wrong')}"></i>`; }).join('')}</div></td>
-      <td data-l="How it ended">${s.endReason === 'left-fullscreen' ? '<span class="badge bad">Left full screen</span>' : s.auto ? '<span class="badge warn">Time ran out</span>' : '<span class="badge">Submitted</span>'}${s.reloads ? ` <span class="badge warn">Reloaded ×${s.reloads}</span>` : ''}</td>
+      <td data-l="How it ended"><div class="row" style="gap:6px">${s.endReason === 'left-fullscreen' ? '<span class="badge bad">Left full screen</span>' : s.auto ? '<span class="badge warn">Time ran out</span>' : '<span class="badge">Submitted</span>'}${s.reloads ? ` <span class="badge warn">Reloaded ×${s.reloads}</span>` : ''}${s.reopened ? ' <span class="badge">Reopened</span>' : ''}${reopenCell(s)}</div></td>
     </tr>`).join('')}${others.map(s => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}"><td data-l="Rank" class="muted">–</td><td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}</small></div></div></td><td data-l="Score" class="r" colspan="4"><span class="badge${s.state === 'started' ? ' accent' : ''}">${s.state === 'started' ? 'Taking it now' : s.state === 'upcoming' ? 'Not started yet' : 'Did not take it'}</span></td></tr>`).join('')}</tbody></table></div>
   </section>`;
 
-  return shell(head1, `${paperTabs}${kpis}${missedBlock}${where}${qTable}${studentsT}`);
+  return shell(head1, `${paperTabs}${liveP}${kpis}${missedBlock}${where}${qTable}${studentsT}`);
 }
+
+/* Live control on a test's analysis page: add time to students taking it, reopen a finished attempt. */
+const clock = t => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+const leftTxt = t => { const s = Math.max(0, Math.round((t - Date.now()) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} left`; };
+function livePanel(D, R) {
+  const live = R.mine.filter(s => s.state === 'started' && s.deadline);
+  if (!live.length) return '';
+  const add = (m, roll) => `<button class="btn btn-sm" data-act="addTime" data-m="${m}"${roll ? ` data-roll="${esc(roll)}"` : ''}>+${m} min</button>`;
+  return `<section class="card pad live-ctl">
+    <div class="card-head"><h3><span class="live-dot"></span>Taking it now · ${live.length}</h3><div class="row" style="gap:6px"><span class="muted" style="font-size:13px">Everyone in progress:</span>${add(5)}${add(10)}<button class="btn btn-ghost btn-sm" data-act="anRefresh">${icon('history')}Refresh</button></div></div>
+    <div class="live-list">${live.sort((a, b) => a.deadline - b.deadline).map(s => `<div class="live-row">
+      <div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}${s.reopened ? ' · reopened' : ''}</small></div></div>
+      <span class="live-end" title="Ends at ${esc(clock(s.deadline))}"><b class="mono">${leftTxt(s.deadline)}</b><small>ends ${esc(clock(s.deadline))}</small></span>
+      <div class="row" style="gap:6px">${add(5, s.roll)}${add(10, s.roll)}</div>
+    </div>`).join('')}</div>
+  </section>`;
+}
+const reopenCell = s => {
+  if (V.reopen === s.roll) {
+    // Prefilled with the time they had left when it ended; left unchanged, the server gives back exactly that.
+    const leftS = s.deadline && s.at ? Math.max(0, Math.round((s.deadline - s.at) / 1000)) : 0, has = leftS >= 60;
+    const val = has ? Math.ceil(leftS / 60) : 5;
+    return `<div class="row reopen-form" style="gap:6px;flex-wrap:nowrap"><input class="input" type="number" min="1" max="180" value="${val}" data-left="${has ? val : ''}" id="reopenMin" aria-label="Minutes to give" title="${has ? `${Math.floor(leftS / 60)}:${String(leftS % 60).padStart(2, '0')} was left when it ended` : 'No time was left when it ended'}" style="width:70px;min-height:32px"><span class="muted" style="font-size:13px">${has ? 'min left' : 'min'}</span>
+      <button class="btn btn-primary btn-sm" data-act="reopenGo" data-roll="${esc(s.roll)}">Reopen</button><button class="btn btn-ghost btn-sm" data-act="reopenNo">Cancel</button></div>`;
+  }
+  return `<button class="btn btn-ghost btn-sm" data-act="reopenAsk" data-roll="${esc(s.roll)}" title="Let ${esc(s.name)} continue with their answers kept">Reopen</button>`;
+};
 
 function analysisCsv() {
   const D = V.data, qz = D.quizzes.find(z => z.id === V.anQuiz) || D.quizzes[0], R = analyse(D, qz);
@@ -981,7 +1177,8 @@ $app.addEventListener('input', e => {
   else if (el.id === 'sq') { V.q = el.value; renderKeepFocus('sq'); }
   else if (el.id === 'pickq') { V.pickQ = el.value; renderKeepFocus('pickq'); }
   else if (el.id === 'imp') V.importText = el.value;
-  else if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); if (el.dataset.tf === 'duration') { /* refresh hint + chips */ renderKeepFocus(el.id); } }
+  else if (el.id === 'clkH' || el.id === 'clkM') clkType(el);
+  else if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); if (el.dataset.tf === 'duration') paintDur(); }
   else if (V.page === 'edit' && el.dataset.f && el.type !== 'checkbox') editField(el);
 });
 
@@ -994,7 +1191,7 @@ $app.addEventListener('change', async e => {
   if (el.id === 'impHall') { V.importHall = el.value; return; }
   if (el.id === 'lbT') { V.lbTest = el.value; V.lbHall = V.data.hall; load('board', loadBoard); return; }
   if (el.id === 'hallF') { V.hallFilter = el.value; render(); return; }
-  if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); render(); return; }
+  if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); return; } // no redraw: typing and tabbing keep their place
   if (V.page === 'test' && el.dataset.pf === 'quizId') {
     const p = V.draft.papers[+el.dataset.pi];
     p.quizId = el.value;
@@ -1052,10 +1249,30 @@ $app.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
   }
   if (e.target.id === 'pickq' && e.key === 'Enter') e.preventDefault();
+  if (V.page === 'test' && V.wp) {
+    if (e.key === 'Escape') { e.preventDefault(); closeWp(true); return; }
+    const id = e.target.id, onFace = e.target.classList.contains('clk-face');
+    if (onFace || id === 'clkH' || id === 'clkM') {
+      const t = hm12(V.draft.start), unit = id === 'clkH' ? 'h' : id === 'clkM' ? 'm' : V.clk;
+      const step = { ArrowUp: 1, ArrowDown: -1, PageUp: 5, PageDown: -5, ...(onFace ? { ArrowRight: 1, ArrowLeft: -1 } : {}) }[e.key];
+      if (step) {
+        e.preventDefault();
+        if (unit === 'm') t.m = (t.m + step + 60) % 60; else t.h = ((t.h + Math.sign(step) + 11) % 12) + 1;
+        setStart(t);
+        if (!onFace) e.target.value = unit === 'm' ? pad2(t.m) : t.h;
+      } else if (/^[ap]$/i.test(e.key)) { e.preventDefault(); setStart({ ...t, pm: /p/i.test(e.key) }); } // a / p for AM / PM
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (unit !== 'm') { if (onFace) clkMode('m'); else { const m = document.getElementById('clkM'); if (m) { m.focus(); m.select(); } } }
+        else closeWp(true);
+      }
+    }
+  }
   const st = e.target.closest && e.target.closest('.st');
   if (st && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); toggleSel(st.dataset.roll); }
 });
 $app.addEventListener('focusout', async e => {
+  if (e.target.id === 'clkH' || e.target.id === 'clkM') { setTimeout(() => paintClock(false), 0); return; }
   if (e.target.id !== 'rename' || V.renaming === null) return;
   const id = e.target.dataset.id, name = e.target.value.trim();
   V.renaming = null;
@@ -1099,6 +1316,8 @@ $app.addEventListener('drop', e => {
 });
 
 $app.addEventListener('click', async e => {
+  // a click outside an open date/time picker closes it (not the click that ends a drag on the clock)
+  if (V.page === 'test' && V.wp && Date.now() - clkUpAt > 400 && !e.target.closest('.wpop,[data-act="wpOpen"]')) { V.wp = null; renderWhen(); }
   const st = e.target.closest('.st');
   if (st && !e.target.closest('[data-act]')) { toggleSel(st.dataset.roll); return; }
   const b = e.target.closest('[data-act]');
@@ -1116,6 +1335,26 @@ $app.addEventListener('click', async e => {
   if (a === 'openday') { V.dayView = 'day'; V.q = ''; return; }
   if (a === 'rowfilter') { V.rowFilter = b.dataset.f; render(); return; }
   if (a === 'setfilter') { V.setFilter = b.dataset.f; render(); return; }
+  if (a === 'anRefresh') { refresh(); return; }
+  if (a === 'reopenAsk') { V.reopen = b.dataset.roll; render(); const i = document.getElementById('reopenMin'); if (i) i.select(); return; }
+  if (a === 'reopenNo') { V.reopen = null; render(); return; }
+  if (a === 'reopenGo' || a === 'addTime') {
+    const tid = V.data && V.data.test && V.data.test.id; if (!tid) return;
+    b.disabled = true;
+    try {
+      if (a === 'addTime') {
+        const r = await api('/api/admin/tests/' + tid + '/time', 'POST', { minutes: +b.dataset.m, roll: b.dataset.roll || undefined });
+        toast(r.extended ? `Added ${r.minutes} min for ${r.extended} student${r.extended === 1 ? '' : 's'}` : 'Nobody was still taking it');
+      } else {
+        const inp = document.getElementById('reopenMin') || {}, m = +inp.value;
+        const exact = !!(inp.dataset && inp.dataset.left) && String(m) === inp.dataset.left; // unchanged: exactly the time that was left
+        const r = await api('/api/admin/tests/' + tid + '/reopen', 'POST', exact ? { roll: b.dataset.roll } : { roll: b.dataset.roll, minutes: m });
+        V.reopen = null; toast(`Reopened with ${Math.floor(r.seconds / 60)}:${String(r.seconds % 60).padStart(2, '0')} to go. They continue from Home → Resume test.`);
+      }
+      refresh();
+    } catch (err) { toast(err.message, true); b.disabled = false; }
+    return;
+  }
   if (a === 'pvset') { V.pvSet = +b.dataset.i; render(); window.scrollTo(0, 0); return; }
   if (a === 'testsTab') { V.testsTab = b.dataset.v; render(); return; }
   if (a === 'menu' || a === 'menuClose') {
@@ -1153,6 +1392,21 @@ $app.addEventListener('click', async e => {
   }
 
   // Test editor
+  if (V.page === 'test' && V.draft && ['wpOpen', 'wpClose', 'calNav', 'calPick', 'clkAp', 'durStep'].includes(a)) {
+    const D = V.draft, v = b.dataset.v;
+    if (a === 'wpOpen') {
+      if (V.wp === v) return closeWp(false);
+      V.wp = v; V.wpNew = true; V.clkDeg = null; V.cal = (D.date || todayStr()).slice(0, 7); V.clk = 'h';
+      renderWhen();
+      if (!e.detail) { const f = document.querySelector(v === 'date' ? '.cal-d.on, .cal-d.today' : '#clkH'); if (f) { f.focus({ preventScroll: true }); if (f.select) f.select(); } } // opened from the keyboard: type straight away
+      return;
+    }
+    if (a === 'wpClose') return closeWp(true);
+    if (a === 'calNav') { const [y, m] = V.cal.split('-').map(Number), t = new Date(y, m - 1 + +v, 1); V.cal = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}`; renderWhen(); return; }
+    if (a === 'calPick') { D.date = v; markDirty(); return closeWp(true); }
+    if (a === 'clkAp') { setStart({ ...hm12(D.start), pm: v === 'pm' }); return; }
+    if (a === 'durStep') { { const d = +D.duration || 0; D.duration = Math.min(600, Math.max(1, +v > 0 ? Math.floor(d / 5) * 5 + 5 : Math.ceil(d / 5) * 5 - 5)); } markDirty(); renderWhen(); return; }
+  }
   if (V.page === 'test' && V.draft) {
     const D = V.draft, i = +b.dataset.pi, p = D.papers[i];
     if (a === 'dur') { D.duration = +b.dataset.v; }
