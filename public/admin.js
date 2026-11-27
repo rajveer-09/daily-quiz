@@ -887,7 +887,7 @@ function viewAnalysis() {
   const others = R.mine.filter(s => s.state !== 'done');
   const studentsT = `<section class="stack" style="gap:12px">
     <div class="section-head" style="margin:6px 0 0"><h2>Students</h2><span class="muted" style="font-size:13px">green right · red wrong · grey blank, in question-bank order</span></div>
-    <div class="card table-wrap"><table class="table stackable"><thead><tr><th>#</th><th>Student</th><th class="r">Score</th><th class="r">Time</th><th>Answers</th><th>How it ended</th></tr></thead><tbody>${ranked.map((s, i) => `<tr class="click" data-href="#/student/${encodeURIComponent(s.roll)}">
+    <div class="card table-wrap"><table class="table stackable"><thead><tr><th>#</th><th>Student</th><th class="r">Score</th><th class="r">Time</th><th>Answers</th><th>How it ended</th></tr></thead><tbody>${ranked.map((s, i) => `<tr class="click" data-open="/#/preview/${encodeURIComponent(s.roll)}/${session.token}/test/${encodeURIComponent(V.data.test.id)}" title="See ${esc(s.name)}'s answers, as they see them">
       <td data-l="Rank" style="font-family:var(--mono)">${i + 1}</td>
       <td data-l="Student"><div class="who-cell">${avatar(s.name, 'sm')}<div><b>${esc(s.name)}</b><small class="mono">${esc(s.roll)}${s.group ? ' · ' + esc(s.group) : ''}</small></div></div></td>
       <td data-l="Score" class="r">${pctBadge(s.score, s.total)}</td>
@@ -959,16 +959,18 @@ function viewBoard() {
 
 /* ---------- Groups ---------- */
 function viewSets() {
-  const { sets, students } = V.data;
-  const q = V.q.trim().toLowerCase();
-  const match = s => !q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q);
+  const { sets, students, halls = [] } = V.data;
+  const q = V.q.trim().toLowerCase(), hg = V.hallG || 'all', withHall = students.filter(s => s.hall).length;
+  const match = s => (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) && (hg === 'all' || (hg === '' ? !s.hall : s.hall === hg));
+  const hallName = h => /^hall\b/i.test(h) ? h : 'Hall ' + h;
+  const nHalls = halls.filter(Boolean).length;
   const cols = [{ id: null, name: 'No group' }, ...sets];
   const sel = V.sel;
-  const card = s => `<div class="st${sel.has(s.roll) ? ' sel' : ''}" draggable="true" data-roll="${esc(s.roll)}" role="checkbox" aria-checked="${sel.has(s.roll)}" tabindex="0">${avatar(s.name, 'sm')}<span class="nm">${esc(s.name)}<small>${esc(s.roll)}</small></span><span class="box">${icon('check')}</span></div>`;
+  const card = s => `<div class="st${sel.has(s.roll) ? ' sel' : ''}" draggable="true" data-roll="${esc(s.roll)}" role="checkbox" aria-checked="${sel.has(s.roll)}" tabindex="0">${avatar(s.name, 'sm')}<span class="nm">${esc(s.name)}<small>${esc(s.roll)}${s.hall ? ` · ${esc(hallName(s.hall))}` : ''}</small></span><span class="box">${icon('check')}</span></div>`;
   const col = c => {
     const list = students.filter(s => (s.set || null) === c.id && match(s));
     const total = students.filter(s => (s.set || null) === c.id).length;
-    const name = V.renaming === c.id ? `<input class="input" id="rename" value="${esc(c.name)}" maxlength="30" data-id="${esc(c.id)}" aria-label="Group name">` : `<b>${esc(c.name)}</b><span class="cnt">${total}</span>`;
+    const name = c.id !== null && V.renaming === c.id ? `<input class="input" id="rename" value="${esc(c.name)}" maxlength="30" data-id="${esc(c.id)}" aria-label="Group name">` : `<b>${esc(c.name)}</b><span class="cnt">${total}</span>`;
     return `<section class="col" data-drop="${c.id === null ? '' : esc(c.id)}">
       <div class="col-head">${name}<span class="spacer"></span>${c.id !== null && V.renaming !== c.id ? `<button class="btn btn-ghost btn-icon" data-act="rename" data-id="${esc(c.id)}" title="Rename" aria-label="Rename ${esc(c.name)}">${icon('edit')}</button>${armed('delset:' + c.id, icon('trash'), 'Delete?', 'btn-danger btn-sm', ` data-id="${esc(c.id)}" title="Delete group"`)}` : ''}</div>
       <div class="col-list">${list.map(card).join('') || `<p class="muted" style="font-size:13.5px;text-align:center;padding:18px 6px">${q ? 'No matches' : 'Drag students here'}</p>`}</div>
@@ -977,8 +979,8 @@ function viewSets() {
   const selbar = sel.size ? `<div class="selbar slide-in"><b>${sel.size} selected</b><span style="opacity:.7">Move to</span>${cols.map(c => `<button class="btn btn-sm ${c.id === null ? 'btn-ghost' : 'btn-primary'}" data-act="moveSel" data-id="${c.id === null ? '' : esc(c.id)}">${esc(c.name)}</button>`).join('')}<span class="spacer"></span><button class="btn btn-ghost btn-sm" data-act="clearSel">Clear</button></div>` : '';
   return shell(
     head('Groups', 'Groups make it quick to hand question sets to many students at once when you schedule a test. Students never see their group. Tap students to select them, then choose a group to move them to. On a computer you can also drag them.',
-      `${armed('split', `${icon('shuffle')}Split evenly`, `Re-split all ${students.length} students?`, 'btn-ghost')}<button class="btn btn-primary" data-act="addset">${icon('plus')}Add group</button>`),
-    `<div class="toolbar"><div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Find a student" value="${esc(V.q)}"></div><button class="btn btn-ghost btn-sm" data-act="selectAll">Select all shown</button></div>
+      `${nHalls ? armed('hallgroups', `${icon('layers')}Groups by hall`, `Put ${withHall} students in ${nHalls} hall group${nHalls === 1 ? '' : 's'}?`, 'btn-ghost') : ''}${armed('split', `${icon('shuffle')}Split evenly`, `Re-split all ${students.length} students?`, 'btn-ghost')}<button class="btn btn-primary" data-act="addset">${icon('plus')}Add group</button>`),
+    `<div class="toolbar"><div class="search">${icon('search')}<input class="input" id="sq" type="search" placeholder="Find a student" value="${esc(V.q)}"></div>${halls.some(Boolean) ? `<select class="input" id="hallG" style="width:auto;min-height:40px" aria-label="Hall"><option value="all">All halls</option>${halls.filter(Boolean).map(h => `<option value="${esc(h)}"${hg === h ? ' selected' : ''}>${esc(hallName(h))}</option>`).join('')}${halls.includes(null) ? `<option value=""${hg === '' ? ' selected' : ''}>No hall</option>` : ''}</select>` : ''}<button class="btn btn-ghost btn-sm" data-act="selectAll">Select all shown</button></div>
     ${selbar}
     ${students.length ? `<div class="board">${cols.map(col).join('')}</div>` : empty('users', 'No students yet', 'Import your class roster on the Students page, or students appear when they sign in.', `<a class="btn btn-primary" href="#/students">${icon('upload')}Import roster</a>`)}`);
 }
@@ -1256,6 +1258,7 @@ $app.addEventListener('change', async e => {
   if (el.id === 'impHall') { V.importHall = el.value; return; }
   if (el.id === 'lbT') { V.lbTest = el.value; V.lbHall = V.data.hall; load('board', loadBoard); return; }
   if (el.id === 'hallF') { V.hallFilter = el.value; render(); return; }
+  if (el.id === 'hallG') { V.hallG = el.value; render(); return; }
   if (V.page === 'test' && el.dataset.tf) { V.draft[el.dataset.tf] = el.value; markDirty(); return; } // no redraw: typing and tabbing keep their place
   if (V.page === 'test' && el.dataset.pf === 'quizId') {
     const p = V.draft.papers[+el.dataset.pi];
@@ -1386,6 +1389,8 @@ $app.addEventListener('click', async e => {
   const st = e.target.closest('.st');
   if (st && !e.target.closest('[data-act]')) { toggleSel(st.dataset.roll); return; }
   const b = e.target.closest('[data-act]');
+  const to = e.target.closest('tr[data-open]');
+  if (!b && to && !e.target.closest('a,select,button,input')) { window.open(to.dataset.open, '_blank', 'noopener'); return; }
   const tr = e.target.closest('tr[data-href]');
   if (!b && tr && !e.target.closest('a,select,button,input')) { location.hash = tr.dataset.href; return; }
   if (!b) return;
@@ -1511,8 +1516,8 @@ $app.addEventListener('click', async e => {
   // Groups board
   if (a === 'clearSel') { V.sel = new Set(); render(); return; }
   if (a === 'selectAll') {
-    const q = V.q.trim().toLowerCase();
-    V.data.students.filter(s => !q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)).forEach(s => V.sel.add(s.roll));
+    const q = V.q.trim().toLowerCase(), hg = V.hallG || 'all';
+    V.data.students.filter(s => (!q || s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q)) && (hg === 'all' || (hg === '' ? !s.hall : s.hall === hg))).forEach(s => V.sel.add(s.roll));
     render(); return;
   }
   if (a === 'moveSel') return assign([...V.sel], b.dataset.id || null);
@@ -1523,6 +1528,12 @@ $app.addEventListener('click', async e => {
     if (V.confirm !== key) { V.confirm = key; render(); return; }
     V.confirm = '';
     try { const r = await api('/api/admin/sets/' + encodeURIComponent(b.dataset.id), 'DELETE'); toast(`Group deleted. ${r.studentsUnassigned} student${r.studentsUnassigned === 1 ? '' : 's'} moved to No group.`); refresh(); } catch (err) { toast(err.message, true); }
+    return;
+  }
+  if (a === 'hallgroups') {
+    if (V.confirm !== 'hallgroups') { V.confirm = 'hallgroups'; render(); return; }
+    V.confirm = '';
+    try { const r = await api('/api/admin/hall-groups', 'POST', {}); toast(`${r.moved} students put in ${r.halls} hall group${r.halls === 1 ? '' : 's'}${r.made ? ` (${r.made} new)` : ''}`); refresh(); } catch (err) { toast(err.message, true); render(); }
     return;
   }
   if (a === 'split') {

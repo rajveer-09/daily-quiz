@@ -15,11 +15,12 @@ const ss = {
   del() { try { sessionStorage.removeItem(PV_KEY); } catch (e) {} },
 };
 let preview = ss.get();
-const pvm = location.hash.match(/^#\/preview\/([^/]+)\/(.+)$/);
+const pvm = location.hash.match(/^#\/preview\/([^/]+)\/([^/]+)(\/.*)?$/); // optional page after the token, e.g. /test/<id>
 if (pvm) {
   preview = { roll: decodeURIComponent(pvm[1]).toUpperCase(), token: pvm[2], name: '' };
   ss.set(preview);
-  try { history.replaceState(null, '', location.pathname + '#/home'); } catch (e) { location.replace('#/home'); }
+  const to = '#' + (pvm[3] || '/home');
+  try { history.replaceState(null, '', location.pathname + to); } catch (e) { location.replace(to); }
 }
 
 /* ---------- State ---------- */
@@ -1021,6 +1022,8 @@ Notes.init({
 });
 window.addEventListener('hashchange', route);
 route();
+// An admin preview opened straight on a result page: fetch the student's name for the "Viewing as" bar.
+if (preview && !preview.name) api('/api/home').then(d => { setMe(d.me); render(); }).catch(() => {});
 
 /* Heartbeat: an open, visible page tells the server every minute (admin Activity → Online now). */
 let beatAt = 0;

@@ -281,27 +281,28 @@ function orderFor(z, it, a) {
   return it.shuffle ? seededPerm(n, it.paperId) : Array.from({ length: n }, (_, i) => i);
 }
 
-function attemptJson(a, perm) {
+function attemptJson(a, perm, open) {
   if (!a) return null;
   if (!isDone(a)) return { status: 'started', startedAt: +new Date(a.startedAt), deadline: +new Date(a.deadline), byQ: a.byQ || {} };
-  if (isLocked(a)) return { status: 'submitted', locked: true, revealAt: +new Date(a.revealAt), score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
+  if (isLocked(a) && !open) return { status: 'submitted', locked: true, revealAt: +new Date(a.revealAt), score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
   return { status: 'submitted', ans: perm ? perm.map(i => a.ans[i]) : a.ans, score: a.score, total: a.total, secs: a.secs, at: a.at, auto: !!a.auto, endReason: a.endReason || null };
 }
 function stateOf(it, a, now) { return a ? (isDone(a) ? 'done' : 'started') : it.startsAt > now ? 'upcoming' : 'open'; }
 
 /** The quiz as one student may see it: no questions before starting, no answer key before submitting. */
-function quizPayload(z, it, a, v) {
+/** open: an admin previewing as the student sees the full result even while it is still locked for students. */
+function quizPayload(z, it, a, v, open) {
   const state = stateOf(it, a, Date.now());
   const perm = orderFor(z, it, a);
   const base = {
     id: it.testId, title: it.title, description: z.description || '', topics: z.topics || {}, topicList: topicList(z),
     count: z.questions.length, duration: it.duration, date: it.date, startsAt: it.startsAt, isToday: it.date === v.t,
-    now: Date.now(), state, attempt: attemptJson(a, perm),
+    now: Date.now(), state, attempt: attemptJson(a, perm, open),
     // An attempt keeps the rule it started under (attempts begun before full screen was required aren't held to it).
     fullscreen: a ? !!a.fullscreen : !!it.fullscreen,
   };
   if (state === 'started') base.questions = perm.map(i => strip(z.questions[i]));
-  if (state === 'done' && !isLocked(a)) base.questions = perm.map(i => ({ ...strip(z.questions[i]), a: z.questions[i].a, e: z.questions[i].e || '' }));
+  if (state === 'done' && (open || !isLocked(a))) base.questions = perm.map(i => ({ ...strip(z.questions[i]), a: z.questions[i].a, e: z.questions[i].e || '' }));
   return base;
 }
 
@@ -632,7 +633,7 @@ async function findForStudent(req, res) {
 
 app.get('/api/tests/:id', auth, async (req, res) => {
   const f = await findForStudent(req, res);
-  if (f) res.json(quizPayload(f.z, f.it, f.a, f.v));
+  if (f) res.json(quizPayload(f.z, f.it, f.a, f.v, !!req.preview));
 });
 
 // Start the clock. Questions are only sent from here on.
@@ -1318,14 +1319,20 @@ app.get('/api/admin/days', async (req, res) => {
 /* ----- Sets ----- */
 app.get('/api/admin/sets', async (req, res) => {
   const st = await adminState();
-  res.json({ sets: setList(st), students: st.S.map(s => ({ roll: s.roll, name: s.name, set: st.groupOf(s) })).sort((a, b) => a.roll.localeCompare(b.roll)) });
+  res.json({ sets: setList(st), halls: [...new Set(st.S.map(s => s.hall || null))].sort(hallSort),
+    students: st.S.map(s => ({ roll: s.roll, name: s.name, set: st.groupOf(s), hall: s.hall || null })).sort((a, b) => a.roll.localeCompare(b.roll)) });
 });
 
-app.post('/api/admin/sets', async (req, res) => {
-  const all = await loadSets();
+/** The next free group id: A–Z, then S27, S28, … */
+function freeSetId(all) {
   const used = new Set(all.map(s => s._id));
   let id = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find(c => !used.has(c));
   for (let n = 27; !id; n++) if (!used.has('S' + n)) id = 'S' + n;
+  return id;
+}
+app.post('/api/admin/sets', async (req, res) => {
+  const all = await loadSets();
+  const id = freeSetId(all);
   const name = str(req.body?.name, 30) || `Group ${id}`;
   await sets.insertOne({ _id: id, name, order: all.reduce((m, s) => Math.max(m, s.order || 0), 0) + 1 });
   invalidate('sets');
@@ -1364,6 +1371,24 @@ app.post('/api/admin/assign', async (req, res) => {
   const r = await students.updateMany({ roll: { $in: rolls } }, { $set: { set } });
   invalidate('stu');
   res.json({ moved: r.modifiedCount, set });
+});
+
+/** One group per hall ("Hall 5", reusing a group that already has that name); every student with a hall joins it. */
+app.post('/api/admin/hall-groups', async (req, res) => {
+  const S = await students.find({ hall: { $nin: [null, ''] } }, { projection: { roll: 1, hall: 1 } }).toArray();
+  const halls = [...new Set(S.map(s => String(s.hall)))].sort(hallSort);
+  if (!halls.length) return res.status(400).json({ error: 'No student has a hall yet. Add halls on the Students page first.' });
+  const all = await loadSets(), ids = new Map();
+  let made = 0, order = all.reduce((m, s) => Math.max(m, s.order || 0), 0);
+  for (const h of halls) {
+    const name = (/^hall\b/i.test(h) ? h : `Hall ${h}`).slice(0, 30);
+    let g = all.find(x => String(x.name).trim().toLowerCase() === name.toLowerCase());
+    if (!g) { g = { _id: freeSetId(all), name, order: ++order }; await sets.insertOne(g); all.push(g); made++; }
+    ids.set(h, g._id);
+  }
+  await students.bulkWrite(S.map(s => ({ updateOne: { filter: { _id: s._id }, update: { $set: { set: ids.get(String(s.hall)) } } } })));
+  invalidate('sets', 'stu');
+  res.json({ halls: halls.length, made, moved: S.length });
 });
 
 app.post('/api/admin/split', async (req, res) => {
